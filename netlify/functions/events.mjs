@@ -386,8 +386,22 @@ exports.handler = async function(event) {
       });
     }
 
-    out.sort((a, b) => new Date(a._begin) - new Date(b._begin));
-    const clean = out.slice(0, 40).map(({ _begin, ...item }) => item);
+    // Récupère le contexte vacances scolaires.
+// Si aucune zone n'est en vacances : tableau vide = rien n'est affiché.
+const schoolContext = await getSchoolVacationContext(startDate, endDate);
+
+out.sort((a, b) => new Date(a._begin) - new Date(b._begin));
+
+const cleanEvents = out
+  .slice(0, 40)
+  .map(({ _begin, ...item }) => item);
+
+// Les vacances apparaissent avant les événements.
+// S'il n'y en a pas, le résultat reste strictement identique à avant.
+const clean = [
+  ...schoolContext,
+  ...cleanEvents
+];
 
     // Le HTML actuel attend data.text contenant un tableau JSON en texte.
     return response(200, {
