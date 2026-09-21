@@ -1,131 +1,270 @@
-export default async (req, context) => {
+// Netlify Function: recherche d'evenements OpenAgenda autour de Vannes
+// Compatible avec le HTML actuel: il renvoie { text: "[...]" }
 
-  const headers = {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS"
+const VANNES = { lat: 47.6582, lng: -2.7608 };
+const RADIUS_KM = 15;
+
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Content-Type': 'application/json; charset=utf-8'
+};
+
+function response(statusCode, obj) {
+  return {
+    statusCode,
+    headers: CORS,
+    body: JSON.stringify(obj)
   };
+}
 
-  if (req.method === "OPTIONS") {
-    return new Response("", {
-      status: 200,
-      headers
-    });
+function frDateToIso(d, m, y) {
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function extractDates(body) {
+  if (body.startDate && body.endDate) {
+    return { startDate: body.startDate, endDate: body.endDate };
   }
 
-  if (req.method !== "POST") {
-    return Response.json(
-      { error: "Méthode non autorisée" },
-      { status: 405, headers }
-    );
+  const prompt = body.prompt || '';
+  const match = prompt.match(/du\s+(\d{1,2})\/(\d{1,2})\/(\d{4})\s+au\s+(\d{1,2})\/(\d{1,2})\/(\d{4})/i);
+  if (!match) return null;
+
+  return {
+    startDate: frDateToIso(match[1], match[2], match[3]),
+    endDate: frDateToIso(match[4], match[5], match[6])
+  };
+}
+
+function addDays(isoDate, days) {
+  const d = new Date(`${isoDate}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function asText(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (value.fr) return value.fr;
+  const first = Object.values(value).find(v => typeof v === 'string');
+  return first || '';
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDateTime(begin) {
+  if (!begin) return '';
+  const d = new Date(begin);
+  if (Number.isNaN(d.getTime())) return begin.slice(0, 10);
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(d).replace(',', '');
+}
+
+function impactFor(event, distance) {
+  const title = asText(event.title).toLowerCase();
+  const desc = asText(event.description).toLowerCase();
+  const text = `${title} ${desc}`;
+
+  const strongWords = [
+    'festival', 'concert', 'fête', 'fete', 'régate', 'regate', 'marathon',
+    'semi-marathon', 'salon', 'foire', 'carnaval', 'feu d’artifice',
+    "feu d'artifice", 'tournoi', 'championnat', 'braderie', 'grande braderie'
+  ];
+
+  const mediumWords = [
+    'marché', 'marche', 'spectacle', 'course', 'brocante', 'vide-grenier',
+    'exposition', 'expo', 'animation', 'défilé', 'defile'
+  ];
+
+  const strong = strongWords.some(w => text.includes(w));
+  const medium = mediumWords.some(w => text.includes(w));
+
+  if (distance <= 5 && strong) return 'high';
+  if (distance <= 8 && (strong || medium)) return 'medium';
+  return 'low';
+}
+
+async function oaGet(path, params, apiKey) {
+  const url = new URL(`https://api.openagenda.com${path}`);
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      url.searchParams.append(key, String(value));
+    }
+  });
+  url.searchParams.append('key', apiKey);
+
+  const r = await fetch(url, {
+    headers: { 'Accept': 'application/json' }
+  });
+
+  const raw = await r.text();
+  let data;
+  try { data = JSON.parse(raw); }
+  catch (_) { throw new Error(`OpenAgenda a renvoye une reponse invalide (${r.status})`); }
+
+  if (!r.ok) {
+    const message = data?.message || data?.error || `HTTP ${r.status}`;
+    throw new Error(`OpenAgenda: ${message}`);
   }
+  return data;
+}
+
+async function discoverAgendas(apiKey) {
+  const searches = ['Vannes', 'Morbihan', 'Golfe du Morbihan'];
+  const found = new Map();
+
+  for (const search of searches) {
+    const data = await oaGet('/v2/agendas', {
+      search,
+      size: 40,
+      sort: 'recentlyAddedEvents.desc'
+    }, apiKey);
+
+    for (const agenda of (data.agendas || [])) {
+      if (agenda && agenda.uid) found.set(String(agenda.uid), agenda);
+    }
+  }
+
+  // Limite volontaire pour garder une fonction rapide et eviter trop d'appels.
+  return Array.from(found.values()).slice(0, 25);
+}
+
+async function eventsFromAgenda(agenda, startDate, endDate, apiKey) {
+  // Boite englobante d'environ 15 km autour de Vannes.
+  const latDelta = RADIUS_KM / 111.32;
+  const lngDelta = RADIUS_KM / (111.32 * Math.cos(VANNES.lat * Math.PI / 180));
+
+  // Fenetre volontairement un peu plus large; filtrage exact ensuite.
+  const startWide = `${addDays(startDate, -1)}T21:00:00.000Z`;
+  const endWide = `${addDays(endDate, 1)}T03:00:00.000Z`;
+
+  const data = await oaGet(`/v2/agendas/${agenda.uid}/events`, {
+    'timings[gte]': startWide,
+    'timings[lte]': endWide,
+    'geo[northEast][lat]': VANNES.lat + latDelta,
+    'geo[northEast][lng]': VANNES.lng + lngDelta,
+    'geo[southWest][lat]': VANNES.lat - latDelta,
+    'geo[southWest][lng]': VANNES.lng - lngDelta,
+    detailed: 1,
+    monolingual: 'fr',
+    size: 100,
+    'sort[]': 'timings.asc'
+  }, apiKey);
+
+  return data.events || [];
+}
+
+exports.handler = async function(event) {
+  if (event.httpMethod === 'OPTIONS') return response(200, {});
+  if (event.httpMethod !== 'POST') return response(405, { error: 'Methode non autorisee' });
 
   try {
-
-    const body = await req.json();
-    const prompt = body.prompt || "";
-
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return Response.json(
-        { error: "ANTHROPIC_API_KEY absente dans Netlify" },
-        { status: 500, headers }
-      );
+    const apiKey = process.env.OPENAGENDA_API_KEY;
+    if (!apiKey) {
+      return response(500, { error: 'OPENAGENDA_API_KEY absente dans Netlify' });
     }
 
-    const apiResponse = await fetch(
-      "https://api.anthropic.com/v1/messages",
-      {
-        method: "POST",
+    let body = {};
+    try { body = JSON.parse(event.body || '{}'); }
+    catch (_) { return response(400, { error: 'Corps JSON invalide' }); }
 
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": process.env.ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01"
-        },
-
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-
-          max_tokens: 2000,
-
-          tools: [
-            {
-              type: "web_search_20250305",
-              name: "web_search",
-              max_uses: 5,
-
-              user_location: {
-                type: "approximate",
-                city: "Vannes",
-                region: "Bretagne",
-                country: "FR",
-                timezone: "Europe/Paris"
-              }
-            }
-          ],
-
-          messages: [
-            {
-              role: "user",
-              content: prompt
-            }
-          ]
-        })
-      }
-    );
-
-    const data = await apiResponse.json();
-
-    // IMPORTANT :
-    // on renvoie maintenant la vraie erreur Anthropic.
-    if (!apiResponse.ok) {
-
-      console.error("Erreur Anthropic :", data);
-
-      return Response.json(
-        {
-          error:
-            data?.error?.message ||
-            "Erreur API Anthropic",
-
-          details: data
-        },
-        {
-          status: apiResponse.status,
-          headers
-        }
-      );
+    const dates = extractDates(body);
+    if (!dates) {
+      return response(400, { error: 'Impossible de lire les dates de la semaine' });
     }
 
-    const text = (data.content || [])
-      .filter(block => block.type === "text")
-      .map(block => block.text)
-      .join("");
+    const { startDate, endDate } = dates;
+    const agendas = await discoverAgendas(apiKey);
 
-    return Response.json(
-      {
-        text,
-        usage: data.usage || null
-      },
-      {
-        status: 200,
-        headers
-      }
+    const settled = await Promise.allSettled(
+      agendas.map(a => eventsFromAgenda(a, startDate, endDate, apiKey))
     );
 
-  } catch (error) {
+    const rawEvents = settled
+      .filter(r => r.status === 'fulfilled')
+      .flatMap(r => r.value);
 
-    console.error("Erreur Netlify events :", error);
+    const out = [];
+    const seen = new Set();
 
-    return Response.json(
-      {
-        error: error.message
-      },
-      {
-        status: 500,
-        headers
+    for (const ev of rawEvents) {
+      const loc = ev.location || {};
+      const lat = Number(loc.latitude);
+      const lng = Number(loc.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+
+      const distance = haversineKm(VANNES.lat, VANNES.lng, lat, lng);
+      if (distance > RADIUS_KM) continue;
+
+      const timings = Array.isArray(ev.timings) ? ev.timings : [];
+      const matching = timings.find(t => {
+        if (!t || !t.begin) return false;
+        // L'API OpenAgenda fournit les horaires dans le fuseau local.
+        const localDate = String(t.begin).slice(0, 10);
+        return localDate >= startDate && localDate <= endDate;
+      });
+      if (!matching) continue;
+
+      const name = asText(ev.title) || 'Evenement';
+      const city = loc.adminLevel4 || loc.city || '';
+      const place = loc.name || '';
+      const lieu = [place, city].filter(Boolean).join(' - ');
+      const date = formatDateTime(matching.begin);
+      const impact = impactFor(ev, distance);
+      const key = `${name.toLowerCase()}|${String(matching.begin).slice(0, 16)}|${city.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      let note;
+      if (impact === 'high') note = `${distance.toFixed(1)} km de Vannes - impact potentiellement fort sur le flux`;
+      else if (impact === 'medium') note = `${distance.toFixed(1)} km de Vannes - impact a surveiller`;
+      else note = `${distance.toFixed(1)} km de Vannes`;
+
+      out.push({
+        name,
+        date,
+        lieu,
+        impact,
+        note,
+        url: ev.canonicalUrl || null,
+        _begin: matching.begin
+      });
+    }
+
+    out.sort((a, b) => new Date(a._begin) - new Date(b._begin));
+    const clean = out.slice(0, 40).map(({ _begin, ...item }) => item);
+
+    // Le HTML actuel attend data.text contenant un tableau JSON en texte.
+    return response(200, {
+      text: JSON.stringify(clean),
+      meta: {
+        source: 'OpenAgenda',
+        agendasFound: agendas.length,
+        agendasQueried: settled.length,
+        eventsFound: out.length,
+        radiusKm: RADIUS_KM
       }
-    );
+    });
+
+  } catch (e) {
+    console.error('events function error:', e);
+    return response(500, { error: e.message || 'Erreur inconnue' });
   }
-}
+};
