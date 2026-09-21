@@ -170,7 +170,145 @@ async function eventsFromAgenda(agenda, startDate, endDate, apiKey) {
 
   return data.events || [];
 }
+// ============================================================
+// VACANCES SCOLAIRES — ZONES A / B / C
+// Source officielle : data.education.gouv.fr
+// Si l'API Education échoue, OpenAgenda continue de fonctionner.
+// ============================================================
 
+async function getSchoolVacationContext(startDate, endDate) {
+  try {
+    const zoneRefs = [
+      { zone: 'A', location: 'Lyon' },
+      { zone: 'B', location: 'Rennes' },
+      { zone: 'C', location: 'Paris' }
+    ];
+
+    const API =
+      'https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/records';
+
+    const requests = zoneRefs.map(async ref => {
+      const url = new URL(API);
+
+      // On ne demande que les périodes qui croisent la semaine choisie.
+      url.searchParams.set(
+        'where',
+        `location = "${ref.location}" and start_date <= "${endDate}" and end_date >= "${startDate}"`
+      );
+
+      url.searchParams.set('limit', '50');
+
+      const r = await fetch(url, {
+        headers: { Accept: 'application/json' }
+      });
+
+      if (!r.ok) {
+        throw new Error(
+          `Calendrier scolaire ${ref.zone}: HTTP ${r.status}`
+        );
+      }
+
+      const data = await r.json();
+      const records = Array.isArray(data.results) ? data.results : [];
+
+      // On conserve uniquement les vraies vacances scolaires.
+      const vacations = records.filter(record => {
+        const description = String(record.description || '');
+
+        if (!description.toLowerCase().includes('vacances')) {
+          return false;
+        }
+
+        if (
+          String(record.population || '')
+            .toLowerCase()
+            .includes('enseignant')
+        ) {
+          return false;
+        }
+
+        const start = String(record.start_date || '').slice(0, 10);
+        const end = String(record.end_date || '').slice(0, 10);
+
+        if (!start || !end) return false;
+
+        return start <= endDate && end >= startDate;
+      });
+
+      return vacations.map(v => ({
+        zone: ref.zone,
+        description: v.description || 'Vacances scolaires',
+        start: String(v.start_date || '').slice(0, 10),
+        end: String(v.end_date || '').slice(0, 10)
+      }));
+    });
+
+    const settled = await Promise.allSettled(requests);
+
+    const periods = settled
+      .filter(result => result.status === 'fulfilled')
+      .flatMap(result => result.value);
+
+    if (!periods.length) return [];
+
+    // Regroupe les zones qui sont sur la même période de vacances.
+    const grouped = new Map();
+
+    for (const period of periods) {
+      const key =
+        `${period.description}|${period.start}|${period.end}`;
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          description: period.description,
+          start: period.start,
+          end: period.end,
+          zones: []
+        });
+      }
+
+      const group = grouped.get(key);
+
+      if (!group.zones.includes(period.zone)) {
+        group.zones.push(period.zone);
+      }
+    }
+
+    return Array.from(grouped.values()).map(group => {
+      group.zones.sort();
+
+      const allZones = group.zones.length === 3;
+
+      const zoneLabel = allZones
+        ? 'Toutes zones'
+        : `Zone${group.zones.length > 1 ? 's' : ''} ${group.zones.join(' + ')}`;
+
+      // Le niveau d'impact touristique augmente avec le nombre de zones.
+      const impact =
+        group.zones.length === 3
+          ? 'high'
+          : group.zones.length === 2
+            ? 'medium'
+            : 'low';
+
+      return {
+        type: 'school_holiday',
+        name: `🏖 Vacances scolaires — ${zoneLabel}`,
+        date: 'Semaine concernée',
+        lieu: 'France métropolitaine',
+        impact,
+        note: group.description,
+        url: null
+      };
+    });
+
+  } catch (error) {
+    // IMPORTANT :
+    // une panne du calendrier scolaire ne bloque JAMAIS les événements.
+    console.warn('Calendrier scolaire indisponible:', error.message);
+    return [];
+  }
+}
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return response(200, {});
   if (event.httpMethod !== 'POST') return response(405, { error: 'Methode non autorisee' });
