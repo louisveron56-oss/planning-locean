@@ -360,6 +360,284 @@ async function getPublicHolidayContext(startDate, endDate) {
     console.warn('Jours fériés indisponibles:', error.message);
     return [];
   }
+}// ============================================================
+// TEMPS FORTS — GOLFE DU MORBIHAN
+// Lecture directe de l'agenda public.
+// Si le site est indisponible ou change de structure,
+// OpenAgenda + vacances + jours fériés continuent de fonctionner.
+// ============================================================
+
+const GOLFE_AGENDA_URL =
+  'https://www.golfedumorbihan.bzh/explorer-vannes/activites-vannes/agenda/';
+
+const LOCAL_CITY_PATTERNS = [
+  { city: 'Vannes', re: /\s+VANNES\s*$/i },
+  { city: 'Séné', re: /\s+S[ÉE]N[ÉE]\s*$/i },
+  { city: 'Saint-Avé', re: /\s+(?:ST|SAINT)[ -]?AV[ÉE]\s*$/i },
+  { city: 'Plescop', re: /\s+PLESCOP\s*$/i },
+  { city: 'Ploeren', re: /\s+PLOEREN\s*$/i },
+  { city: 'Arradon', re: /\s+ARRADON\s*$/i },
+  { city: 'Theix-Noyalo', re: /\s+THEIX(?:-NOYALO)?\s*$/i },
+  { city: 'Meucon', re: /\s+MEUCON\s*$/i },
+  { city: 'Saint-Nolff', re: /\s+SAINT[- ]NOLFF\s*$/i },
+  { city: 'Treffléan', re: /\s+TREFFL[ÉE]AN\s*$/i },
+  { city: 'Surzur', re: /\s+SURZUR\s*$/i }
+];
+
+function decodeBasicHtml(str) {
+  return String(str || '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#039;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    .replace(/&rsquo;/gi, '’')
+    .replace(/&eacute;/gi, 'é')
+    .replace(/&Eacute;/gi, 'É')
+    .replace(/&agrave;/gi, 'à')
+    .replace(/&Agrave;/gi, 'À')
+    .replace(/&ecirc;/gi, 'ê')
+    .replace(/&ccedil;/gi, 'ç')
+    .replace(/&#(\d+);/g, (_, n) =>
+      String.fromCharCode(Number(n))
+    )
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) =>
+      String.fromCharCode(parseInt(n, 16))
+    );
+}
+
+function htmlToText(html) {
+  return decodeBasicHtml(
+    String(html || '')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+  )
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function frenchMonthNumber(month) {
+  const clean = String(month || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const months = {
+    janvier: 1,
+    fevrier: 2,
+    mars: 3,
+    avril: 4,
+    mai: 5,
+    juin: 6,
+    juillet: 7,
+    aout: 8,
+    septembre: 9,
+    octobre: 10,
+    novembre: 11,
+    decembre: 12
+  };
+
+  return months[clean] || null;
+}
+
+function frenchTextDateToIso(day, month, year) {
+  const m = frenchMonthNumber(month);
+  if (!m) return null;
+
+  return `${year}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function prettyIsoDate(iso) {
+  const d = new Date(`${iso}T12:00:00Z`);
+
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit'
+  }).format(d);
+}
+
+function parseGolfeHighlight(text, url) {
+  let rest = String(text || '').trim();
+
+  let start = null;
+  let end = null;
+
+  // Exemple :
+  // "Du 26 septembre 2026 au 27 septembre 2026 Marathon de Vannes VANNES"
+  let match = rest.match(
+    /^Du\s+(\d{1,2})\s+([A-Za-zÀ-ÿ]+)\s+(\d{4})\s+au\s+(\d{1,2})\s+([A-Za-zÀ-ÿ]+)\s+(\d{4})\s+(.+)$/i
+  );
+
+  if (match) {
+    start = frenchTextDateToIso(match[1], match[2], match[3]);
+    end = frenchTextDateToIso(match[4], match[5], match[6]);
+    rest = match[7].trim();
+  } else {
+    // Exemple :
+    // "Le 03 octobre 2026 Salon de l'étudiant au Parc Chorus VANNES"
+    match = rest.match(
+      /^Le\s+(\d{1,2})\s+([A-Za-zÀ-ÿ]+)\s+(\d{4})\s+(.+)$/i
+    );
+
+    if (!match) return null;
+
+    start = frenchTextDateToIso(match[1], match[2], match[3]);
+    end = start;
+    rest = match[4].trim();
+  }
+
+  if (!start || !end) return null;
+
+  let city = null;
+
+  for (const entry of LOCAL_CITY_PATTERNS) {
+    if (entry.re.test(rest)) {
+      city = entry.city;
+      rest = rest.replace(entry.re, '').trim();
+      break;
+    }
+  }
+
+  // On ne conserve ici que Vannes et les communes proches.
+  if (!city) return null;
+
+  const date =
+    start === end
+      ? prettyIsoDate(start)
+      : `${prettyIsoDate(start)} → ${prettyIsoDate(end)}`;
+
+  return {
+    name: rest,
+    date,
+    lieu: city,
+    impact: 'high',
+    note: 'Temps fort officiel — Golfe du Morbihan',
+    url,
+    _start: start,
+    _end: end
+  };
+}
+
+async function getGolfeHighlights(startDate, endDate) {
+  try {
+    const r = await fetch(GOLFE_AGENDA_URL, {
+      headers: {
+        Accept: 'text/html',
+        'User-Agent':
+          'Mozilla/5.0 PlanningLOcean/1.0'
+      }
+    });
+
+    if (!r.ok) {
+      throw new Error(`Golfe du Morbihan: HTTP ${r.status}`);
+    }
+
+    const html = await r.text();
+
+    /*
+      On essaie de limiter la lecture à la partie
+      "LES TEMPS FORTS".
+    */
+    let section = html;
+
+    const startMarker = html.search(/LES\s+TEMPS\s+FORTS/i);
+
+    if (startMarker >= 0) {
+      const afterStart = html.slice(startMarker);
+
+      const endMarker = afterStart.search(
+        /ANNONCER\s+VOTRE\s+[ÉE]V[ÉE]NEMENT/i
+      );
+
+      section =
+        endMarker > 0
+          ? afterStart.slice(0, endMarker)
+          : afterStart;
+    }
+
+    const events = [];
+    const seenUrls = new Set();
+
+    const anchorRegex =
+      /<a\b[^>]*href=["']([^"']*\/evenement\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+
+    let match;
+
+    while ((match = anchorRegex.exec(section)) !== null) {
+      const href = match[1];
+      const text = htmlToText(match[2]);
+
+      if (!text || !/\b202\d\b/.test(text)) continue;
+
+      const absoluteUrl = new URL(
+        href,
+        GOLFE_AGENDA_URL
+      ).href;
+
+      if (seenUrls.has(absoluteUrl)) continue;
+      seenUrls.add(absoluteUrl);
+
+      const parsed = parseGolfeHighlight(
+        text,
+        absoluteUrl
+      );
+
+      if (!parsed) continue;
+
+      // L'événement doit croiser la semaine sélectionnée.
+      if (
+        parsed._end < startDate ||
+        parsed._start > endDate
+      ) {
+        continue;
+      }
+
+      events.push(parsed);
+    }
+
+    return events;
+
+  } catch (error) {
+    // Une panne de cette source ne bloque jamais le reste.
+    console.warn(
+      'Golfe du Morbihan indisponible:',
+      error.message
+    );
+
+    return [];
+  }
+}
+
+function normalizeEventName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function mergeLocalEvents(primary, secondary) {
+  const seen = new Set();
+  const result = [];
+
+  // primary en premier :
+  // Golfe du Morbihan est prioritaire sur OpenAgenda.
+  for (const item of [...primary, ...secondary]) {
+    const key = normalizeEventName(item.name);
+
+    if (!key || seen.has(key)) continue;
+
+    seen.add(key);
+
+    const { _start, _end, ...cleanItem } = item;
+    result.push(cleanItem);
+  }
+
+  return result;
 }
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return response(200, {});
@@ -442,18 +720,26 @@ exports.handler = async function(event) {
 // Si aucune zone n'est en vacances : tableau vide = rien n'est affiché.
 const schoolContext = await getSchoolVacationContext(startDate, endDate);
 const holidayContext = await getPublicHolidayContext(startDate, endDate);
+const golfeHighlights = await getGolfeHighlights(startDate, endDate);
 out.sort((a, b) => new Date(a._begin) - new Date(b._begin));
 
 const cleanEvents = out
   .slice(0, 40)
   .map(({ _begin, ...item }) => item);
 
-// Les vacances apparaissent avant les événements.
-// S'il n'y en a pas, le résultat reste strictement identique à avant.
+// Les Temps forts du Golfe sont prioritaires.
+// Si le même événement existe dans OpenAgenda,
+// il ne sera affiché qu'une seule fois.
+const mergedEvents = mergeLocalEvents(
+  golfeHighlights,
+  cleanEvents
+);
+
 const clean = [
   ...holidayContext,
   ...schoolContext,
-  ...cleanEvents
+  ...mergedEvents
+];
 ];
 
     // Le HTML actuel attend data.text contenant un tableau JSON en texte.
