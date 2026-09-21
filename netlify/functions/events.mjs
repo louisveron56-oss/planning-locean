@@ -309,6 +309,58 @@ async function getSchoolVacationContext(startDate, endDate) {
     return [];
   }
 }
+// ============================================================
+// JOURS FERIES — FRANCE METROPOLITAINE
+// Source officielle : calendrier.api.gouv.fr
+// Si l'API est indisponible, le reste continue de fonctionner.
+// ============================================================
+
+async function getPublicHolidayContext(startDate, endDate) {
+  try {
+    const r = await fetch(
+      'https://calendrier.api.gouv.fr/jours-feries/metropole.json',
+      {
+        headers: { Accept: 'application/json' }
+      }
+    );
+
+    if (!r.ok) {
+      throw new Error(`Jours fériés: HTTP ${r.status}`);
+    }
+
+    const holidays = await r.json();
+    const out = [];
+
+    for (const [date, name] of Object.entries(holidays)) {
+      if (date < startDate || date > endDate) continue;
+
+      const d = new Date(`${date}T12:00:00Z`);
+
+      const formattedDate = new Intl.DateTimeFormat('fr-FR', {
+        timeZone: 'Europe/Paris',
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long'
+      }).format(d);
+
+      out.push({
+        type: 'public_holiday',
+        name: `🇫🇷 ${name} — jour férié`,
+        date: formattedDate,
+        lieu: 'France',
+        impact: 'high',
+        note: 'Jour férié national',
+        url: null
+      });
+    }
+
+    return out;
+
+  } catch (error) {
+    console.warn('Jours fériés indisponibles:', error.message);
+    return [];
+  }
+}
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return response(200, {});
   if (event.httpMethod !== 'POST') return response(405, { error: 'Methode non autorisee' });
@@ -389,7 +441,7 @@ exports.handler = async function(event) {
     // Récupère le contexte vacances scolaires.
 // Si aucune zone n'est en vacances : tableau vide = rien n'est affiché.
 const schoolContext = await getSchoolVacationContext(startDate, endDate);
-
+const holidayContext = await getPublicHolidayContext(startDate, endDate);
 out.sort((a, b) => new Date(a._begin) - new Date(b._begin));
 
 const cleanEvents = out
@@ -399,6 +451,7 @@ const cleanEvents = out
 // Les vacances apparaissent avant les événements.
 // S'il n'y en a pas, le résultat reste strictement identique à avant.
 const clean = [
+  ...holidayContext,
   ...schoolContext,
   ...cleanEvents
 ];
