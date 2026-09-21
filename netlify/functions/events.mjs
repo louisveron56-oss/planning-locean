@@ -249,7 +249,21 @@ exports.handler = async function(event) {
     }
 
     out.sort((a, b) => new Date(a._begin) - new Date(b._begin));
-    const clean = out.slice(0, 40).map(({ _begin, ...item }) => item);
+
+const cleanEvents = out
+  .slice(0, 40)
+  .map(({ _begin, ...item }) => item);
+
+const mergedEvents = mergeLocalEvents(
+  golfeHighlights,
+  cleanEvents
+);
+
+const clean = [
+  ...holidayContext,
+  ...schoolContext,
+  ...mergedEvents
+];
 
     // Le HTML actuel attend data.text contenant un tableau JSON en texte.
     return response(200, {
