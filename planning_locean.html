@@ -139,7 +139,7 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
   .vv{color:#5B21B6;font-size:7px;font-style:italic}.arv{color:#991B1B;font-size:7px}
   .hpv{color:#9CA3AF;font-style:italic;font-size:7px;letter-spacing:.02em}.p1t tr.hpr td{background:#f8f8f6!important;color:#aaa!important}
   .p1t td.status-name{background:#F5FAFF!important}
-  .p1t td.merged-status{background:#EAF4FF!important;color:#28577F!important;font-weight:700;font-size:8px;letter-spacing:.08em;text-transform:uppercase;border-left:1px solid #CFE3F5;border-right:1px solid #CFE3F5}
+  .p1t td.merged-status{background:#EAF4FF!important;color:#28577F!important;font-weight:700;font-size:8px;letter-spacing:.08em;text-transform:uppercase;border-left:1px solid #CFE3F5;border-right:1px solid #CFE3F5;text-align:center!important;vertical-align:middle!important}
   .escv{color:#065F46}.spv{background:#fef9ee;color:#c4933a;border-radius:6px;padding:1px 4px;font-size:7px}
   .fr td{background:#1a2744;color:rgba(255,255,255,.7);font-size:7px;padding:3px 5px;text-align:center;border:none}
   .fr td.fl{text-align:left;padding-left:8px;color:rgba(255,255,255,.4);font-size:7px}
@@ -902,24 +902,18 @@ function buildPrintDoc(){
     }
     tr.innerHTML=cells;tbody.appendChild(tr);
   });
-  ['Midi (12&ndash;15h)','Soir (21h+)'].forEach(function(lbl,fi){
+  [
+    {label:'Midi (12&ndash;15h)',type:'midi'},
+    {label:'Apr&egrave;s-midi (15&ndash;18h)',type:'apm'},
+    {label:'Soir (21h+)',type:'soir'}
+  ].forEach(function(item){
     var fr=document.createElement('tr');fr.className='fr';
-    var cells='<td class="fl">'+lbl+'</td>';
+    var cells='<td class="fl">'+item.label+'</td>';
     DAYS.forEach(function(_,di){
       var count=0;
-      EMPS.forEach(function(emp,ei){
-        if(emp.hidden)return;
-        var dd=DATA[ei][di];if(!dd||dd.x||!dd.shifts)return;
-        var present=false;
-        dd.shifts.forEach(function(sh){
-          if(present||!sh.s||!sh.e||sh.s==='—'||sh.e==='—')return;
-          var sm=toMinN(sh.s),em=toMinN(sh.e);
-          if(em<=sm)em+=1440;
-          if(fi===0&&sm<15*60&&em>12*60)present=true;
-          if(fi===1&&sm<21*60&&em>=21*60)present=true;
-        });
-        if(present)count++;
-      });
+      if(item.type==='midi')count=cntMidi(di);
+      else if(item.type==='apm')count=minCovApm(di);
+      else count=cntSoir(di);
       cells+='<td>'+(count>0?'<span class="fc">'+count+' pers.</span>':'')+'</td>';
     });
     fr.innerHTML=cells;tbody.appendChild(fr);
@@ -1063,7 +1057,7 @@ function loadFromStorage(){
 }
 function hardReset(){if(confirm('Réinitialiser le planning aux données par défaut ?')){localStorage.removeItem(STORAGE_KEY);location.reload();}}
 
-/* ÉVÉNEMENTS — découplés de la météo (v5.9) */
+/* ÉVÉNEMENTS — découplés de la météo (v5.10) */
 function searchEvents(){
   var btn=document.getElementById('evtBtn');
   var body=document.getElementById('evtBody');
