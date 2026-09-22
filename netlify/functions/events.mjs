@@ -363,13 +363,17 @@ async function getPublicHolidayContext(startDate, endDate) {
 }
 
 // ============================================================
-// AGENDA OFFICIEL — VILLE DE VANNES
-// Source complémentaire locale pour les événements à fort impact.
-// Aucun compte ni clé supplémentaire.
-// En cas d'échec, OpenAgenda + vacances + jours fériés continuent.
+// SOURCES LOCALES — VILLE DE VANNES + RC VANNES
+// - Agenda officiel de la Ville : événements à potentiel de flux
+// - Billetterie officielle RC Vannes : matchs TOP 14 à domicile
+// - Aucun compte ni clé supplémentaire
+// - Si une source tombe, les autres continuent de fonctionner
 // ============================================================
 
-const VANNES_AGENDA_SOURCES = [
+const VANNES_AGENDA_BASE =
+  'https://www.mairie-vannes.fr/agenda?field_accessible_value=All&field_date_de_fin_evenement_value=&field_date_de_fin_evenement_value_1=&field_gratuit_value=All&field_public_concerne_target_id=All&field_thematique_target_id=All';
+
+const VANNES_AGENDA_TARGETED = [
   {
     category: 'Sport',
     url: 'https://www.mairie-vannes.fr/agenda?field_accessible_value=All&field_date_de_fin_evenement_value=&field_date_de_fin_evenement_value_1=&field_gratuit_value=All&field_public_concerne_target_id=All&field_thematique_target_id=25'
@@ -379,6 +383,8 @@ const VANNES_AGENDA_SOURCES = [
     url: 'https://www.mairie-vannes.fr/agenda?field_accessible_value=All&field_date_de_fin_evenement_value=&field_date_de_fin_evenement_value_1=&field_gratuit_value=All&field_public_concerne_target_id=All&field_thematique_target_id=35'
   }
 ];
+
+const RCV_TICKETING_URL = 'https://billetterie.rcvannes.bzh/fr';
 
 function decodeHtmlBasic(str) {
   return String(str || '')
@@ -471,8 +477,6 @@ function extractDatesFromEventBlock(blockHtml, selectedStartDate) {
 
   if (!matches.length) return null;
 
-  // Dans une carte d'événement, les dernières dates avant/près du titre
-  // correspondent généralement à la date ou à la plage de l'événement.
   const last = matches[matches.length - 1];
   const prev = matches.length >= 2 ? matches[matches.length - 2] : null;
 
@@ -484,8 +488,6 @@ function extractDatesFromEventBlock(blockHtml, selectedStartDate) {
   if (prev) {
     const candidate = isoFromShortFrenchDate(prev[1], prev[2], selectedYear);
     if (candidate) {
-      // On ne considère le précédent match comme début de plage
-      // que s'il reste raisonnablement proche de la fin.
       const days = Math.abs(
         (new Date(`${end}T12:00:00Z`) - new Date(`${candidate}T12:00:00Z`)) / 86400000
       );
@@ -493,7 +495,6 @@ function extractDatesFromEventBlock(blockHtml, selectedStartDate) {
     }
   }
 
-  // Gestion simple d'une plage décembre -> janvier.
   if (start > end) {
     const endYear = selectedYear + 1;
     end = isoFromShortFrenchDate(last[1], last[2], endYear) || end;
@@ -502,21 +503,39 @@ function extractDatesFromEventBlock(blockHtml, selectedStartDate) {
   return { start, end };
 }
 
-function localImpactFromText(name, category) {
-  const text = `${name} ${category}`.toLowerCase();
+function extractDisplayTime(text) {
+  const matches = [...String(text || '').matchAll(/\b(\d{1,2})\s*h(?:\s*([0-5]\d))?\b/gi)]
+    .map(m => {
+      const h = String(Number(m[1]));
+      const min = m[2] ? String(m[2]).padStart(2, '0') : '';
+      return min && min !== '00' ? `${h}h${min}` : `${h}h`;
+    });
+
+  const unique = [...new Set(matches)];
+
+  if (!unique.length) return '';
+  if (unique.length >= 2) return `${unique[0]}–${unique[1]}`;
+  return unique[0];
+}
+
+function localImpactFromText(name, category, extraText = '') {
+  const text = `${name} ${category} ${extraText}`.toLowerCase();
 
   const strong = [
     'marathon', 'vannetaise', 'festival', 'salon', 'foire',
     'concert', 'régate', 'regate', 'braderie', 'carnaval',
     'fête', 'fete', 'feu d’artifice', "feu d'artifice",
     'rugby', 'gwened', 'relais entreprises', '20 km', '5 km',
-    'défilé', 'defile'
+    'défilé', 'defile', 'ultra marin', 'arvor', 'sekai', 'sekaï',
+    'marché de noël', 'marche de noel', 'village de noël', 'village de noel',
+    'grande roue', 'illuminations de noël', 'illuminations de noel',
+    'noël à vannes', 'noel à vannes', 'noel a vannes'
   ];
 
   const medium = [
     'spectacle', 'marché', 'marche', 'brocante',
     'vide-grenier', 'course', 'tournoi', 'championnat',
-    'animation'
+    'animation', 'open air', 'show', 'gala'
   ];
 
   if (strong.some(w => text.includes(w))) return 'high';
@@ -524,17 +543,19 @@ function localImpactFromText(name, category) {
   return 'low';
 }
 
-function isLocallyRelevant(name, category) {
-  const impact = localImpactFromText(name, category);
+function isLocallyRelevant(name, category, blockText = '') {
+  const impact = localImpactFromText(name, category, blockText);
 
-  // Pour "Fêtes, festivals, salons", on garde tout :
-  // ce sont généralement les événements les plus susceptibles
-  // de générer du flux. Pour le sport, on filtre les petits événements.
+  // Les grosses familles événementielles restent prioritaires.
   if (/fêtes|festivals|salons/i.test(category)) return true;
+
+  // Pour l'agenda général, on ne garde que ce qui a un potentiel
+  // réel de fréquentation : concert, marché, sport majeur, spectacle,
+  // Noël, festival, salon, brocante, etc.
   return impact !== 'low';
 }
 
-function prettyLocalEventDate(start, end) {
+function prettyLocalEventDate(start, end, time = '') {
   function fmt(iso) {
     const d = new Date(`${iso}T12:00:00Z`);
     return new Intl.DateTimeFormat('fr-FR', {
@@ -545,7 +566,8 @@ function prettyLocalEventDate(start, end) {
     }).format(d);
   }
 
-  return start === end ? fmt(start) : `${fmt(start)} → ${fmt(end)}`;
+  const base = start === end ? fmt(start) : `${fmt(start)} → ${fmt(end)}`;
+  return time ? `${base} · ${time}` : base;
 }
 
 function normalizeEventKey(name) {
@@ -557,65 +579,128 @@ function normalizeEventKey(name) {
     .trim();
 }
 
+function titleFromAgendaLink(anchorHtml, href) {
+  const heading = String(anchorHtml || '').match(
+    /<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/i
+  );
+  if (heading) {
+    const txt = htmlToPlainText(heading[1]);
+    if (txt) return txt;
+  }
+
+  const titled = String(anchorHtml || '').match(
+    /<(?:div|span|p)\b[^>]*class=["'][^"']*(?:title|titre)[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|span|p)>/i
+  );
+  if (titled) {
+    const txt = htmlToPlainText(titled[1]);
+    if (txt) return txt;
+  }
+
+  try {
+    const slug = new URL(href, 'https://www.mairie-vannes.fr')
+      .pathname
+      .split('/')
+      .filter(Boolean)
+      .pop()
+      .replace(/-\d+$/, '');
+
+    return decodeURIComponent(slug)
+      .replace(/-/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
+  } catch (_) {
+    return htmlToPlainText(anchorHtml).slice(0, 120);
+  }
+}
+
+async function fetchVannesAgendaPage(url, category, startDate, endDate) {
+  try {
+    const r = await fetch(url, {
+      headers: {
+        Accept: 'text/html',
+        'User-Agent': 'Mozilla/5.0 PlanningLOcean/1.0'
+      }
+    });
+
+    if (!r.ok) {
+      console.warn(`Agenda Ville de Vannes ${category}: HTTP ${r.status}`);
+      return [];
+    }
+
+    const html = await r.text();
+    const results = [];
+    const linkRegex = /<a\b[^>]*href=["']([^"']*\/agenda\/[^"'?#]+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+    let match;
+
+    while ((match = linkRegex.exec(html)) !== null) {
+      const href = match[1];
+      const blockStart = findEventBlockStart(html, match.index);
+      const blockEnd = Math.min(html.length, linkRegex.lastIndex + 1200);
+      const block = html.slice(blockStart, blockEnd);
+      const blockText = htmlToPlainText(block);
+
+      const name = titleFromAgendaLink(match[2], href);
+
+      if (!name || name.length < 3 || name.length > 140) continue;
+      if (/agenda|en savoir plus|lire la suite|voir plus/i.test(name)) continue;
+      if (!isLocallyRelevant(name, category, blockText)) continue;
+
+      const dates = extractDatesFromEventBlock(block, startDate);
+      if (!dates) continue;
+      if (dates.end < startDate || dates.start > endDate) continue;
+
+      const time = extractDisplayTime(blockText);
+      const impact = localImpactFromText(name, category, blockText);
+
+      results.push({
+        name,
+        date: prettyLocalEventDate(dates.start, dates.end, time),
+        lieu: 'Vannes',
+        impact,
+        note: null,
+        url: new URL(href, 'https://www.mairie-vannes.fr').href,
+        _sourceStart: dates.start
+      });
+    }
+
+    return results;
+  } catch (error) {
+    console.warn(`Agenda Ville de Vannes ${category} indisponible:`, error.message);
+    return [];
+  }
+}
+
 async function getVilleVannesEvents(startDate, endDate) {
   try {
-    const results = [];
+    // Pages générales : on balaye plusieurs pages pour attraper
+    // concerts, spectacles, marchés, événements saisonniers et Noël.
+    const generalPages = Array.from({ length: 7 }, (_, page) => ({
+      category: 'Tous les événements',
+      url: `${VANNES_AGENDA_BASE}&page=${page}`
+    }));
+
+    const requests = [
+      ...VANNES_AGENDA_TARGETED,
+      ...generalPages
+    ];
+
+    const settled = await Promise.allSettled(
+      requests.map(source =>
+        fetchVannesAgendaPage(source.url, source.category, startDate, endDate)
+      )
+    );
+
+    const raw = settled
+      .filter(r => r.status === 'fulfilled')
+      .flatMap(r => r.value);
+
     const seen = new Set();
+    const results = [];
 
-    for (const source of VANNES_AGENDA_SOURCES) {
-      const r = await fetch(source.url, {
-        headers: {
-          Accept: 'text/html',
-          'User-Agent': 'Mozilla/5.0 PlanningLOcean/1.0'
-        }
-      });
-
-      if (!r.ok) {
-        console.warn(`Agenda Ville de Vannes ${source.category}: HTTP ${r.status}`);
-        continue;
-      }
-
-      const html = await r.text();
-
-      // Les fiches événements de la Ville utilisent des URL /agenda/<slug>.
-      const linkRegex = /<a\b[^>]*href=["']([^"']*\/agenda\/[^"'?#]+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-      let match;
-
-      while ((match = linkRegex.exec(html)) !== null) {
-        const href = match[1];
-        const name = htmlToPlainText(match[2]);
-
-        if (!name || name.length < 3 || name.length > 180) continue;
-        if (/agenda|en savoir plus|lire la suite|voir plus/i.test(name)) continue;
-        if (!isLocallyRelevant(name, source.category)) continue;
-
-        const blockStart = findEventBlockStart(html, match.index);
-        const blockEnd = Math.min(html.length, linkRegex.lastIndex + 1000);
-        const block = html.slice(blockStart, blockEnd);
-
-        const dates = extractDatesFromEventBlock(block, startDate);
-        if (!dates) continue;
-
-        if (dates.end < startDate || dates.start > endDate) continue;
-
-        const url = new URL(href, 'https://www.mairie-vannes.fr').href;
-        const key = `${normalizeEventKey(name)}|${dates.start}`;
-
-        if (seen.has(key)) continue;
-        seen.add(key);
-
-        const impact = localImpactFromText(name, source.category);
-
-        results.push({
-          name,
-          date: prettyLocalEventDate(dates.start, dates.end),
-          lieu: 'Vannes',
-          impact,
-          note: `Agenda officiel Ville de Vannes — ${source.category}`,
-          url,
-          _sourceStart: dates.start
-        });
-      }
+    for (const item of raw) {
+      const key = `${normalizeEventKey(item.name)}|${item._sourceStart}`;
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      results.push(item);
     }
 
     results.sort((a, b) => a._sourceStart.localeCompare(b._sourceStart));
@@ -628,11 +713,97 @@ async function getVilleVannesEvents(startDate, endDate) {
   }
 }
 
-function mergeEventSources(primary, secondary) {
+// ============================================================
+// RC VANNES — MATCHS TOP 14 À DOMICILE
+// Source : billetterie officielle du RC Vannes.
+// Affichage volontairement court : adversaire + date/heure + Rabine.
+// ============================================================
+
+function prettyRcvOpponent(raw) {
+  return String(raw || '')
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map(word => {
+      if (['asm', 'lou', 'usap', 'rc', 'racing'].includes(word)) {
+        return word.toUpperCase();
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+}
+
+async function getRcvTop14Events(startDate, endDate) {
+  try {
+    const r = await fetch(RCV_TICKETING_URL, {
+      headers: {
+        Accept: 'text/html',
+        'User-Agent': 'Mozilla/5.0 PlanningLOcean/1.0'
+      }
+    });
+
+    if (!r.ok) {
+      throw new Error(`HTTP ${r.status}`);
+    }
+
+    const html = await r.text();
+    const text = htmlToPlainText(html);
+
+    const top14Start = text.search(/\bTOP 14\b/i);
+    const top14End = text.search(/\bREICHEL ESPOIRS ELITE\b/i);
+
+    const section = top14Start >= 0
+      ? text.slice(top14Start, top14End > top14Start ? top14End : undefined)
+      : text;
+
+    const re = /RC VANNES\s*\/\s*([A-ZÀ-Ÿ0-9 .'\-]+?)\s+(?:Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\s+(\d{1,2})\s+(janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)\s+(\d{4})\s*-\s*(\d{1,2}):([0-5]\d)\s+STADE DE LA RABINE/gi;
+
+    const results = [];
+    const seen = new Set();
+    let match;
+
+    while ((match = re.exec(section)) !== null) {
+      const opponentRaw = match[1].trim();
+      const day = match[2];
+      const month = match[3];
+      const year = match[4];
+      const hour = String(Number(match[5]));
+      const minute = match[6];
+
+      const iso = isoFromShortFrenchDate(day, month, year);
+      if (!iso) continue;
+      if (iso < startDate || iso > endDate) continue;
+
+      const opponent = prettyRcvOpponent(opponentRaw);
+      const key = `${iso}|${normalizeEventKey(opponent)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const displayTime = minute === '00' ? `${hour}h` : `${hour}h${minute}`;
+
+      results.push({
+        name: `RC Vannes – ${opponent}`,
+        date: prettyLocalEventDate(iso, iso, displayTime),
+        lieu: 'Stade de la Rabine',
+        impact: 'high',
+        note: null,
+        url: RCV_TICKETING_URL
+      });
+    }
+
+    return results;
+
+  } catch (error) {
+    console.warn('RC Vannes TOP 14 indisponible:', error.message);
+    return [];
+  }
+}
+
+function mergeEventSources(...sources) {
   const result = [];
   const seen = new Set();
 
-  for (const item of [...primary, ...secondary]) {
+  for (const item of sources.flat()) {
     const key = normalizeEventKey(item.name);
     if (!key || seen.has(key)) continue;
 
@@ -720,30 +891,34 @@ exports.handler = async function(event) {
       });
     }
 
-    // Récupère le contexte vacances scolaires.
-// Si aucune zone n'est en vacances : tableau vide = rien n'est affiché.
-const schoolContext = await getSchoolVacationContext(startDate, endDate);
-const holidayContext = await getPublicHolidayContext(startDate, endDate);
-const villeVannesEvents = await getVilleVannesEvents(startDate, endDate);
+    // Contextes et sources locales, tous fail-safe.
+    const schoolContext = await getSchoolVacationContext(startDate, endDate);
+    const holidayContext = await getPublicHolidayContext(startDate, endDate);
 
-out.sort((a, b) => new Date(a._begin) - new Date(b._begin));
+    const [villeVannesEvents, rcvTop14Events] = await Promise.all([
+      getVilleVannesEvents(startDate, endDate),
+      getRcvTop14Events(startDate, endDate)
+    ]);
 
-const cleanEvents = out
-  .slice(0, 40)
-  .map(({ _begin, ...item }) => item);
+    out.sort((a, b) => new Date(a._begin) - new Date(b._begin));
 
-// La Ville de Vannes est prioritaire sur OpenAgenda.
-// En cas de doublon, l'événement local officiel n'apparaît qu'une fois.
-const mergedEvents = mergeEventSources(
-  villeVannesEvents,
-  cleanEvents
-);
+    const cleanEvents = out
+      .slice(0, 40)
+      .map(({ _begin, ...item }) => item);
 
-const clean = [
-  ...holidayContext,
-  ...schoolContext,
-  ...mergedEvents
-];
+    // Priorité aux sources locales officielles, puis OpenAgenda.
+    // Les doublons sont supprimés par nom normalisé.
+    const mergedEvents = mergeEventSources(
+      rcvTop14Events,
+      villeVannesEvents,
+      cleanEvents
+    );
+
+    const clean = [
+      ...holidayContext,
+      ...schoolContext,
+      ...mergedEvents
+    ];
 
     // Le HTML actuel attend data.text contenant un tableau JSON en texte.
     return response(200, {
@@ -754,6 +929,7 @@ const clean = [
         agendasQueried: settled.length,
         eventsFound: out.length,
         villeVannesFound: villeVannesEvents.length,
+        rcvTop14Found: rcvTop14Events.length,
         radiusKm: RADIUS_KM
       }
     });
