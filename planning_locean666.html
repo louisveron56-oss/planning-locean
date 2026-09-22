@@ -35,6 +35,7 @@ table{width:100%;border-collapse:collapse}
 .th-day.we{background:#FFFBF0}
 .th-day-name{font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;display:block}
 .th-day-date{font-size:9px;color:var(--g400);display:block;margin-top:1px}
+.th-day-weather{font-size:9px;font-weight:600;color:var(--navy);display:inline-block;margin-left:4px;white-space:nowrap;text-transform:none;letter-spacing:0}
 .th-tot{width:64px;min-width:64px;padding:6px;text-align:center;font-size:9px;font-weight:600;color:var(--g400);text-transform:uppercase;letter-spacing:.07em;border-left:.5px solid var(--g200);background:var(--g100);border-bottom:.5px solid var(--g200)}
 .th-ccn{width:110px;min-width:110px;padding:6px;text-align:center;font-size:9px;font-weight:600;color:var(--red-800);text-transform:uppercase;letter-spacing:.07em;border-left:.5px solid var(--g200);background:#FFF5F5;border-bottom:.5px solid var(--g200)}
 .emp-row td{border-bottom:.5px solid var(--g200)}
@@ -89,7 +90,8 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
 .modal-close{background:none;border:none;cursor:pointer;color:var(--g400);font-size:18px;padding:2px 6px;border-radius:4px}
 .modal-close:hover{background:var(--g100)}
 .modal-body{padding:18px}
-.emp-edit-row{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:.5px solid var(--g200);border-radius:var(--r);margin-bottom:10px}
+.emp-edit-row{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:.5px solid var(--g200);border-radius:var(--r);margin-bottom:10px;transition:opacity .2s}
+.emp-edit-row.hidden-emp{opacity:.4}
 .emp-edit-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700}
 .field-inp{font-family:'Inter',sans-serif;font-size:12px;border:.5px solid var(--g200);border-radius:5px;padding:4px 8px;background:var(--g100);color:var(--g900);width:100%}
 .field-inp:focus{outline:none;border-color:var(--navy);background:white}
@@ -101,6 +103,9 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
 .repos-toggle-day input{width:15px;height:15px;cursor:pointer;accent-color:var(--navy)}
 .del-emp{font-family:'Inter',sans-serif;font-size:10px;color:var(--g400);background:none;border:none;cursor:pointer}
 .del-emp:hover{color:var(--red-800)}
+.vis-btn{font-family:'Inter',sans-serif;font-size:13px;background:none;border:none;cursor:pointer;padding:0 2px;opacity:.5;transition:opacity .15s;line-height:1}
+.vis-btn:hover{opacity:1}
+.vis-btn.active{opacity:1}
 .evt-card{background:white;border-radius:var(--rl);border:.5px solid var(--g200);overflow:hidden;margin-top:1rem}
 .evt-hdr{background:var(--navy);padding:9px 14px;display:flex;justify-content:space-between;align-items:center}
 .evt-hdr-title{color:white;font-size:12px;font-weight:500}
@@ -137,7 +142,6 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
   .fr td{background:#1a2744;color:rgba(255,255,255,.7);font-size:7px;padding:3px 5px;text-align:center;border:none}
   .fr td.fl{text-align:left;padding-left:8px;color:rgba(255,255,255,.4);font-size:7px}
   .fc{background:rgba(255,255,255,.15);border-radius:6px;padding:1px 5px;font-weight:700;color:white;font-size:7px}
-
   .p1-evt{margin-top:6mm;border-top:1px solid #ddd;padding-top:4mm}
   .p1-evt-title{font-size:9px;font-weight:700;color:#1a2744;text-transform:uppercase;letter-spacing:.07em;margin-bottom:3mm}
   .p1-evt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3mm}
@@ -145,12 +149,8 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
   .p1-evt-ico{flex-shrink:0;font-size:10px}
   .p1-evt-name{font-weight:600;color:#1a2744}
   .p1-evt-meta{color:#888;font-size:7px}
-  .p1-evt-none{font-size:8px;color:#aaa;font-style:italic}
-
   .p1f{background:#f5f4f1;padding:4px 12px;display:flex;justify-content:space-between;font-size:7px;color:#aaa;border-top:.5px solid #ccc}
 }
-
-
 </style>
 </head>
 <body>
@@ -236,6 +236,7 @@ var DAYS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
 var DAYS_FULL=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 var IS_WE=[false,false,false,false,false,true,true];
 var STATUSES=['Absent','Vacances','CFA','Arrêt maladie','Congé','Formation','Repos','Escale'];
+var WEATHER_BY_DATE={};
 
 var PRESETS=[
   {l:'07h > 16h',s:'07:00',e:'16:00'},
@@ -260,7 +261,6 @@ var PRESETS=[
   {l:'18h > 01h',s:'18:00',e:'01:00'},
 ];
 
-
 function onMaster(ei,di,val){
   if(val==='__x__'){DATA[ei][di]={shifts:null,x:true,status:''};redrawCell(ei,di);return;}
   if(val.indexOf('ST_')===0){
@@ -279,27 +279,7 @@ function onMaster(ei,di,val){
   }
 }
 
-function applyPreset(ei,di,val){
-  if(val===''){return;}
-  if(val==='COUP1'){
-    DATA[ei][di]={shifts:[{s:'11:00',e:'15:00'},{s:'18:00',e:'01:00'}],x:false,status:'Coupure'};
-    redrawCell(ei,di);return;
-  }
-  if(val==='COUP2'){
-    DATA[ei][di]={shifts:[{s:'10:00',e:'15:00'},{s:'18:00',e:'01:00'}],x:false,status:'Coupure'};
-    redrawCell(ei,di);return;
-  }
-  for(var i=0;i<PRESETS.length;i++){
-    if(PRESETS[i].l===val){
-      DATA[ei][di]={shifts:[{s:PRESETS[i].s,e:PRESETS[i].e}],x:false,status:''};
-      redrawCell(ei,di);return;
-    }
-  }
-}
-
 var COUPURE_SHIFTS=[{s:'11:00',e:'15:00'},{s:'18:00',e:'01:00'}];
-
-
 
 var PALETTES=[
   {bg:'#E6F1FB',fg:'#0C447C'},{bg:'#EAF3DE',fg:'#3B6D11'},{bg:'#FAEEDA',fg:'#633806'},
@@ -406,25 +386,23 @@ function renderCell(ei,di){
     else if(d.status==='Escale')html+='<span class="slot-escale">⚓ Escale</span>';
     else html+='<span class="slot-special">'+d.status+'</span>';
   } else if(d.x){
-    html+='<select class="status-sel compact" onchange="onStatusChange('+ei+','+di+',this.value)">';
+    html+='<select class="status-sel compact" onchange="onMaster('+ei+','+di+',this.value)">';
     html+='<option value="__x__" selected>— Absent</option>';
-    STATUSES.forEach(function(st){html+='<option value="ST_"+st+"">'+st+'</option>';});
+    STATUSES.forEach(function(st){html+='<option value="ST_'+st+'">'+st+'</option>';});
     html+='<option disabled>---------</option>';
     for(var pii=0;pii<PRESETS.length;pii++){html+='<option value="'+PRESETS[pii].l+'">'+PRESETS[pii].l+'</option>';}
     html+='<option value="COUP1">Coupure 11h-15h / 18h-01h</option>';
     html+='<option value="COUP2">Coupure 10h-15h / 18h-01h</option>';
     html+='<option value="FREE">Horaire libre...</option>';
-    STATUSES.forEach(function(st){html+='<option value="'+st+'">'+st+'</option>';});
     html+='</select>';
+    html+='<span class="slot-special" style="background:#F0F4F8;color:#6B6863;font-style:normal">RH</span>';
   } else {
     var shifts=d.shifts||[];
-    // Detect current preset
     var curLbl='FREE';
     if(shifts.length===2&&shifts[0].s==='11:00'&&shifts[0].e==='15:00')curLbl='COUP1';
     else if(shifts.length===2&&shifts[0].s==='10:00'&&shifts[0].e==='15:00')curLbl='COUP2';
     else if(shifts.length===1){for(var pi=0;pi<PRESETS.length;pi++){if(PRESETS[pi].s===shifts[0].s&&PRESETS[pi].e===shifts[0].e){curLbl=PRESETS[pi].l;break;}}}
     var tot=calcDayH(shifts);
-    // Single select for everything
     html+='<select class="status-sel" onchange="onMaster('+ei+','+di+',this.value)">';
     html+='<option value="__x__">— Absent</option>';
     STATUSES.forEach(function(st){html+='<option value="ST_'+st+'">'+st+'</option>';});
@@ -434,7 +412,6 @@ function renderCell(ei,di){
     html+='<option value="COUP2" '+(curLbl==="COUP2"?"selected":"")+'>Coupure 10h-15h / 18h-01h</option>';
     html+='<option value="FREE" '+(curLbl==="FREE"?"selected":"")+'>Horaire libre...</option>';
     html+='</select>';
-    // Show badge or free inputs
     if(curLbl==="COUP1"){
       html+='<span class="slot-coupure">11h-15h / 18h-01h</span>';
     } else if(curLbl==="COUP2"){
@@ -442,7 +419,6 @@ function renderCell(ei,di){
     } else if(curLbl!=="FREE"){
       html+='<span class="hb '+(we?'we':'sem')+'">'+curLbl+'</span>';
     } else {
-      // Free mode — show hour selectors
       html+='<div class="sel-wrap">';
       shifts.forEach(function(sh,si){html+=renderShiftRow(ei,di,si,sh,we,shifts.length);});
       html+='<button class="add-shift" onclick="addShift('+ei+','+di+')">+ tranche</button>';
@@ -461,7 +437,7 @@ function buildHeader(){
   DAYS.forEach(function(day,di){
     var th=document.createElement('th');
     th.className='th-day'+(IS_WE[di]?' we':'');
-    th.innerHTML='<span class="th-day-name">'+day+'</span><span class="th-day-date" id="dd'+di+'"></span>';
+    th.innerHTML='<span class="th-day-name">'+day+'<span class="th-day-weather" id="dw'+di+'"></span></span><span class="th-day-date" id="dd'+di+'"></span>';
     tr.appendChild(th);
   });
   var th1=document.createElement('th');th1.className='th-tot';th1.textContent='Total';tr.appendChild(th1);
@@ -471,6 +447,7 @@ function buildHeader(){
 function buildBody(){
   var tb=document.getElementById('tbody');tb.innerHTML='';
   EMPS.forEach(function(emp,ei){
+    if(emp.hidden)return; // MASQUÉ — on saute
     var col=getColor(ei);
     var tr=document.createElement('tr');tr.className='emp-row';
     var td0=document.createElement('td');td0.className='td-emp';
@@ -488,7 +465,6 @@ function buildBody(){
     tb.appendChild(tr);
   });
 
-  // Footer rows
   var FLABELS=['Midi (12–15h)','Ap.-midi (15–18h)','Soir (21h+)','H. total'];
   var FIDS=['fmidi','fapm','fsoir','ftoth'];
   FLABELS.forEach(function(lbl,fi){
@@ -610,12 +586,13 @@ function chkWeek(ei){
 
 function toMinN(s){if(!s||s==='—')return null;var p=s.split(':').map(Number);return p[0]*60+p[1];}
 function presentAt(sh,t){var sm=toMinN(sh.s),em=toMinN(sh.e);if(sm===null)return false;if(em===null)return sm<=t;if(em<=sm)em+=1440;return sm<=t&&em>=t;}
-function minCovApm(di){var slots=[15*60,15*60+30,16*60,16*60+30,17*60,17*60+30,18*60],mn=999;slots.forEach(function(t){var c=0;EMPS.forEach(function(_,ei){var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;d.shifts.forEach(function(sh){if(presentAt(sh,t))c++;});});if(c<mn)mn=c;});return mn===999?0:mn;}
-function cntMidi(di){var c=0;EMPS.forEach(function(_,ei){var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<15*60&&em>12*60)f=true;}});if(f)c++;});return c;}
-function cntSoir(di){var c=0;EMPS.forEach(function(_,ei){var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<21*60&&em>=21*60)f=true;}});if(f)c++;});return c;}
-function totHDay(di){var t=0;EMPS.forEach(function(_,ei){var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;t+=calcDayH(d.shifts);});return t;}
+function minCovApm(di){var slots=[15*60,15*60+30,16*60,16*60+30,17*60,17*60+30,18*60],mn=999;slots.forEach(function(t){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;d.shifts.forEach(function(sh){if(presentAt(sh,t))c++;});});if(c<mn)mn=c;});return mn===999?0:mn;}
+function cntMidi(di){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<15*60&&em>12*60)f=true;}});if(f)c++;});return c;}
+function cntSoir(di){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<21*60&&em>=21*60)f=true;}});if(f)c++;});return c;}
+function totHDay(di){var t=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;t+=calcDayH(d.shifts);});return t;}
 
 function updateRowTotal(ei){
+  if(EMPS[ei]&&EMPS[ei].hidden)return;
   var wk=chkWeek(ei);
   var emp=EMPS[ei];
   var diff=emp.contract?parseFloat((wk.tot-emp.contract).toFixed(1)):null;
@@ -627,7 +604,6 @@ function updateRowTotal(ei){
     if(!wk.alerts.length)ccncell.innerHTML='<span style="font-size:9px;color:#059669">✓ OK</span>';
     else ccncell.innerHTML=wk.alerts.map(function(a){return '<div class="alert-badge '+(a.t==='e'?'alert-e':'alert-w')+'">⚠ '+a.m+'</div>';}).join('');
   }
-  // Day alerts
   DAYS.forEach(function(_,di){
     var da=chkDay(ei,di);
     var existing=document.getElementById('dayalert'+ei+'_'+di);
@@ -655,11 +631,68 @@ function updateFooter(){
 
 function updateAllTotals(){EMPS.forEach(function(_,ei){updateRowTotal(ei);});updateFooter();}
 
+function isoLocal(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function weatherIcon(code){
+  code=Number(code);
+  if(code===0)return '☀️';
+  if(code===1||code===2)return '🌤️';
+  if(code===3)return '☁️';
+  if(code===45||code===48)return '🌫️';
+  if(code>=51&&code<=67)return '🌧️';
+  if(code>=71&&code<=77)return '🌨️';
+  if(code>=80&&code<=82)return '🌦️';
+  if(code>=85&&code<=86)return '🌨️';
+  if(code>=95)return '⛈️';
+  return '🌤️';
+}
+function renderWeatherHeaders(mon){
+  DAYS.forEach(function(_,di){
+    var d=new Date(mon);d.setDate(d.getDate()+di);
+    var w=WEATHER_BY_DATE[isoLocal(d)];
+    var el=document.getElementById('dw'+di);
+    if(!el)return;
+    if(!w){el.textContent='';return;}
+    var txt=' '+weatherIcon(w.code);
+    if(Number.isFinite(w.max))txt+=' '+Math.round(w.max)+'°';
+    if(Number.isFinite(w.rainProb)&&w.rainProb>=40)txt+=' · '+Math.round(w.rainProb)+'%';
+    el.textContent=txt;
+  });
+}
+function loadWeatherCache(weekDate){
+  WEATHER_BY_DATE={};
+  try{
+    var raw=localStorage.getItem('locean_weather_'+weekDate);
+    if(raw)WEATHER_BY_DATE=JSON.parse(raw)||{};
+  }catch(e){}
+  renderWeatherHeaders(new Date(weekDate));
+}
+function fetchWeatherForWeek(weekDate){
+  loadWeatherCache(weekDate);
+  var mon=new Date(weekDate);
+  var sun=new Date(mon);sun.setDate(sun.getDate()+6);
+  var start=isoLocal(mon),end=isoLocal(sun);
+  var url='https://api.open-meteo.com/v1/forecast?latitude=47.6582&longitude=-2.7608&timezone=Europe%2FParis&forecast_days=16&daily=weather_code,temperature_2m_max,precipitation_probability_max';
+  fetch(url).then(function(r){if(!r.ok)throw new Error('Météo HTTP '+r.status);return r.json();}).then(function(data){
+    var daily=data.daily||{},times=daily.time||[],fresh={};
+    times.forEach(function(iso,i){
+      if(iso<start||iso>end)return;
+      fresh[iso]={
+        code:Number(daily.weather_code&&daily.weather_code[i]),
+        max:Number(daily.temperature_2m_max&&daily.temperature_2m_max[i]),
+        rainProb:Number(daily.precipitation_probability_max&&daily.precipitation_probability_max[i])
+      };
+    });
+    WEATHER_BY_DATE=fresh;
+    try{localStorage.setItem('locean_weather_'+weekDate,JSON.stringify(fresh));}catch(e){}
+    renderWeatherHeaders(mon);
+  }).catch(function(){renderWeatherHeaders(mon);});
+}
 function setDates(mon){
   DAYS.forEach(function(_,di){var d=new Date(mon);d.setDate(d.getDate()+di);var el=document.getElementById('dd'+di);if(el)el.textContent=d.getDate()+'/'+(d.getMonth()+1);});
   var sun=new Date(mon);sun.setDate(sun.getDate()+6);
   function fmt(d){return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear().toString().slice(2);}
   var el=document.getElementById('weekRange');if(el)el.textContent=fmt(mon)+' — '+fmt(sun);
+  renderWeatherHeaders(mon);
 }
 
 function getWeekNum(d){var date=new Date(d);date.setHours(0,0,0,0);date.setDate(date.getDate()+3-(date.getDay()+6)%7);var w1=new Date(date.getFullYear(),0,4);return 1+Math.round(((date-w1)/86400000-3+(w1.getDay()+6)%7)/7);}
@@ -669,15 +702,22 @@ function buildPrintDoc(){
   var mon=new Date(document.getElementById('weekDate').value);
   var sun=new Date(mon);sun.setDate(sun.getDate()+6);
   function fmtFull(d){return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear();}
-  document.getElementById('ph-info-p1').innerHTML='S.'+getWeekNum(mon)+'&nbsp;&middot;&nbsp;Semaine du '+fmtFull(mon)+' au '+fmtFull(sun)+'<br>Planning hebdomadaire &mdash; '+EMPS.length+' employ&eacute;&middot;es';
+  var visibleCount=0;EMPS.forEach(function(e){if(!e.hidden)visibleCount++;});
+  document.getElementById('ph-info-p1').innerHTML='S.'+getWeekNum(mon)+'&nbsp;&middot;&nbsp;Semaine du '+fmtFull(mon)+' au '+fmtFull(sun)+'<br>Planning hebdomadaire &mdash; '+visibleCount+' employ&eacute;&middot;es';
   document.getElementById('pf-date-p1').textContent='Edit&eacute; le '+fmtFull(new Date());
   var thead=document.getElementById('p1-thead');thead.innerHTML='';
   var htr=document.createElement('tr');
   var hh='<th class="eh">Employ&eacute;&middot;e</th>';
-  DAYS.forEach(function(d,di){var dt=new Date(mon);dt.setDate(dt.getDate()+di);hh+='<th class="'+(IS_WE[di]?'wh':'')+'">'+(IS_WE[di]?'<span style="color:#b8860b">':'')+d+' '+dt.getDate()+'/'+(dt.getMonth()+1)+(IS_WE[di]?'</span>':'')+'</th>';});
+  DAYS.forEach(function(d,di){
+    var dt=new Date(mon);dt.setDate(dt.getDate()+di);
+    var w=WEATHER_BY_DATE[isoLocal(dt)];
+    var wx=w?(' '+weatherIcon(w.code)+(Number.isFinite(w.max)?' '+Math.round(w.max)+'°':'')) : '';
+    hh+='<th class="'+(IS_WE[di]?'wh':'')+'">'+(IS_WE[di]?'<span style="color:#b8860b">':'')+d+' '+dt.getDate()+'/'+(dt.getMonth()+1)+wx+(IS_WE[di]?'</span>':'')+'</th>';
+  });
   htr.innerHTML=hh;thead.appendChild(htr);
   var tbody=document.getElementById('p1-tbody');tbody.innerHTML='';
   EMPS.forEach(function(emp,ei){
+    if(emp.hidden)return; // MASQUÉ — pas dans le PDF
     var tr=document.createElement('tr');
     var cells='<td class="en">'+emp.name+'</td>';
     DAYS.forEach(function(_,di){
@@ -692,7 +732,7 @@ function buildPrintDoc(){
       } else if(dd.x){
         inner='<span class="av">&mdash;</span>';
       } else if(dd.shifts){
-        var parts=dd.shifts.filter(function(s){return s.s&&s.s!=='&mdash;'&&s.s!=='—';}).map(function(s){var st=s.s.replace(':00','h').replace(':30','h30');var en=s.e&&s.e!=='—'?s.e.replace(':00','h').replace(':30','h30'):'';return st+(en?'&ndash;'+en:'');});
+        var parts=dd.shifts.filter(function(s){return s.s&&s.s!=='—';}).map(function(s){var st=s.s.replace(':00','h').replace(':30','h30');var en=s.e&&s.e!=='—'?s.e.replace(':00','h').replace(':30','h30'):'';return st+(en?'&ndash;'+en:'');});
         if(parts.length===2)inner='<span class="cv">Coupure</span>';
         else if(parts.length===1)inner='<span class="sv">'+parts[0]+'</span>';
         else inner='<span class="av">&mdash;</span>';
@@ -706,7 +746,8 @@ function buildPrintDoc(){
     var cells='<td class="fl">'+lbl+'</td>';
     DAYS.forEach(function(_,di){
       var count=0;
-      EMPS.forEach(function(_,ei){
+      EMPS.forEach(function(emp,ei){
+        if(emp.hidden)return;
         var dd=DATA[ei][di];if(!dd||dd.x)return;if(dd.status&&dd.status!=='Coupure')return;
         if(dd.shifts)dd.shifts.forEach(function(sh){if(fi===0&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<15*60&&em>12*60)count++;}if(fi===1&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm2=toMinN(sh.s),em2=toMinN(sh.e);if(em2<=sm2)em2+=1440;if(sm2<21*60&&em2>=21*60)count++;}});
       });
@@ -715,9 +756,9 @@ function buildPrintDoc(){
     fr.innerHTML=cells;tbody.appendChild(fr);
   });
 }
+
 function doPrint(){
   buildPrintDoc();
-  // Inject events into print doc
   var evtBody=document.getElementById('evtBody');
   var evtSection=document.getElementById('p1-evt-section');
   var evtGrid=document.getElementById('p1-evt-grid');
@@ -754,10 +795,13 @@ function openRH(){
   EMPS.forEach(function(emp,ei){
     var col=getColor(ei);
     var reposDays=[];DAYS.forEach(function(_,di){if(DATA[ei]&&DATA[ei][di]&&DATA[ei][di].x)reposDays.push(di);});
-    html+='<div class="emp-edit-row" id="emprow'+ei+'"><div style="display:grid;grid-template-columns:28px 1fr 80px 60px auto;gap:8px;align-items:center;width:100%">';
+    var isHidden=!!emp.hidden;
+    html+='<div class="emp-edit-row'+(isHidden?' hidden-emp':'')+'" id="emprow'+ei+'">';
+    html+='<div style="display:grid;grid-template-columns:28px 1fr 80px auto auto auto auto;gap:8px;align-items:center;width:100%">';
     html+='<div class="emp-edit-av" style="background:'+col.bg+';color:'+col.fg+'">'+emp.name.slice(0,2).toUpperCase()+'</div>';
     html+='<input class="field-inp" id="rh_name_'+ei+'" value="'+emp.name+'">';
     html+='<input class="field-inp" type="number" id="rh_contract_'+ei+'" value="'+(emp.contract||'')+'" placeholder="h/sem">';
+    html+='<button class="vis-btn'+(isHidden?'':' active')+'" id="vis_btn_'+ei+'" onclick="toggleHidden('+ei+')" title="'+(isHidden?'Afficher':'Masquer')+'">'+(isHidden?'🙈':'👁')+'</button>';
     html+='<button class="del-emp" onclick="moveEmp('+ei+',-1)" title="Monter" style="font-size:13px">&#8679;</button>';
     html+='<button class="del-emp" onclick="moveEmp('+ei+',1)" title="Descendre" style="font-size:13px">&#8681;</button>';
     html+='<button class="del-emp" onclick="delEmp('+ei+')" title="Supprimer">✕</button></div>';
@@ -769,6 +813,23 @@ function openRH(){
   document.getElementById('rhBody').innerHTML=html;
   document.getElementById('rhModal').classList.add('open');
 }
+
+function toggleHidden(ei){
+  EMPS[ei].hidden=!EMPS[ei].hidden;
+  var row=document.getElementById('emprow'+ei);
+  var btn=document.getElementById('vis_btn_'+ei);
+  if(EMPS[ei].hidden){
+    if(row)row.classList.add('hidden-emp');
+    if(btn){btn.textContent='🙈';btn.classList.remove('active');btn.title='Afficher';}
+  } else {
+    if(row)row.classList.remove('hidden-emp');
+    if(btn){btn.textContent='👁';btn.classList.add('active');btn.title='Masquer';}
+  }
+  saveToStorage();
+  buildBody();
+  setDates(new Date(document.getElementById('weekDate').value));
+}
+
 function closeRH(){document.getElementById('rhModal').classList.remove('open');}
 function delEmp(ei){var r=document.getElementById('emprow'+ei);if(r)r.style.opacity='.3';document.getElementById('rh_name_'+ei).value='__DEL__';}
 
@@ -786,7 +847,6 @@ function saveRH(){
   var toRemove=[];
   EMPS.forEach(function(emp,ei){
     var n=document.getElementById('rh_name_'+ei),c=document.getElementById('rh_contract_'+ei);
-    var r=null;
     if(n&&n.value==='__DEL__'){toRemove.push(ei);return;}
     if(n)emp.name=n.value.trim()||emp.name;if(c)emp.contract=parseFloat(c.value)||0;
     DAYS.forEach(function(_,di){var cb=document.getElementById('rh_repos_'+ei+'_'+di);if(!cb)return;if(!DATA[ei])DATA[ei]={};if(!DATA[ei][di])DATA[ei][di]={shifts:null,x:false,status:''};DATA[ei][di].x=cb.checked;if(cb.checked){DATA[ei][di].shifts=null;DATA[ei][di].status='';}});
@@ -799,6 +859,7 @@ function saveRH(){
 function exportCSV(){
   var rows=[['Employé·e','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche']];
   EMPS.forEach(function(emp,ei){
+    if(emp.hidden)return;
     var row=[emp.name];
     DAYS.forEach(function(_,di){
       var dd=DATA[ei][di];
@@ -814,18 +875,17 @@ function exportCSV(){
   var a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='planning_locean.csv';a.click();
 }
 
-
 /* LOCALSTORAGE */
 var STORAGE_KEY='locean_v16';
 function saveToStorage(){
-  try{localStorage.setItem(STORAGE_KEY,JSON.stringify({data:DATA,emps:EMPS.map(function(e){return{name:e.name,contract:e.contract||0,role:e.role||''};}),weekDate:document.getElementById('weekDate').value}));}catch(e){}
+  try{localStorage.setItem(STORAGE_KEY,JSON.stringify({data:DATA,emps:EMPS.map(function(e){return{name:e.name,contract:e.contract||0,role:e.role||'',hidden:!!e.hidden};}),weekDate:document.getElementById('weekDate').value}));}catch(e){}
 }
 function loadFromStorage(){
   try{
     var raw=localStorage.getItem(STORAGE_KEY);if(!raw)return false;
     var p=JSON.parse(raw);
     if(!p.data||Object.keys(p.data).length!==EMPS.length){localStorage.removeItem(STORAGE_KEY);return false;}
-    if(p.emps)p.emps.forEach(function(e,ei){if(EMPS[ei]){EMPS[ei].name=e.name;EMPS[ei].contract=e.contract;EMPS[ei].role=e.role||'';}});
+    if(p.emps)p.emps.forEach(function(e,ei){if(EMPS[ei]){EMPS[ei].name=e.name;EMPS[ei].contract=e.contract;EMPS[ei].role=e.role||'';EMPS[ei].hidden=!!e.hidden;}});
     if(p.data)Object.keys(p.data).forEach(function(ei){DATA[ei]=p.data[ei];});
     if(p.weekDate)document.getElementById('weekDate').value=p.weekDate;
     return true;
@@ -856,6 +916,10 @@ function searchEvents(){
     var s=txt.indexOf('['),e=txt.lastIndexOf(']');
     var evts=[];
     try{if(s>=0&&e>=0)evts=JSON.parse(txt.slice(s,e+1));}catch(ex){}
+    // La météo est affichée directement dans l'en-tête de chaque jour.
+    // On masque donc l'ancienne carte météo hebdomadaire éventuelle.
+    evts=(evts||[]).filter(function(ev){return ev&&ev.type!=='weather_context';});
+    fetchWeatherForWeek(wkDate);
     if(!evts||!evts.length){
       body.innerHTML='<div class="evt-empty">Aucun evenement trouve pour cette semaine.</div>';
     } else {
@@ -890,8 +954,6 @@ function loadEvents(weekDate){
   }catch(e){}
 }
 
-
-
 /* INIT */
 var mon=new Date('2026-09-14');
 document.getElementById('weekDate').value=mon.toISOString().slice(0,10);
@@ -899,6 +961,7 @@ document.getElementById('weekDate').addEventListener('change',function(){
   setDates(new Date(this.value));
   saveToStorage();
   loadEvents(this.value);
+  fetchWeatherForWeek(this.value);
 });
 initData();
 buildHeader();
@@ -906,6 +969,7 @@ var restored=loadFromStorage();
 if(restored){buildBody();setDates(new Date(document.getElementById('weekDate').value));}
 else{buildBody();setDates(mon);}
 loadEvents(document.getElementById('weekDate').value);
+fetchWeatherForWeek(document.getElementById('weekDate').value);
 </script>
 </body>
 </html>
