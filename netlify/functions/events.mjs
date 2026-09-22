@@ -386,6 +386,13 @@ const VANNES_AGENDA_TARGETED = [
 
 const RCV_TICKETING_URL = 'https://billetterie.rcvannes.bzh/fr';
 
+const VANNETAISE_URL =
+  'https://mairie-vannes.fr/index.php/agenda/la-vannetaise';
+
+const MARATHON_VANNES_FAQ_URL =
+  'https://marathon-vannes.com/faq/';
+
+
 function decodeHtmlBasic(str) {
   return String(str || '')
     .replace(/&nbsp;/gi, ' ')
@@ -518,41 +525,84 @@ function extractDisplayTime(text) {
   return unique[0];
 }
 
+function normalizeLooseText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 function localImpactFromText(name, category, extraText = '') {
-  const text = `${name} ${category} ${extraText}`.toLowerCase();
+  // V5 : le niveau d'impact est d'abord décidé par le TITRE.
+  // Le texte HTML autour ne sert plus à transformer par erreur
+  // un petit atelier en "fort impact".
+  const title = normalizeLooseText(name);
+  const context = normalizeLooseText(`${category} ${extraText}`);
 
-  const strong = [
-    'marathon', 'vannetaise', 'festival', 'salon', 'foire',
-    'concert', 'régate', 'regate', 'braderie', 'carnaval',
-    'fête', 'fete', 'feu d’artifice', "feu d'artifice",
-    'rugby', 'gwened', 'relais entreprises', '20 km', '5 km',
-    'défilé', 'defile', 'ultra marin', 'arvor', 'sekai', 'sekaï',
-    'marché de noël', 'marche de noel', 'village de noël', 'village de noel',
-    'grande roue', 'illuminations de noël', 'illuminations de noel',
-    'noël à vannes', 'noel à vannes', 'noel a vannes'
+  const strongTitleTerms = [
+    'marathon', 'vannetaise', 'ultra marin',
+    'festival', 'salon', 'foire', 'braderie',
+    'regate', 'carnaval', "feu d'artifice",
+    'fete de la musique', 'arvor', 'sekai',
+    'marche de noel', 'village de noel',
+    'noel a vannes', 'grande roue',
+    'illuminations de noel',
+    'tour de france', 'gala de boxe'
   ];
 
-  const medium = [
-    'spectacle', 'marché', 'marche', 'brocante',
-    'vide-grenier', 'course', 'tournoi', 'championnat',
-    'animation', 'open air', 'show', 'gala'
+  if (strongTitleTerms.some(w => title.includes(w))) return 'high';
+
+  const mediumTitleTerms = [
+    'concert', 'spectacle', 'open air',
+    'brocante', 'vide-grenier', 'parade', 'defile'
   ];
 
-  if (strong.some(w => text.includes(w))) return 'high';
-  if (medium.some(w => text.includes(w))) return 'medium';
+  const majorVenueTerms = [
+    'chorus', 'palais des arts', 'esplanade simone veil',
+    'esplanade simone-veil', 'port de vannes',
+    'jardin des remparts', 'remparts', 'rabine'
+  ];
+
+  if (
+    mediumTitleTerms.some(w => title.includes(w)) &&
+    majorVenueTerms.some(w => context.includes(w))
+  ) {
+    return 'medium';
+  }
+
   return 'low';
 }
 
 function isLocallyRelevant(name, category, blockText = '') {
-  const impact = localImpactFromText(name, category, blockText);
+  return localImpactFromText(name, category, blockText) !== 'low';
+}
 
-  // Les grosses familles événementielles restent prioritaires.
-  if (/fêtes|festivals|salons/i.test(category)) return true;
+function isMarathonFamilyName(name) {
+  const t = normalizeLooseText(name);
+  return [
+    'petits coureurs du golfe',
+    'gwened nocturne',
+    '5 km matmut',
+    '5km matmut',
+    'relais entreprises',
+    '20 km de vannes',
+    'marathon de vannes'
+  ].some(w => t.includes(w));
+}
 
-  // Pour l'agenda général, on ne garde que ce qui a un potentiel
-  // réel de fréquentation : concert, marché, sport majeur, spectacle,
-  // Noël, festival, salon, brocante, etc.
-  return impact !== 'low';
+function isVannetaiseFamilyName(name) {
+  return normalizeLooseText(name).includes('vannetaise');
+}
+
+function isNoelFamilyName(name) {
+  const t = normalizeLooseText(name);
+  return [
+    'marche de noel',
+    'village de noel',
+    'grande roue',
+    'noel a vannes',
+    'illuminations de noel'
+  ].some(w => t.includes(w));
 }
 
 function prettyLocalEventDate(start, end, time = '') {
@@ -711,6 +761,193 @@ async function getVilleVannesEvents(startDate, endDate) {
     console.warn('Agenda Ville de Vannes indisponible:', error.message);
     return [];
   }
+}
+
+
+// ============================================================
+// EVENEMENTS MAITRES — regroupement des gros temps forts
+// Une seule carte par événement, au lieu d'une carte par sous-épreuve.
+// ============================================================
+
+function shortFrenchDayDate(iso) {
+  const d = new Date(`${iso}T12:00:00Z`);
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit'
+  }).format(d);
+}
+
+function firstTimeInSegment(text, dayName, nextDayName) {
+  const full = String(text || '');
+  const start = full.search(new RegExp(`\\b${dayName}\\b`, 'i'));
+  if (start < 0) return '';
+
+  let end = full.length;
+  if (nextDayName) {
+    const rest = full.slice(start + dayName.length);
+    const next = rest.search(new RegExp(`\\b${nextDayName}\\b`, 'i'));
+    if (next >= 0) end = start + dayName.length + next;
+  }
+
+  const segment = full.slice(start, end);
+  const m = segment.match(/\b(\d{1,2})\s*h(?:\s*([0-5]\d))?\b/i);
+  if (!m) return '';
+
+  const h = String(Number(m[1]));
+  const min = m[2] ? String(m[2]).padStart(2, '0') : '';
+  return min && min !== '00' ? `${h}h${min}` : `${h}h`;
+}
+
+async function getVannetaiseMasterEvent(startDate, endDate) {
+  try {
+    const r = await fetch(VANNETAISE_URL, {
+      headers: {
+        Accept: 'text/html',
+        'User-Agent': 'Mozilla/5.0 PlanningLOcean/1.0'
+      }
+    });
+
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+    const html = await r.text();
+    const plain = htmlToPlainText(html);
+    const selectedYear = Number(String(startDate).slice(0, 4));
+
+    let start = null;
+    let end = null;
+
+    const triple = plain.match(
+      /\b(?:les\s+)?(\d{1,2})\s*,\s*(\d{1,2})\s*(?:&|et)\s*(\d{1,2})\s+(janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)\b/i
+    );
+
+    if (triple) {
+      start = isoFromShortFrenchDate(triple[1], triple[4], selectedYear);
+      end = isoFromShortFrenchDate(triple[3], triple[4], selectedYear);
+    }
+
+    if (!start || !end) {
+      const dates = extractDatesFromEventBlock(html, startDate);
+      if (dates) {
+        start = dates.start;
+        end = dates.end;
+      }
+    }
+
+    if (!start || !end) return [];
+    if (end < startDate || start > endDate) return [];
+
+    const fri = firstTimeInSegment(plain, 'Vendredi', 'Samedi');
+    const sat = firstTimeInSegment(plain, 'Samedi', 'Dimanche');
+    const sun = firstTimeInSegment(plain, 'Dimanche', null);
+
+    const schedule = [
+      fri ? `Ven. ${fri}` : null,
+      sat ? `Sam. ${sat}` : null,
+      sun ? `Dim. ${sun}` : null
+    ].filter(Boolean).join(' · ');
+
+    return [{
+      name: 'La Vannetaise',
+      date: `${shortFrenchDayDate(start)} → ${shortFrenchDayDate(end)}${schedule ? ` · ${schedule}` : ''}`,
+      lieu: 'Esplanade Simone-Veil',
+      impact: 'high',
+      note: null,
+      url: VANNETAISE_URL
+    }];
+
+  } catch (error) {
+    console.warn('La Vannetaise indisponible:', error.message);
+    return [];
+  }
+}
+
+function timeFromText(text, patterns, fallback = '') {
+  for (const pattern of patterns) {
+    const m = String(text || '').match(pattern);
+    if (!m) continue;
+
+    const h = String(Number(m[1]));
+    const min = m[2] ? String(m[2]).padStart(2, '0') : '';
+    return min && min !== '00' ? `${h}h${min}` : `${h}h`;
+  }
+  return fallback;
+}
+
+async function getMarathonMasterEvent(startDate, endDate) {
+  try {
+    const r = await fetch(MARATHON_VANNES_FAQ_URL, {
+      headers: {
+        Accept: 'text/html',
+        'User-Agent': 'Mozilla/5.0 PlanningLOcean/1.0'
+      }
+    });
+
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+    const html = await r.text();
+    const plain = htmlToPlainText(html);
+
+    const satMatch = plain.match(
+      /\bSamedi\s+(\d{1,2})\s+(janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)\s+(\d{4})/i
+    );
+
+    const sunMatch = plain.match(
+      /\bDimanche\s+(\d{1,2})\s+(janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)\s+(\d{4})/i
+    );
+
+    if (!satMatch || !sunMatch) return [];
+
+    const sat = isoFromShortFrenchDate(satMatch[1], satMatch[2], satMatch[3]);
+    const sun = isoFromShortFrenchDate(sunMatch[1], sunMatch[2], sunMatch[3]);
+
+    if (!sat || !sun) return [];
+    if (sun < startDate || sat > endDate) return [];
+
+    const fiveKm = timeFromText(plain, [
+      /(?:5\s*Km|5KM)[\s\S]{0,120}?(?:départ\s+à\s+)?(\d{1,2})h([0-5]\d)/i,
+      /(?:départ\s+à\s+)(\d{1,2})h([0-5]\d)[\s\S]{0,80}?(?:5\s*Km|5KM)/i
+    ]);
+
+    const gwened = timeFromText(plain, [
+      /Gwened\s+Nocturne[\s\S]{0,120}?(?:départ\s+à\s+)?(\d{1,2})h([0-5]\d)/i,
+      /(?:départ\s+à\s+)(\d{1,2})h([0-5]\d)[\s\S]{0,100}?Gwened\s+Nocturne/i
+    ]);
+
+    const marathon = timeFromText(plain, [
+      /Marathon\s+de\s+Vannes[\s\S]{0,120}?(?:départ\s+à\s+)?(\d{1,2})h([0-5]\d)/i,
+      /(?:départ\s+à\s+)(\d{1,2})h([0-5]\d)[\s\S]{0,100}?Marathon\s+de\s+Vannes/i
+    ]);
+
+    const satParts = [
+      fiveKm ? `5 km ${fiveKm}` : '5 km',
+      gwened ? `Gwened ${gwened}` : 'Gwened nocturne'
+    ];
+
+    const sundayLabel = marathon ? `Marathon ${marathon}` : 'Marathon';
+
+    return [{
+      name: 'Week-end Marathon de Vannes',
+      date: `Sam. ${shortFrenchDayDate(sat).replace(/^sam\.\s*/i, '')} soir — ${satParts.join(' / ')} · Dim. ${shortFrenchDayDate(sun).replace(/^dim\.\s*/i, '')} — ${sundayLabel}`,
+      lieu: 'Vannes · Chorus / Remparts',
+      impact: 'high',
+      note: null,
+      url: MARATHON_VANNES_FAQ_URL
+    }];
+
+  } catch (error) {
+    console.warn('Marathon de Vannes indisponible:', error.message);
+    return [];
+  }
+}
+
+function filterFamilyDuplicates(items, options = {}) {
+  return (items || []).filter(item => {
+    if (options.marathon && isMarathonFamilyName(item.name)) return false;
+    if (options.vannetaise && isVannetaiseFamilyName(item.name)) return false;
+    return true;
+  });
 }
 
 // ============================================================
@@ -895,22 +1132,46 @@ exports.handler = async function(event) {
     const schoolContext = await getSchoolVacationContext(startDate, endDate);
     const holidayContext = await getPublicHolidayContext(startDate, endDate);
 
-    const [villeVannesEvents, rcvTop14Events] = await Promise.all([
+    const [
+      villeVannesEvents,
+      rcvTop14Events,
+      marathonMasterEvents,
+      vannetaiseMasterEvents
+    ] = await Promise.all([
       getVilleVannesEvents(startDate, endDate),
-      getRcvTop14Events(startDate, endDate)
+      getRcvTop14Events(startDate, endDate),
+      getMarathonMasterEvent(startDate, endDate),
+      getVannetaiseMasterEvent(startDate, endDate)
     ]);
 
     out.sort((a, b) => new Date(a._begin) - new Date(b._begin));
 
-    const cleanEvents = out
+    const cleanEventsRaw = out
+      .filter(item => item.impact !== 'low')
       .slice(0, 40)
       .map(({ _begin, ...item }) => item);
 
-    // Priorité aux sources locales officielles, puis OpenAgenda.
-    // Les doublons sont supprimés par nom normalisé.
-    const mergedEvents = mergeEventSources(
-      rcvTop14Events,
+    const familyFlags = {
+      marathon: marathonMasterEvents.length > 0,
+      vannetaise: vannetaiseMasterEvents.length > 0
+    };
+
+    const villeVannesFiltered = filterFamilyDuplicates(
       villeVannesEvents,
+      familyFlags
+    );
+
+    const cleanEvents = filterFamilyDuplicates(
+      cleanEventsRaw,
+      familyFlags
+    );
+
+    // Une grosse manifestation = une seule carte.
+    const mergedEvents = mergeEventSources(
+      marathonMasterEvents,
+      vannetaiseMasterEvents,
+      rcvTop14Events,
+      villeVannesFiltered,
       cleanEvents
     );
 
@@ -930,6 +1191,8 @@ exports.handler = async function(event) {
         eventsFound: out.length,
         villeVannesFound: villeVannesEvents.length,
         rcvTop14Found: rcvTop14Events.length,
+        marathonMasterFound: marathonMasterEvents.length,
+        vannetaiseMasterFound: vannetaiseMasterEvents.length,
         radiusKm: RADIUS_KM
       }
     });
