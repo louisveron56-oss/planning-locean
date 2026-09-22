@@ -137,6 +137,7 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
   .p1t td.wd{background:#fffbf0}
   .sv{color:#1a2744;font-weight:500}.av{color:#ccc}.cv{color:#633806;font-weight:500}
   .vv{color:#5B21B6;font-size:7px;font-style:italic}.arv{color:#991B1B;font-size:7px}
+  .hpv{color:#9CA3AF;font-style:italic;font-size:7px;letter-spacing:.02em}.p1t tr.hpr td{background:#f8f8f6!important;color:#aaa!important}
   .escv{color:#065F46}.spv{background:#fef9ee;color:#c4933a;border-radius:6px;padding:1px 4px;font-size:7px}
   .fr td{background:#1a2744;color:rgba(255,255,255,.7);font-size:7px;padding:3px 5px;text-align:center;border:none}
   .fr td.fl{text-align:left;padding-left:8px;color:rgba(255,255,255,.4);font-size:7px}
@@ -253,11 +254,11 @@ var PRESETS=[
   {l:'11h > 20h',s:'11:00',e:'20:00'},
   {l:'11h > 21h',s:'11:00',e:'21:00'},
   {l:'15h > 23h',s:'15:00',e:'23:00'},
-  {l:'15h > 01h',s:'15:00',e:'01:00'},
+  {l:'15h > F',s:'15:00',e:'01:00'},
   {l:'16h > 23h',s:'16:00',e:'23:00'},
-  {l:'16h > 01h',s:'16:00',e:'01:00'},
-  {l:'17h > 01h',s:'17:00',e:'01:00'},
-  {l:'18h > 01h',s:'18:00',e:'01:00'},
+  {l:'16h > F',s:'16:00',e:'01:00'},
+  {l:'17h > F',s:'17:00',e:'01:00'},
+  {l:'18h > F',s:'18:00',e:'01:00'},
 ];
 
 function onMaster(ei,di,val){
@@ -314,7 +315,7 @@ var EMPS=[
 function pad(n){return n<10?'0'+n:''+n;}
 function buildOpts(){var o=['—'];for(var h=0;h<=24;h++){o.push(pad(h)+':00');if(h<24)o.push(pad(h)+':30');}return o;}
 var OPTS=buildOpts();
-function optHTML(){return OPTS.map(function(o){return '<option value="'+o+'">'+o+'</option>';}).join('');}
+function optHTML(isEnd){return OPTS.map(function(o){var lbl=(isEnd&&o==='01:00')?'F':o;return '<option value="'+o+'">'+lbl+'</option>';}).join('');}
 function toMin(s){if(!s||s==='—')return null;var p=s.split(':').map(Number);return p[0]*60+p[1];}
 function calcH(s,e){
   if(!e||e===null)return 0;
@@ -359,9 +360,9 @@ function renderShiftRow(ei,di,si,sh,we,total){
   var html='<div class="shift-tranche '+trCls+'" id="shrow'+ei+'_'+di+'_'+si+'">';
   if(lbl)html+='<div style="display:flex;justify-content:space-between;align-items:center"><span class="tranche-label">'+lbl+'</span><button class="rm-shift" onclick="removeShift('+ei+','+di+','+si+')">✕</button></div>';
   html+='<div class="sel-row-inner">';
-  html+='<select class="tsel" id="ss'+ei+'_'+di+'_'+si+'" onchange="onShiftChange('+ei+','+di+','+si+',\'s\',this.value)">'+optHTML()+'</select>';
+  html+='<select class="tsel" id="ss'+ei+'_'+di+'_'+si+'" onchange="onShiftChange('+ei+','+di+','+si+',\'s\',this.value)">'+optHTML(false)+'</select>';
   html+='<span class="arrow" id="arr'+ei+'_'+di+'_'+si+'">→</span>';
-  html+='<select class="tsel" id="se'+ei+'_'+di+'_'+si+'" onchange="onShiftChange('+ei+','+di+','+si+',\'e\',this.value)">'+optHTML()+'</select>';
+  html+='<select class="tsel" id="se'+ei+'_'+di+'_'+si+'" onchange="onShiftChange('+ei+','+di+','+si+',\'e\',this.value)">'+optHTML(true)+'</select>';
   if(!lbl)html+='<button class="rm-shift" onclick="removeShift('+ei+','+di+','+si+')">✕</button>';
   html+='</div></div>';
   return html;
@@ -377,11 +378,12 @@ function renderCell(ei,di){
     STATUSES.forEach(function(st){html+='<option value="ST_'+st+'" '+(d.status===st?'selected':'')+'>'+st+'</option>';});
     html+='<option disabled>---------</option>';
     for(var pii=0;pii<PRESETS.length;pii++){html+='<option value="'+PRESETS[pii].l+'">'+PRESETS[pii].l+'</option>';}
-    html+='<option value="COUP1">Coupure 11h-15h / 18h-01h</option>';
-    html+='<option value="COUP2">Coupure 10h-15h / 18h-01h</option>';
+    html+='<option value="COUP1">Coupure — 11h-15h / 18h-F</option>';
+    html+='<option value="COUP2">Coupure 2 — 10h-15h / 18h-F</option>';
     html+='<option value="FREE">Horaire libre...</option>';
     html+='</select>';
     if(d.status==='Coupure')html+='<span class="slot-coupure">✂ Coupure</span>';
+    else if(d.status==='Coupure2')html+='<span class="slot-coupure">✂ Coupure 2</span>';
     else if(d.status==='Escale')html+='<span class="slot-escale">⚓ Escale</span>';
     else html+='<span class="slot-special">'+d.status+'</span>';
   } else if(d.x){
@@ -390,8 +392,8 @@ function renderCell(ei,di){
     STATUSES.forEach(function(st){html+='<option value="ST_'+st+'">'+st+'</option>';});
     html+='<option disabled>---------</option>';
     for(var pii=0;pii<PRESETS.length;pii++){html+='<option value="'+PRESETS[pii].l+'">'+PRESETS[pii].l+'</option>';}
-    html+='<option value="COUP1">Coupure 11h-15h / 18h-01h</option>';
-    html+='<option value="COUP2">Coupure 10h-15h / 18h-01h</option>';
+    html+='<option value="COUP1">Coupure — 11h-15h / 18h-F</option>';
+    html+='<option value="COUP2">Coupure 2 — 10h-15h / 18h-F</option>';
     html+='<option value="FREE">Horaire libre...</option>';
     html+='</select>';
     html+='<span class="slot-special" style="background:#F0F4F8;color:#6B6863;font-style:normal">RH</span>';
@@ -407,14 +409,14 @@ function renderCell(ei,di){
     STATUSES.forEach(function(st){html+='<option value="ST_'+st+'">'+st+'</option>';});
     html+='<option disabled>---------</option>';
     for(var pi=0;pi<PRESETS.length;pi++){html+='<option value="'+PRESETS[pi].l+'" '+(curLbl===PRESETS[pi].l?'selected':'')+'>'+PRESETS[pi].l+'</option>';}
-    html+='<option value="COUP1" '+(curLbl==="COUP1"?"selected":"")+'>Coupure 11h-15h / 18h-01h</option>';
-    html+='<option value="COUP2" '+(curLbl==="COUP2"?"selected":"")+'>Coupure 10h-15h / 18h-01h</option>';
+    html+='<option value="COUP1" '+(curLbl==="COUP1"?"selected":"")+'>Coupure — 11h-15h / 18h-F</option>';
+    html+='<option value="COUP2" '+(curLbl==="COUP2"?"selected":"")+'>Coupure 2 — 10h-15h / 18h-F</option>';
     html+='<option value="FREE" '+(curLbl==="FREE"?"selected":"")+'>Horaire libre...</option>';
     html+='</select>';
     if(curLbl==="COUP1"){
-      html+='<span class="slot-coupure">11h-15h / 18h-01h</span>';
+      html+='<span class="slot-coupure">11h-15h / 18h-F</span>';
     } else if(curLbl==="COUP2"){
-      html+='<span class="slot-coupure" style="background:#FEF3C7;color:#92400E">10h-15h / 18h-01h</span>';
+      html+='<span class="slot-coupure" style="background:#FEF3C7;color:#92400E">10h-15h / 18h-F</span>';
     } else if(curLbl!=="FREE"){
       html+='<span class="hb '+(we?'we':'sem')+'">'+curLbl+'</span>';
     } else {
@@ -585,10 +587,10 @@ function chkWeek(ei){
 
 function toMinN(s){if(!s||s==='—')return null;var p=s.split(':').map(Number);return p[0]*60+p[1];}
 function presentAt(sh,t){var sm=toMinN(sh.s),em=toMinN(sh.e);if(sm===null)return false;if(em===null)return sm<=t;if(em<=sm)em+=1440;return sm<=t&&em>=t;}
-function minCovApm(di){var slots=[15*60,15*60+30,16*60,16*60+30,17*60,17*60+30,18*60],mn=999;slots.forEach(function(t){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;d.shifts.forEach(function(sh){if(presentAt(sh,t))c++;});});if(c<mn)mn=c;});return mn===999?0:mn;}
-function cntMidi(di){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<15*60&&em>12*60)f=true;}});if(f)c++;});return c;}
-function cntSoir(di){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<21*60&&em>=21*60)f=true;}});if(f)c++;});return c;}
-function totHDay(di){var t=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;t+=calcDayH(d.shifts);});return t;}
+function minCovApm(di){var slots=[15*60,15*60+30,16*60,16*60+30,17*60,17*60+30,18*60],mn=999;slots.forEach(function(t){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure'&&d.status!=='Coupure2')return;d.shifts.forEach(function(sh){if(presentAt(sh,t))c++;});});if(c<mn)mn=c;});return mn===999?0:mn;}
+function cntMidi(di){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure'&&d.status!=='Coupure2')return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<15*60&&em>12*60)f=true;}});if(f)c++;});return c;}
+function cntSoir(di){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure'&&d.status!=='Coupure2')return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<21*60&&em>=21*60)f=true;}});if(f)c++;});return c;}
+function totHDay(di){var t=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure'&&d.status!=='Coupure2')return;t+=calcDayH(d.shifts);});return t;}
 
 function updateRowTotal(ei){
   if(EMPS[ei]&&EMPS[ei].hidden)return;
@@ -796,8 +798,8 @@ function buildPrintDoc(){
   var mon=new Date(document.getElementById('weekDate').value);
   var sun=new Date(mon);sun.setDate(sun.getDate()+6);
   function fmtFull(d){return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear();}
-  var visibleCount=0;EMPS.forEach(function(e){if(!e.hidden)visibleCount++;});
-  document.getElementById('ph-info-p1').innerHTML='S.'+getWeekNum(mon)+'&nbsp;&middot;&nbsp;Semaine du '+fmtFull(mon)+' au '+fmtFull(sun)+'<br>Planning hebdomadaire &mdash; '+visibleCount+' employ&eacute;&middot;es';
+  var visibleCount=0,hiddenCount=0;EMPS.forEach(function(e){if(e.hidden)hiddenCount++;else visibleCount++;});
+  document.getElementById('ph-info-p1').innerHTML='S.'+getWeekNum(mon)+'&nbsp;&middot;&nbsp;Semaine du '+fmtFull(mon)+' au '+fmtFull(sun)+'<br>Planning hebdomadaire &mdash; '+visibleCount+' actifs'+(hiddenCount?' &middot; '+hiddenCount+' hors planning':'');
   document.getElementById('pf-date-p1').textContent='Edit&eacute; le '+fmtFull(new Date());
   var thead=document.getElementById('p1-thead');thead.innerHTML='';
   var htr=document.createElement('tr');
@@ -811,14 +813,19 @@ function buildPrintDoc(){
   htr.innerHTML=hh;thead.appendChild(htr);
   var tbody=document.getElementById('p1-tbody');tbody.innerHTML='';
   EMPS.forEach(function(emp,ei){
-    if(emp.hidden)return; // MASQUÉ — pas dans le PDF
     var tr=document.createElement('tr');
+    if(emp.hidden){
+      tr.className='hpr';
+      tr.innerHTML='<td class="en">'+emp.name+'</td><td colspan="7"><span class="hpv">Hors planning</span></td>';
+      tbody.appendChild(tr);
+      return;
+    }
     var cells='<td class="en">'+emp.name+'</td>';
     DAYS.forEach(function(_,di){
       var dd=DATA[ei][di];var we=IS_WE[di];var inner='';
       if(dd.status){
         if(dd.status==='Coupure')inner='<span class="cv">Coupure 11h-15h/18h-01h</span>';
-        else if(dd.status==='Coupure2')inner='<span class="cv">10h-15h / 18h-01h</span>';
+        else if(dd.status==='Coupure2')inner='<span class="cv">Coupure 2</span>';
         else if(dd.status==='Vacances')inner='<span class="vv">Vacances</span>';
         else if(dd.status==='Arr\u00eat maladie')inner='<span class="arv">Arr\u00eat maladie</span>';
         else if(dd.status==='Escale')inner='<span class="escv">\u2693 Escale</span>';
@@ -826,7 +833,7 @@ function buildPrintDoc(){
       } else if(dd.x){
         inner='<span class="av">&mdash;</span>';
       } else if(dd.shifts){
-        var parts=dd.shifts.filter(function(s){return s.s&&s.s!=='—';}).map(function(s){var st=s.s.replace(':00','h').replace(':30','h30');var en=s.e&&s.e!=='—'?s.e.replace(':00','h').replace(':30','h30'):'';return st+(en?'&ndash;'+en:'');});
+        var parts=dd.shifts.filter(function(s){return s.s&&s.s!=='—';}).map(function(s){var st=s.s.replace(':00','h').replace(':30','h30');var en='';if(s.e&&s.e!=='—'){en=s.e==='01:00'?'F':s.e.replace(':00','h').replace(':30','h30');}return st+(en?'&ndash;'+en:'');});
         if(parts.length===2)inner='<span class="cv">Coupure</span>';
         else if(parts.length===1)inner='<span class="sv">'+parts[0]+'</span>';
         else inner='<span class="av">&mdash;</span>';
@@ -987,7 +994,7 @@ function loadFromStorage(){
 }
 function hardReset(){if(confirm('Réinitialiser le planning aux données par défaut ?')){localStorage.removeItem(STORAGE_KEY);location.reload();}}
 
-/* ÉVÉNEMENTS */
+/* ÉVÉNEMENTS — découplés de la météo (v5.6) */
 function searchEvents(){
   var btn=document.getElementById('evtBtn');
   var body=document.getElementById('evtBody');
@@ -1002,7 +1009,9 @@ function searchEvents(){
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
-      prompt:'Recherche les evenements, festivals, marches, concerts, regates, tournois, salons prevus a Vannes et dans un rayon de 15km (Morbihan) du '+fmtFull(mon)+' au '+fmtFull(sun)+'. Reponds UNIQUEMENT avec un tableau JSON valide sans texte ni backticks: [{"name":"nom","date":"date","lieu":"lieu","impact":"high/medium/low","note":"impact sur restauration"}]. Si aucun evenement: [].'
+      startDate:isoLocal(mon),
+      endDate:isoLocal(sun),
+      prompt:'Recherche les evenements, festivals, marches, concerts, regates, tournois, salons prevus a Vannes et dans un rayon de 15km (Morbihan) du '+fmtFull(mon)+' au '+fmtFull(sun)+'.'
     })
   }).then(function(r){return r.json();}).then(function(data){
     if(data.error){body.innerHTML='<div class="evt-empty">Erreur : '+data.error+'</div>';btn.disabled=false;btn.textContent='🔍 Actualiser';return;}
@@ -1013,7 +1022,6 @@ function searchEvents(){
     // La météo est affichée directement dans l'en-tête de chaque jour.
     // On masque donc l'ancienne carte météo hebdomadaire éventuelle.
     evts=(evts||[]).filter(function(ev){return ev&&ev.type!=='weather_context';});
-    fetchWeatherForWeek(wkDate);
     if(!evts||!evts.length){
       body.innerHTML='<div class="evt-empty">Aucun evenement trouve pour cette semaine.</div>';
     } else {
