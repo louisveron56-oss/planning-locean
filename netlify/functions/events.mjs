@@ -1051,6 +1051,42 @@ function mergeEventSources(...sources) {
   return result;
 }
 
+
+// ============================================================
+// NOËL À VANNES — CONTEXTE SAISONNIER DE DÉCEMBRE
+// Le marché de Noël est un événement long et peut ne pas être
+// publié comme une fiche d'agenda classique. Pour le planning,
+// on affiche donc un repère unique sur toute semaine de décembre.
+// Les dates précises pourront être remplacées par le programme
+// officiel de l'année dès sa publication.
+// ============================================================
+
+function getChristmasVannesContext(startDate, endDate) {
+  const startYear = Number(String(startDate).slice(0, 4));
+  const endYear = Number(String(endDate).slice(0, 4));
+  const years = [...new Set([startYear, endYear])]
+    .filter(Number.isFinite);
+
+  for (const year of years) {
+    const decemberStart = `${year}-12-01`;
+    const decemberEnd = `${year}-12-31`;
+
+    if (endDate >= decemberStart && startDate <= decemberEnd) {
+      return [{
+        type: 'seasonal_context',
+        name: '🎄 Marché de Noël & animations de Noël à Vannes',
+        date: `Tout le mois de décembre ${year}`,
+        lieu: 'Port / centre-ville de Vannes',
+        impact: 'high',
+        note: null,
+        url: null
+      }];
+    }
+  }
+
+  return [];
+}
+
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return response(200, {});
   if (event.httpMethod !== 'POST') return response(405, { error: 'Methode non autorisee' });
@@ -1131,6 +1167,7 @@ exports.handler = async function(event) {
     // Contextes et sources locales, tous fail-safe.
     const schoolContext = await getSchoolVacationContext(startDate, endDate);
     const holidayContext = await getPublicHolidayContext(startDate, endDate);
+    const christmasContext = getChristmasVannesContext(startDate, endDate);
 
     const [
       villeVannesEvents,
@@ -1178,6 +1215,7 @@ exports.handler = async function(event) {
     const clean = [
       ...holidayContext,
       ...schoolContext,
+      ...christmasContext,
       ...mergedEvents
     ];
 
@@ -1193,6 +1231,7 @@ exports.handler = async function(event) {
         rcvTop14Found: rcvTop14Events.length,
         marathonMasterFound: marathonMasterEvents.length,
         vannetaiseMasterFound: vannetaiseMasterEvents.length,
+        christmasContextFound: christmasContext.length,
         radiusKm: RADIUS_KM
       }
     });
