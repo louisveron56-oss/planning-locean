@@ -827,6 +827,7 @@ function toggleHidden(ei){
   }
   saveToStorage();
   buildBody();
+  loadWeatherCache(document.getElementById('weekDate').value);
   setDates(new Date(document.getElementById('weekDate').value));
 }
 
@@ -852,7 +853,7 @@ function saveRH(){
     DAYS.forEach(function(_,di){var cb=document.getElementById('rh_repos_'+ei+'_'+di);if(!cb)return;if(!DATA[ei])DATA[ei]={};if(!DATA[ei][di])DATA[ei][di]={shifts:null,x:false,status:''};DATA[ei][di].x=cb.checked;if(cb.checked){DATA[ei][di].shifts=null;DATA[ei][di].status='';}});
   });
   toRemove.reverse().forEach(function(ei){EMPS.splice(ei,1);var newD={};Object.keys(DATA).forEach(function(k){var ki=parseInt(k);if(ki<ei)newD[ki]=DATA[ki];else if(ki>ei)newD[ki-1]=DATA[ki];});DATA=newD;});
-  closeRH();buildHeader();buildBody();setDates(new Date(document.getElementById('weekDate').value));saveToStorage();
+  closeRH();buildHeader();loadWeatherCache(document.getElementById('weekDate').value);buildBody();setDates(new Date(document.getElementById('weekDate').value));saveToStorage();
 }
 
 /* CSV */
@@ -966,10 +967,12 @@ document.getElementById('weekDate').addEventListener('change',function(){
 initData();
 buildHeader();
 var restored=loadFromStorage();
-if(restored){buildBody();setDates(new Date(document.getElementById('weekDate').value));}
+var currentWeekDate=document.getElementById('weekDate').value;
+loadWeatherCache(currentWeekDate);
+if(restored){buildBody();setDates(new Date(currentWeekDate));}
 else{buildBody();setDates(mon);}
-loadEvents(document.getElementById('weekDate').value);
-fetchWeatherForWeek(document.getElementById('weekDate').value);
+loadEvents(currentWeekDate);
+fetchWeatherForWeek(currentWeekDate);
 </script>
 </body>
 </html>
