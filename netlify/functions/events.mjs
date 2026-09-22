@@ -1087,6 +1087,179 @@ function getChristmasVannesContext(startDate, endDate) {
   return [];
 }
 
+
+// ============================================================
+// METEO VANNES — PREVISION COURTE POUR LE PLANNING
+// Source : Open-Meteo, sans cle API.
+// Une seule carte compacte pour la semaine selectionnee.
+// Si la semaine est trop lointaine pour une vraie prevision,
+// rien n'est affiche plutot que d'inventer une meteo.
+// ============================================================
+
+function weatherEmoji(code) {
+  const c = Number(code);
+  if (c === 0) return '☀️';
+  if (c === 1 || c === 2) return '🌤️';
+  if (c === 3) return '☁️';
+  if (c === 45 || c === 48) return '🌫️';
+  if (c >= 51 && c <= 67) return '🌧️';
+  if (c >= 71 && c <= 77) return '🌨️';
+  if (c >= 80 && c <= 82) return '🌦️';
+  if (c >= 85 && c <= 86) return '🌨️';
+  if (c >= 95) return '⛈️';
+  return '🌤️';
+}
+
+function shortFrenchWeekday(iso) {
+  const d = new Date(`${iso}T12:00:00Z`);
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    weekday: 'short'
+  }).format(d).replace('.', '');
+}
+
+function daysBetweenInclusive(startDate, endDate) {
+  const start = new Date(`${startDate}T12:00:00Z`);
+  const end = new Date(`${endDate}T12:00:00Z`);
+  const diff = Math.floor((end - start) / 86400000) + 1;
+  return Math.max(1, Math.min(diff, 31));
+}
+
+async function getWeatherContext(startDate, endDate) {
+  try {
+    const url = new URL('https://api.open-meteo.com/v1/forecast');
+
+    url.searchParams.set('latitude', String(VANNES.lat));
+    url.searchParams.set('longitude', String(VANNES.lng));
+    url.searchParams.set('timezone', 'Europe/Paris');
+    url.searchParams.set('forecast_days', '16');
+    url.searchParams.set(
+      'daily',
+      [
+        'weather_code',
+        'temperature_2m_max',
+        'temperature_2m_min',
+        'precipitation_probability_max',
+        'precipitation_sum',
+        'wind_gusts_10m_max'
+      ].join(',')
+    );
+
+    const r = await fetch(url, {
+      headers: { Accept: 'application/json' }
+    });
+
+    if (!r.ok) {
+      throw new Error(`Meteo: HTTP ${r.status}`);
+    }
+
+    const data = await r.json();
+    const daily = data?.daily || {};
+    const times = Array.isArray(daily.time) ? daily.time : [];
+
+    if (!times.length) return [];
+
+    const days = [];
+
+    for (let i = 0; i < times.length; i++) {
+      const iso = String(times[i] || '').slice(0, 10);
+      if (!iso || iso < startDate || iso > endDate) continue;
+
+      days.push({
+        iso,
+        code: Number(daily.weather_code?.[i]),
+        max: Number(daily.temperature_2m_max?.[i]),
+        min: Number(daily.temperature_2m_min?.[i]),
+        rainProb: Number(daily.precipitation_probability_max?.[i]),
+        rainMm: Number(daily.precipitation_sum?.[i]),
+        gust: Number(daily.wind_gusts_10m_max?.[i])
+      });
+    }
+
+    // Semaine hors horizon de prevision : pas de carte meteo.
+    if (!days.length) return [];
+
+    const parts = days.map(day => {
+      const label = shortFrenchWeekday(day.iso);
+      const emoji = weatherEmoji(day.code);
+      const max = Number.isFinite(day.max) ? Math.round(day.max) : null;
+      const rainProb = Number.isFinite(day.rainProb) ? Math.round(day.rainProb) : null;
+
+      let part = `${label} ${emoji}`;
+      if (max !== null) part += ` ${max}°`;
+      if (rainProb !== null && rainProb >= 40) part += ` ${rainProb}%`;
+
+      return part;
+    });
+
+    const rainyDays = days
+      .filter(day =>
+        (Number.isFinite(day.rainProb) && day.rainProb >= 60) ||
+        (Number.isFinite(day.rainMm) && day.rainMm >= 5)
+      )
+      .map(day => shortFrenchWeekday(day.iso));
+
+    const windyDays = days
+      .filter(day => Number.isFinite(day.gust) && day.gust >= 50)
+      .map(day => shortFrenchWeekday(day.iso));
+
+    const maxGust = Math.max(
+      ...days
+        .map(day => day.gust)
+        .filter(Number.isFinite),
+      0
+    );
+
+    const hasVeryBadWeather = days.some(day =>
+      (Number.isFinite(day.gust) && day.gust >= 70) ||
+      (
+        Number.isFinite(day.rainProb) &&
+        day.rainProb >= 85 &&
+        Number.isFinite(day.rainMm) &&
+        day.rainMm >= 15
+      )
+    );
+
+    const hasWeatherToWatch = days.some(day =>
+      (Number.isFinite(day.gust) && day.gust >= 45) ||
+      (Number.isFinite(day.rainProb) && day.rainProb >= 55) ||
+      (Number.isFinite(day.rainMm) && day.rainMm >= 5)
+    );
+
+    const noteParts = [];
+
+    if (rainyDays.length) {
+      noteParts.push(`Pluie a surveiller: ${[...new Set(rainyDays)].join(', ')}`);
+    }
+
+    if (windyDays.length) {
+      noteParts.push(
+        `Vent: ${[...new Set(windyDays)].join(', ')}${maxGust ? ` — rafales jusqu'a ${Math.round(maxGust)} km/h` : ''}`
+      );
+    }
+
+    const expectedDays = daysBetweenInclusive(startDate, endDate);
+    if (days.length < expectedDays) {
+      noteParts.push('Prevision disponible seulement sur une partie de la semaine');
+    }
+
+    return [{
+      type: 'weather_context',
+      name: '🌦 Météo Vannes — semaine',
+      date: parts.join(' · '),
+      lieu: 'Vannes',
+      impact: hasVeryBadWeather ? 'high' : hasWeatherToWatch ? 'medium' : 'low',
+      note: noteParts.length ? noteParts.join(' · ') : null,
+      url: 'https://open-meteo.com/'
+    }];
+
+  } catch (error) {
+    console.warn('Meteo Vannes indisponible:', error.message);
+    return [];
+  }
+}
+
+
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return response(200, {});
   if (event.httpMethod !== 'POST') return response(405, { error: 'Methode non autorisee' });
@@ -1168,6 +1341,7 @@ exports.handler = async function(event) {
     const schoolContext = await getSchoolVacationContext(startDate, endDate);
     const holidayContext = await getPublicHolidayContext(startDate, endDate);
     const christmasContext = getChristmasVannesContext(startDate, endDate);
+    const weatherContext = await getWeatherContext(startDate, endDate);
 
     const [
       villeVannesEvents,
@@ -1213,6 +1387,7 @@ exports.handler = async function(event) {
     );
 
     const clean = [
+      ...weatherContext,
       ...holidayContext,
       ...schoolContext,
       ...christmasContext,
@@ -1232,6 +1407,7 @@ exports.handler = async function(event) {
         marathonMasterFound: marathonMasterEvents.length,
         vannetaiseMasterFound: vannetaiseMasterEvents.length,
         christmasContextFound: christmasContext.length,
+        weatherContextFound: weatherContext.length,
         radiusKm: RADIUS_KM
       }
     });
