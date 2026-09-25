@@ -524,6 +524,11 @@ function redrawCell(ei,di){
 }
 
 function onStatusChange(ei,di,val){
+  if(val==='Vacances__week'||val==='Arrêt maladie__week'||val==='CFA__week'){
+    var weekStatus=val.split('__')[0];
+    DAYS.forEach(function(_,dii){DATA[ei][dii]={shifts:null,x:false,status:weekStatus};});
+    buildBody();saveToStorage();return;
+  }
   if(val==='__absent__')DATA[ei][di]={shifts:null,x:true,status:''};
   else if(val==='Coupure')DATA[ei][di]={shifts:COUPURE_SHIFTS.map(function(s){return{s:s.s,e:s.e};}),x:false,status:'Coupure'};
   else if(val)DATA[ei][di]={shifts:null,x:false,status:val};
@@ -1090,7 +1095,8 @@ function generatePlanning() {
     btn.disabled = false;
     btn.textContent = '✨ Planning IA';
     if(res.error) {
-      document.getElementById('aiBody').innerHTML = '<div style="color:var(--red-800);padding:16px">Erreur : '+res.error+'</div>';
+      var detailTxt = Array.isArray(res.details)&&res.details.length ? '<br><br><small>'+res.details.join('<br>')+'</small>' : '';
+      document.getElementById('aiBody').innerHTML = '<div style="color:var(--red-800);padding:16px">Erreur : '+res.error+detailTxt+'</div>';
       return;
     }
     var p = res.planning;
@@ -1204,3 +1210,4 @@ fetchWeatherForWeek(document.getElementById('weekDate').value);
 </div>
 
 </body>
+</html>
