@@ -177,6 +177,76 @@ function formatReferenceDay(d) {
   return shifts.map(s => `${s.s}${s.e ? ' > ' + s.e : ''}`).join(' / ');
 }
 
+function lockedReferenceValue(d) {
+  if (!d) return null;
+  if (d.status === 'Vacances') return 'Vacances';
+  if (d.status === 'Arrêt maladie') return 'Arrêt maladie';
+  if (d.status === 'CFA') return 'CFA';
+  if (d.x === true) return 'RH';
+  return null;
+}
+
+function isWorkingValue(v) {
+  if (!v) return false;
+  const s = String(v).trim().toLowerCase();
+  return !['rh','repos','absent','vacances','arrêt maladie','arret maladie','cfa','—',''].includes(s);
+}
+
+function normalizeStatusValue(v) {
+  if (!v) return '';
+  const s = String(v).trim().toLowerCase();
+  if (s === 'rh' || s === 'repos') return 'RH';
+  if (s === 'vacances') return 'Vacances';
+  if (s === 'cfa') return 'CFA';
+  if (s === 'arrêt maladie' || s === 'arret maladie') return 'Arrêt maladie';
+  if (s === 'absent') return 'Absent';
+  return '';
+}
+
+function validatePlanningProposal(planningRows, emps, data) {
+  const errors = [];
+  const dayKeys = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+
+  const byName = new Map((planningRows || []).map(r => [r && r.name, r]));
+
+  (emps || []).forEach((emp, i) => {
+    const row = byName.get(emp.name);
+    if (!row) {
+      errors.push(`${emp.name}: absent de la réponse`);
+      return;
+    }
+
+    let workedDays = 0;
+    dayKeys.forEach((k, di) => {
+      const ref = data && data[i] && data[i][di];
+      const locked = lockedReferenceValue(ref);
+      const proposed = row[k];
+
+      if (locked) {
+        if (String(proposed || '').trim().toLowerCase() !== String(locked).trim().toLowerCase()) {
+          errors.push(`${emp.name} ${dayKeys[di]}: statut verrouillé ${locked} modifié en ${proposed || 'vide'}`);
+        }
+        return;
+      }
+
+      const proposedStatus = normalizeStatusValue(proposed);
+      if (['RH','Vacances','CFA','Arrêt maladie','Absent'].includes(proposedStatus)) {
+        errors.push(`${emp.name} ${dayKeys[di]}: statut ${proposedStatus} inventé sur une case libre`);
+        return;
+      }
+
+      if (isWorkingValue(proposed)) workedDays += 1;
+    });
+
+    if (workedDays > 6) {
+      errors.push(`${emp.name}: ${workedDays} jours travaillés, maximum autorisé 6`);
+    }
+  });
+
+  return errors;
+}
+
+
 export const handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return response(200, {});
   if (event.httpMethod !== 'POST') return response(405, { error: 'Méthode non autorisée' });
@@ -292,9 +362,10 @@ INTERPRÉTATION DU NIVEAU D'ACTIVITÉ :
 - Dans "notes", indique brièvement quels jours/services tu as considérés FORTS et pourquoi.
 
 COMMENT UTILISER LE PLANNING DE RÉFÉRENCE :
-- Un statut RH, Vacances, Arrêt maladie ou CFA est verrouillé : ne le change jamais.
+- Un statut RH, Vacances, Arrêt maladie ou CFA est VERROUILLÉ et doit être recopié à l'identique.
+- Tu n'as JAMAIS le droit de créer un nouveau RH, Vacances, CFA, Arrêt maladie ou Absent sur une case libre.
+- Une case VIDE signifie : tu dois choisir un shift de travail autorisé, sauf si une impossibilité réelle est signalée dans les notes.
 - Un horaire déjà présent est une forte préférence de stabilité : conserve-le s'il respecte les règles et la couverture.
-- Une case VIDE est libre.
 - Ne reconstruis pas toute la semaine inutilement : pars de ce squelette et modifie uniquement ce qui est nécessaire.
 - Les salariés FANTÔMES Martin V et Louis peuvent conserver leurs horaires, mais ils ne comptent jamais dans les effectifs minimums.
 
@@ -303,17 +374,23 @@ CONSIGNES DE GÉNÉRATION :
 2. Vérifie mentalement la couverture de chaque service avec les PERSONNELS RÉELS uniquement.
 3. Salome peut être planifiée dès 10h30/11h pour préparation accueil, mais elle ne satisfait aucun besoin opérationnel avant 12h ; à partir de midi elle ne peut satisfaire que le besoin "Accueil".
 4. Pour un service normal, assure 6 personnels réels ; pour une fermeture, 5 personnels réels jusqu'à F.
-5. N'utilise pas une coupure si un shift continu permet une couverture correcte ; maximum 2 coupures par salarié/semaine.
-6. Vise le contrat de chaque salarié avec une tolérance d'environ ±2h ; évite les heures supplémentaires inutiles.
-7. Préserve au maximum la stabilité du planning de référence.
-8. Guillaume reste en arrêt maladie et n'est pas planifié.
-9. Si une contrainte rend la couverture impossible, ne triche pas : indique le manque dans "notes".
-10. En l'absence d'un indicateur explicite de flux fort, considère le service au niveau NORMAL.
+5. Aucun salarié ne doit travailler 7 jours sur 7. Maximum 6 jours travaillés dans la semaine.
+6. Tu ne peux PAS résoudre un problème de charge en inventant un RH supplémentaire : les RH viennent uniquement du planning de référence.
+7. N'utilise pas une coupure si un shift continu permet une couverture correcte ; maximum 2 coupures par salarié/semaine.
+8. Vise le contrat de chaque salarié avec une tolérance d'environ ±2h ; évite les heures supplémentaires inutiles.
+9. Répartis la charge équitablement entre les salariés disponibles : évite qu'un salarié libre soit planifié 7 jours alors qu'un autre comparable est très peu utilisé, sans toucher aux RH fixes.
+10. Préserve au maximum la stabilité du planning de référence.
+11. Guillaume reste en arrêt maladie et n'est pas planifié.
+12. Si une contrainte rend la couverture impossible, ne triche pas : indique le manque dans "notes".
+13. En l'absence d'un indicateur explicite de flux fort, considère le service au niveau NORMAL.
 
 Avant de produire le JSON final, contrôle :
 - aucun salarié matin strict sur un service du soir ou une fermeture ;
 - les arrivées sont réellement échelonnées et non uniformisées par équipe ;
 - aucun shift hors de la liste autorisée n'a été inventé ;
+- aucun RH/Vacances/CFA/Arrêt maladie/Absent n'a été créé sur une case libre ;
+- tous les RH/Vacances/CFA/Arrêt maladie du planning de référence sont recopiés à l'identique ;
+- aucun salarié ne travaille 7 jours sur 7 ;
 - Salome non comptée opérationnellement avant 12h, puis accueil uniquement ;
 - Martin V et Louis exclus de tous les calculs de minimum ;
 - 5 personnels réels à chaque fermeture ;
@@ -338,48 +415,79 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans texte ni backticks, au forma
   "notes": "Résumé concis des niveaux d’activité retenus par jour/service (NORMAL/FORT + raison), arbitrages, manques de couverture éventuels, dépassements ou exceptions."
 }
 
-Valeurs autorisées pour chaque jour :
-- un horaire comme "09h > 17h30", "16h > 01h" ;
-- "RH", "Absent", "Vacances", "Arrêt maladie", "CFA" ;
+Valeurs autorisées sur une CASE LIBRE :
+- uniquement un horaire de travail appartenant à la liste des shifts autorisés ;
 - "Coupure 11h-15h/18h-01h" ;
-- "Coupure 10h-15h/18h-01h".`;
+- "Coupure 10h-15h/18h-01h".
 
-    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'openai/gpt-oss-120b',
-        max_completion_tokens: 4000,
-        temperature: 0.15,
-        reasoning_effort: 'low',
-        reasoning_format: 'hidden',
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: 'Tu es un assistant de planification pour restaurant. Tu réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans backticks.' },
-          { role: 'user', content: prompt }
-        ]
-      })
-    });
+Les valeurs "RH", "Vacances", "Arrêt maladie", "CFA" ne sont autorisées QUE si elles existaient déjà sur cette case dans le planning de référence. N'invente jamais "Absent".`;
 
-    if (!groqRes.ok) {
-      const err = await groqRes.text();
-      return response(500, { error: `Groq erreur ${groqRes.status}: ${err.slice(0, 200)}` });
+    async function callGroq(promptText) {
+      const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'openai/gpt-oss-120b',
+          max_completion_tokens: 4000,
+          temperature: 0.1,
+          reasoning_effort: 'low',
+          reasoning_format: 'hidden',
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: 'Tu es un assistant de planification pour restaurant. Tu réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans backticks. Les statuts verrouillés du planning de référence sont intouchables.' },
+            { role: 'user', content: promptText }
+          ]
+        })
+      });
+
+      if (!groqRes.ok) {
+        const err = await groqRes.text();
+        throw new Error(`Groq erreur ${groqRes.status}: ${err.slice(0, 200)}`);
+      }
+
+      const groqData = await groqRes.json();
+      const text = groqData.choices?.[0]?.message?.content || '';
+      const start = text.indexOf('{');
+      const end = text.lastIndexOf('}');
+      if (start < 0 || end < 0) throw new Error('Réponse Groq non parseable');
+      try {
+        return JSON.parse(text.slice(start, end + 1));
+      } catch(e) {
+        throw new Error('Réponse Groq non parseable');
+      }
     }
 
-    const groqData = await groqRes.json();
-    const text = groqData.choices?.[0]?.message?.content || '';
+    let planning = await callGroq(prompt);
+    let validationErrors = validatePlanningProposal(planning?.planning, emps, body.data);
 
-    // Extraire le JSON
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-    let planning = null;
-    try {
-      if (start >= 0 && end >= 0) planning = JSON.parse(text.slice(start, end + 1));
-    } catch(e) {
-      return response(500, { error: 'Réponse Groq non parseable', raw: text.slice(0, 500) });
+    if (validationErrors.length) {
+      const correctionPrompt = `${prompt}
+
+CORRECTION OBLIGATOIRE :
+La première proposition est invalide pour les raisons suivantes :
+${validationErrors.map(e => '- ' + e).join('\n')}
+
+Corrige le planning en respectant TOUTES les règles.
+Rappels absolus :
+- ne crée aucun nouveau RH ;
+- ne crée aucun nouveau Vacances/CFA/Arrêt maladie/Absent ;
+- recopie tous les statuts verrouillés à l'identique ;
+- aucun salarié ne doit travailler 7 jours sur 7 ;
+- sur une case libre, choisis un shift de travail autorisé.
+Réponds uniquement avec le JSON final corrigé.`;
+
+      planning = await callGroq(correctionPrompt);
+      validationErrors = validatePlanningProposal(planning?.planning, emps, body.data);
+    }
+
+    if (validationErrors.length) {
+      return response(422, {
+        error: 'Planning IA encore invalide après correction',
+        details: validationErrors.slice(0, 20)
+      });
     }
 
     return response(200, { planning });
