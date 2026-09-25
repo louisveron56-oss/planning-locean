@@ -36,7 +36,7 @@ table{width:100%;border-collapse:collapse}
 .th-day.we{background:#FFFBF0}
 .th-day-name{font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;display:block}
 .th-day-date{font-size:9px;color:var(--g400);display:block;margin-top:1px}
-.th-day-weather{font-size:9px;font-weight:600;color:var(--navy);display:inline-block;margin-left:4px;white-space:nowrap;text-transform:none;letter-spacing:0}
+.th-day-weather{display:block;margin-top:2px;min-height:24px;line-height:1.15;white-space:nowrap;text-transform:none;letter-spacing:0}.wx-main{display:block;font-size:10px;font-weight:700;color:var(--navy)}.wx-detail{display:block;margin-top:1px;font-size:7px;font-weight:600;color:var(--g600);text-transform:none;letter-spacing:0}.wx-trend .wx-main{color:var(--g600)}.wx-trend .wx-detail{color:var(--g400);font-style:italic}
 .th-tot{width:64px;min-width:64px;padding:6px;text-align:center;font-size:9px;font-weight:600;color:var(--g400);text-transform:uppercase;letter-spacing:.07em;border-left:.5px solid var(--g200);background:var(--g100);border-bottom:.5px solid var(--g200)}
 .th-ccn{width:110px;min-width:110px;padding:6px;text-align:center;font-size:9px;font-weight:600;color:var(--red-800);text-transform:uppercase;letter-spacing:.07em;border-left:.5px solid var(--g200);background:#FFF5F5;border-bottom:.5px solid var(--g200)}
 .emp-row td{border-bottom:.5px solid var(--g200)}
@@ -155,6 +155,10 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
   .p1t td.wd{background:#fffbf0}
   .sv{color:#1a2744;font-weight:500}.av{color:#ccc}.cv{color:#633806;font-weight:500}
   .vv{color:#5B21B6;font-size:7px;font-style:italic}.arv{color:#991B1B;font-size:7px}
+  .hpv{color:#9CA3AF;font-style:italic;font-size:7px;letter-spacing:.02em}
+  .p1t tr.hpr td{background:#f8f8f6!important;color:#aaa!important}
+  .p1t td.status-name{background:#F5FAFF!important}
+  .p1t td.merged-status{background:#EAF4FF!important;color:#28577F!important;font-weight:700;font-size:8px;letter-spacing:.08em;text-transform:uppercase;border-left:1px solid #CFE3F5;border-right:1px solid #CFE3F5;text-align:center!important;vertical-align:middle!important}
   .escv{color:#065F46}.spv{background:#fef9ee;color:#c4933a;border-radius:6px;padding:1px 4px;font-size:7px}
   .fr td{background:#1a2744;color:rgba(255,255,255,.7);font-size:7px;padding:3px 5px;text-align:center;border:none}
   .fr td.fl{text-align:left;padding-left:8px;color:rgba(255,255,255,.4);font-size:7px}
@@ -274,15 +278,30 @@ var PRESETS=[
   {l:'11h > 20h',s:'11:00',e:'20:00'},
   {l:'11h > 21h',s:'11:00',e:'21:00'},
   {l:'15h > 23h',s:'15:00',e:'23:00'},
-  {l:'15h > 01h',s:'15:00',e:'01:00'},
+  {l:'15h > F',s:'15:00',e:'01:00'},
   {l:'16h > 23h',s:'16:00',e:'23:00'},
-  {l:'16h > 01h',s:'16:00',e:'01:00'},
-  {l:'17h > 01h',s:'17:00',e:'01:00'},
-  {l:'18h > 01h',s:'18:00',e:'01:00'},
+  {l:'16h > F',s:'16:00',e:'01:00'},
+  {l:'17h > F',s:'17:00',e:'01:00'},
+  {l:'18h > F',s:'18:00',e:'01:00'},
 ];
+
+function applyStatusToWholeWeek(ei,st){
+  DAYS.forEach(function(_,dayIndex){
+    DATA[ei][dayIndex]={shifts:null,x:false,status:st};
+  });
+  buildBody();
+  saveToStorage();
+}
 
 function onMaster(ei,di,val){
   if(val==='__x__'){DATA[ei][di]={shifts:null,x:true,status:''};redrawCell(ei,di);return;}
+
+  if(val.indexOf('WEEK_')===0){
+    var weeklyStatus=val.slice(5);
+    applyStatusToWholeWeek(ei,weeklyStatus);
+    return;
+  }
+
   if(val.indexOf('ST_')===0){
     var st=val.slice(3);
     DATA[ei][di]={shifts:null,x:false,status:st};
@@ -335,7 +354,7 @@ var EMPS=[
 function pad(n){return n<10?'0'+n:''+n;}
 function buildOpts(){var o=['—'];for(var h=0;h<=24;h++){o.push(pad(h)+':00');if(h<24)o.push(pad(h)+':30');}return o;}
 var OPTS=buildOpts();
-function optHTML(){return OPTS.map(function(o){return '<option value="'+o+'">'+o+'</option>';}).join('');}
+function optHTML(isEnd){return OPTS.map(function(o){var lbl=(isEnd&&o==='01:00')?'F':o;return '<option value="'+o+'">'+lbl+'</option>';}).join('');}
 function toMin(s){if(!s||s==='—')return null;var p=s.split(':').map(Number);return p[0]*60+p[1];}
 function calcH(s,e){
   if(!e||e===null)return 0;
@@ -380,9 +399,9 @@ function renderShiftRow(ei,di,si,sh,we,total){
   var html='<div class="shift-tranche '+trCls+'" id="shrow'+ei+'_'+di+'_'+si+'">';
   if(lbl)html+='<div style="display:flex;justify-content:space-between;align-items:center"><span class="tranche-label">'+lbl+'</span><button class="rm-shift" onclick="removeShift('+ei+','+di+','+si+')">✕</button></div>';
   html+='<div class="sel-row-inner">';
-  html+='<select class="tsel" id="ss'+ei+'_'+di+'_'+si+'" onchange="onShiftChange('+ei+','+di+','+si+',\'s\',this.value)">'+optHTML()+'</select>';
+  html+='<select class="tsel" id="ss'+ei+'_'+di+'_'+si+'" onchange="onShiftChange('+ei+','+di+','+si+',\'s\',this.value)">'+optHTML(false)+'</select>';
   html+='<span class="arrow" id="arr'+ei+'_'+di+'_'+si+'">→</span>';
-  html+='<select class="tsel" id="se'+ei+'_'+di+'_'+si+'" onchange="onShiftChange('+ei+','+di+','+si+',\'e\',this.value)">'+optHTML()+'</select>';
+  html+='<select class="tsel" id="se'+ei+'_'+di+'_'+si+'" onchange="onShiftChange('+ei+','+di+','+si+',\'e\',this.value)">'+optHTML(true)+'</select>';
   if(!lbl)html+='<button class="rm-shift" onclick="removeShift('+ei+','+di+','+si+')">✕</button>';
   html+='</div></div>';
   return html;
@@ -396,23 +415,36 @@ function renderCell(ei,di){
     html+='<select class="status-sel compact" onchange="onMaster('+ei+','+di+',this.value)">';
     html+='<option value="__x__">— Absent</option>';
     STATUSES.forEach(function(st){html+='<option value="ST_'+st+'" '+(d.status===st?'selected':'')+'>'+st+'</option>';});
+    if(di===0){
+      html+='<option disabled>— Toute la semaine —</option>';
+      html+='<option value="WEEK_Vacances">Vacances — toute la semaine</option>';
+      html+='<option value="WEEK_Arrêt maladie">Arrêt maladie — toute la semaine</option>';
+      html+='<option value="WEEK_CFA">CFA — toute la semaine</option>';
+    }
     html+='<option disabled>---------</option>';
     for(var pii=0;pii<PRESETS.length;pii++){html+='<option value="'+PRESETS[pii].l+'">'+PRESETS[pii].l+'</option>';}
-    html+='<option value="COUP1">Coupure 11h-15h / 18h-01h</option>';
-    html+='<option value="COUP2">Coupure 10h-15h / 18h-01h</option>';
+    html+='<option value="COUP1">COUPURE — 11h-15h / 18h-F</option>';
+    html+='<option value="COUP2">COUPURE 10H — 10h-15h / 18h-F</option>';
     html+='<option value="FREE">Horaire libre...</option>';
     html+='</select>';
-    if(d.status==='Coupure')html+='<span class="slot-coupure">✂ Coupure</span>';
+    if(d.status==='Coupure')html+='<span class="slot-coupure">✂ COUPURE</span>';
+    else if(d.status==='Coupure2')html+='<span class="slot-coupure">✂ COUPURE 10H</span>';
     else if(d.status==='Escale')html+='<span class="slot-escale">⚓ Escale</span>';
     else html+='<span class="slot-special">'+d.status+'</span>';
   } else if(d.x){
     html+='<select class="status-sel compact" onchange="onMaster('+ei+','+di+',this.value)">';
     html+='<option value="__x__" selected>— Absent</option>';
     STATUSES.forEach(function(st){html+='<option value="ST_'+st+'">'+st+'</option>';});
+    if(di===0){
+      html+='<option disabled>— Toute la semaine —</option>';
+      html+='<option value="WEEK_Vacances">Vacances — toute la semaine</option>';
+      html+='<option value="WEEK_Arrêt maladie">Arrêt maladie — toute la semaine</option>';
+      html+='<option value="WEEK_CFA">CFA — toute la semaine</option>';
+    }
     html+='<option disabled>---------</option>';
     for(var pii=0;pii<PRESETS.length;pii++){html+='<option value="'+PRESETS[pii].l+'">'+PRESETS[pii].l+'</option>';}
-    html+='<option value="COUP1">Coupure 11h-15h / 18h-01h</option>';
-    html+='<option value="COUP2">Coupure 10h-15h / 18h-01h</option>';
+    html+='<option value="COUP1">COUPURE — 11h-15h / 18h-F</option>';
+    html+='<option value="COUP2">COUPURE 10H — 10h-15h / 18h-F</option>';
     html+='<option value="FREE">Horaire libre...</option>';
     html+='</select>';
     html+='<span class="slot-special" style="background:#F0F4F8;color:#6B6863;font-style:normal">RH</span>';
@@ -426,16 +458,22 @@ function renderCell(ei,di){
     html+='<select class="status-sel" onchange="onMaster('+ei+','+di+',this.value)">';
     html+='<option value="__x__">— Absent</option>';
     STATUSES.forEach(function(st){html+='<option value="ST_'+st+'">'+st+'</option>';});
+    if(di===0){
+      html+='<option disabled>— Toute la semaine —</option>';
+      html+='<option value="WEEK_Vacances">Vacances — toute la semaine</option>';
+      html+='<option value="WEEK_Arrêt maladie">Arrêt maladie — toute la semaine</option>';
+      html+='<option value="WEEK_CFA">CFA — toute la semaine</option>';
+    }
     html+='<option disabled>---------</option>';
     for(var pi=0;pi<PRESETS.length;pi++){html+='<option value="'+PRESETS[pi].l+'" '+(curLbl===PRESETS[pi].l?'selected':'')+'>'+PRESETS[pi].l+'</option>';}
-    html+='<option value="COUP1" '+(curLbl==="COUP1"?"selected":"")+'>Coupure 11h-15h / 18h-01h</option>';
-    html+='<option value="COUP2" '+(curLbl==="COUP2"?"selected":"")+'>Coupure 10h-15h / 18h-01h</option>';
+    html+='<option value="COUP1" '+(curLbl==="COUP1"?"selected":"")+'>COUPURE — 11h-15h / 18h-F</option>';
+    html+='<option value="COUP2" '+(curLbl==="COUP2"?"selected":"")+'>COUPURE 10H — 10h-15h / 18h-F</option>';
     html+='<option value="FREE" '+(curLbl==="FREE"?"selected":"")+'>Horaire libre...</option>';
     html+='</select>';
     if(curLbl==="COUP1"){
-      html+='<span class="slot-coupure">11h-15h / 18h-01h</span>';
+      html+='<span class="slot-coupure">COUPURE</span>';
     } else if(curLbl==="COUP2"){
-      html+='<span class="slot-coupure" style="background:#FEF3C7;color:#92400E">10h-15h / 18h-01h</span>';
+      html+='<span class="slot-coupure" style="background:#FEF3C7;color:#92400E">COUPURE 10H</span>';
     } else if(curLbl!=="FREE"){
       html+='<span class="hb '+(we?'we':'sem')+'">'+curLbl+'</span>';
     } else {
@@ -606,10 +644,10 @@ function chkWeek(ei){
 
 function toMinN(s){if(!s||s==='—')return null;var p=s.split(':').map(Number);return p[0]*60+p[1];}
 function presentAt(sh,t){var sm=toMinN(sh.s),em=toMinN(sh.e);if(sm===null)return false;if(em===null)return sm<=t;if(em<=sm)em+=1440;return sm<=t&&em>=t;}
-function minCovApm(di){var slots=[15*60,15*60+30,16*60,16*60+30,17*60,17*60+30,18*60],mn=999;slots.forEach(function(t){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;d.shifts.forEach(function(sh){if(presentAt(sh,t))c++;});});if(c<mn)mn=c;});return mn===999?0:mn;}
-function cntMidi(di){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<15*60&&em>12*60)f=true;}});if(f)c++;});return c;}
-function cntSoir(di){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<21*60&&em>=21*60)f=true;}});if(f)c++;});return c;}
-function totHDay(di){var t=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;t+=calcDayH(d.shifts);});return t;}
+function minCovApm(di){var slots=[15*60,15*60+30,16*60,16*60+30,17*60,17*60+30,18*60],mn=999;slots.forEach(function(t){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;var present=false;d.shifts.forEach(function(sh){if(!present&&presentAt(sh,t))present=true;});if(present)c++;});if(c<mn)mn=c;});return mn===999?0:mn;}
+function cntMidi(di){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<15*60&&em>12*60)f=true;}});if(f)c++;});return c;}
+function cntSoir(di){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<21*60&&em>=21*60)f=true;}});if(f)c++;});return c;}
+function totHDay(di){var t=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;t+=calcDayH(d.shifts);});return t;}
 
 function updateRowTotal(ei){
   if(EMPS[ei]&&EMPS[ei].hidden)return;
@@ -665,23 +703,53 @@ function weatherIcon(code){
   if(code>=95)return '⛈️';
   return '🌤️';
 }
+function wxNum(v){var n=Number(v);return Number.isFinite(n)?n:null;}
+function summarizeWeatherWindow(rows){
+  if(!rows||!rows.length)return null;
+  var rain=0,wet=0,cloudSum=0,cloudN=0,maxGust=0,tempSum=0,tempN=0,codes=[];
+  rows.forEach(function(r){
+    if(Number.isFinite(r.precip)){rain+=Math.max(0,r.precip);if(r.precip>=0.2)wet++;}
+    if(Number.isFinite(r.cloud)){cloudSum+=r.cloud;cloudN++;}
+    if(Number.isFinite(r.gust))maxGust=Math.max(maxGust,r.gust);
+    if(Number.isFinite(r.temp)){tempSum+=r.temp;tempN++;}
+    if(Number.isFinite(r.code))codes.push(r.code);
+  });
+  var avgCloud=cloudN?cloudSum/cloudN:50;
+  var icon='🌤️';
+  if(codes.some(function(c){return c>=95;})) icon='⛈️';
+  else if(codes.some(function(c){return c>=71&&c<=77||c>=85&&c<=86;})) icon='🌨️';
+  else if(wet>=Math.max(2,Math.ceil(rows.length*.35))||rain>=1){
+    icon=(wet<Math.ceil(rows.length*.6)&&codes.some(function(c){return c>=80&&c<=82;}))?'🌦️':'🌧️';
+  } else if(avgCloud<=25) icon='☀️';
+  else if(avgCloud<=65) icon='🌤️';
+  else icon='☁️';
+  return {icon:icon,rain:rain,maxGust:maxGust,temp:tempN?tempSum/tempN:null};
+}
 function renderWeatherHeaders(mon){
   DAYS.forEach(function(_,di){
     var d=new Date(mon);d.setDate(d.getDate()+di);
     var w=WEATHER_BY_DATE[isoLocal(d)];
     var el=document.getElementById('dw'+di);
     if(!el)return;
-    if(!w){el.textContent='';return;}
-    var txt=' '+weatherIcon(w.code);
-    if(Number.isFinite(w.max))txt+=' '+Math.round(w.max)+'°';
-    if(Number.isFinite(w.rainProb)&&w.rainProb>=40)txt+=' · '+Math.round(w.rainProb)+'%';
-    el.textContent=txt;
+    if(!w){el.innerHTML='';el.removeAttribute('title');return;}
+    var mainIcon=w.icon||weatherIcon(w.code);
+    var main=(w.source==='trend'?'≈ ':'')+mainIcon+(Number.isFinite(w.max)?' '+Math.round(w.max)+'°':'');
+    var details=[];
+    if(w.midi)details.push('Midi '+w.midi.icon);
+    if(w.soir)details.push('Soir '+w.soir.icon);
+    if(Number.isFinite(w.maxGust)&&w.maxGust>=45)details.push('💨 '+Math.round(w.maxGust));
+    if(w.source==='trend'&&!details.length)details.push('tendance');
+    el.className='th-day-weather'+(w.source==='trend'?' wx-trend':'');
+    el.innerHTML='<span class="wx-main">'+main+'</span>'+(details.length?'<span class="wx-detail">'+details.join(' · ')+'</span>':'');
+    var title=w.source==='mf'?'Météo-France AROME/ARPEGE · Midi 11h–15h · Soir 18h–23h':'Tendance météo longue échéance';
+    if(Number.isFinite(w.maxGust)&&w.maxGust>=45)title+=' · Rafales max '+Math.round(w.maxGust)+' km/h';
+    el.title=title;
   });
 }
 function loadWeatherCache(weekDate){
   WEATHER_BY_DATE={};
   try{
-    var raw=localStorage.getItem('locean_weather_'+weekDate);
+    var raw=localStorage.getItem('locean_weather_mf_v54_'+weekDate);
     if(raw)WEATHER_BY_DATE=JSON.parse(raw)||{};
   }catch(e){}
   renderWeatherHeaders(new Date(weekDate));
@@ -689,24 +757,89 @@ function loadWeatherCache(weekDate){
 function fetchWeatherForWeek(weekDate){
   loadWeatherCache(weekDate);
   var mon=new Date(weekDate);
+  DAYS.forEach(function(_,di){var el=document.getElementById('dw'+di);if(el&&!el.textContent)el.innerHTML='<span class="wx-detail">···</span>';});
   var sun=new Date(mon);sun.setDate(sun.getDate()+6);
   var start=isoLocal(mon),end=isoLocal(sun);
-  var url='https://api.open-meteo.com/v1/forecast?latitude=47.6582&longitude=-2.7608&timezone=Europe%2FParis&forecast_days=16&daily=weather_code,temperature_2m_max,precipitation_probability_max';
-  fetch(url).then(function(r){if(!r.ok)throw new Error('Météo HTTP '+r.status);return r.json();}).then(function(data){
-    var daily=data.daily||{},times=daily.time||[],fresh={};
-    times.forEach(function(iso,i){
-      if(iso<start||iso>end)return;
-      fresh[iso]={
-        code:Number(daily.weather_code&&daily.weather_code[i]),
-        max:Number(daily.temperature_2m_max&&daily.temperature_2m_max[i]),
-        rainProb:Number(daily.precipitation_probability_max&&daily.precipitation_probability_max[i])
-      };
-    });
+
+  // Météo-France via Open-Meteo : AROME haute résolution à courte échéance,
+  // puis ARPEGE. Lecture horaire pour éviter qu'une averse isolée donne
+  // l'impression que toute la journée sera pluvieuse.
+  var mfUrl='https://api.open-meteo.com/v1/meteofrance?latitude=47.6582&longitude=-2.7608&timezone=Europe%2FParis&past_days=7&forecast_days=4&hourly=temperature_2m,precipitation,weather_code,cloud_cover,wind_gusts_10m&daily=temperature_2m_max,weather_code,wind_gusts_10m_max';
+  // Filet de sécurité / tendance J+5 à J+16 : modèle multi-sources Open-Meteo.
+  var trendUrl='https://api.open-meteo.com/v1/forecast?latitude=47.6582&longitude=-2.7608&timezone=Europe%2FParis&past_days=7&forecast_days=16&daily=weather_code,temperature_2m_max,precipitation_probability_max,wind_gusts_10m_max';
+
+  Promise.allSettled([
+    fetch(mfUrl).then(function(r){if(!r.ok)throw new Error('Météo-France HTTP '+r.status);return r.json();}),
+    fetch(trendUrl).then(function(r){if(!r.ok)throw new Error('Tendance météo HTTP '+r.status);return r.json();})
+  ]).then(function(results){
+    var fresh={};
+
+    // D'abord la tendance longue échéance.
+    if(results[1].status==='fulfilled'){
+      var td=results[1].value.daily||{},tt=td.time||[];
+      tt.forEach(function(iso,i){
+        if(iso<start||iso>end)return;
+        fresh[iso]={
+          source:'trend',
+          code:wxNum(td.weather_code&&td.weather_code[i]),
+          icon:weatherIcon(td.weather_code&&td.weather_code[i]),
+          max:wxNum(td.temperature_2m_max&&td.temperature_2m_max[i]),
+          rainProb:wxNum(td.precipitation_probability_max&&td.precipitation_probability_max[i]),
+          maxGust:wxNum(td.wind_gusts_10m_max&&td.wind_gusts_10m_max[i])
+        };
+      });
+    }
+
+    // Puis on écrase les jours disponibles avec Météo-France AROME/ARPEGE.
+    if(results[0].status==='fulfilled'){
+      var data=results[0].value||{},h=data.hourly||{},daily=data.daily||{};
+      var byDate={};
+      (h.time||[]).forEach(function(ts,i){
+        var iso=String(ts||'').slice(0,10),hour=Number(String(ts||'').slice(11,13));
+        if(!iso||iso<start||iso>end)return;
+        if(!byDate[iso])byDate[iso]=[];
+        byDate[iso].push({
+          hour:hour,
+          temp:wxNum(h.temperature_2m&&h.temperature_2m[i]),
+          precip:wxNum(h.precipitation&&h.precipitation[i]),
+          code:wxNum(h.weather_code&&h.weather_code[i]),
+          cloud:wxNum(h.cloud_cover&&h.cloud_cover[i]),
+          gust:wxNum(h.wind_gusts_10m&&h.wind_gusts_10m[i])
+        });
+      });
+      var dailyMap={};
+      (daily.time||[]).forEach(function(iso,i){dailyMap[iso]={
+        max:wxNum(daily.temperature_2m_max&&daily.temperature_2m_max[i]),
+        code:wxNum(daily.weather_code&&daily.weather_code[i]),
+        gust:wxNum(daily.wind_gusts_10m_max&&daily.wind_gusts_10m_max[i])
+      };});
+      Object.keys(byDate).forEach(function(iso){
+        var rows=byDate[iso];
+        var midi=summarizeWeatherWindow(rows.filter(function(r){return r.hour>=11&&r.hour<=15;}));
+        var soir=summarizeWeatherWindow(rows.filter(function(r){return r.hour>=18&&r.hour<=23;}));
+        var all=summarizeWeatherWindow(rows.filter(function(r){return r.hour>=9&&r.hour<=23;}));
+        var dd=dailyMap[iso]||{};
+        fresh[iso]={
+          source:'mf',
+          code:Number.isFinite(dd.code)?dd.code:(rows[0]?rows[0].code:null),
+          icon:(all&&all.icon)||weatherIcon(dd.code),
+          max:Number.isFinite(dd.max)?dd.max:(all&&all.temp),
+          maxGust:Number.isFinite(dd.gust)?dd.gust:(all&&all.maxGust),
+          midi:midi,
+          soir:soir
+        };
+      });
+    }
+
     WEATHER_BY_DATE=fresh;
-    try{localStorage.setItem('locean_weather_'+weekDate,JSON.stringify(fresh));}catch(e){}
+    try{localStorage.setItem('locean_weather_mf_v54_'+weekDate,JSON.stringify(fresh));}catch(e){}
     renderWeatherHeaders(mon);
-  }).catch(function(){renderWeatherHeaders(mon);});
+  }).catch(function(){
+    WEATHER_BY_DATE={};
+    renderWeatherHeaders(mon);
+  });
 }
+
 function setDates(mon){
   DAYS.forEach(function(_,di){var d=new Date(mon);d.setDate(d.getDate()+di);var el=document.getElementById('dd'+di);if(el)el.textContent=d.getDate()+'/'+(d.getMonth()+1);});
   var sun=new Date(mon);sun.setDate(sun.getDate()+6);
@@ -722,8 +855,8 @@ function buildPrintDoc(){
   var mon=new Date(document.getElementById('weekDate').value);
   var sun=new Date(mon);sun.setDate(sun.getDate()+6);
   function fmtFull(d){return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear();}
-  var visibleCount=0;EMPS.forEach(function(e){if(!e.hidden)visibleCount++;});
-  document.getElementById('ph-info-p1').innerHTML='S.'+getWeekNum(mon)+'&nbsp;&middot;&nbsp;Semaine du '+fmtFull(mon)+' au '+fmtFull(sun)+'<br>Planning hebdomadaire &mdash; '+visibleCount+' employ&eacute;&middot;es';
+  var visibleCount=0,hiddenCount=0;EMPS.forEach(function(e){if(e.hidden)hiddenCount++;else visibleCount++;});
+  document.getElementById('ph-info-p1').innerHTML='S.'+getWeekNum(mon)+'&nbsp;&middot;&nbsp;Semaine du '+fmtFull(mon)+' au '+fmtFull(sun)+'<br>Planning hebdomadaire &mdash; '+visibleCount+' actifs'+(hiddenCount?' &middot; '+hiddenCount+' hors planning':'');
   document.getElementById('pf-date-p1').textContent='Edit&eacute; le '+fmtFull(new Date());
   var thead=document.getElementById('p1-thead');thead.innerHTML='';
   var htr=document.createElement('tr');
@@ -731,46 +864,78 @@ function buildPrintDoc(){
   DAYS.forEach(function(d,di){
     var dt=new Date(mon);dt.setDate(dt.getDate()+di);
     var w=WEATHER_BY_DATE[isoLocal(dt)];
-    var wx=w?(' '+weatherIcon(w.code)+(Number.isFinite(w.max)?' '+Math.round(w.max)+'°':'')) : '';
+    var wx=w?(' '+(w.icon||weatherIcon(w.code))+(Number.isFinite(w.max)?' '+Math.round(w.max)+'°':'')) : '';
     hh+='<th class="'+(IS_WE[di]?'wh':'')+'">'+(IS_WE[di]?'<span style="color:#b8860b">':'')+d+' '+dt.getDate()+'/'+(dt.getMonth()+1)+wx+(IS_WE[di]?'</span>':'')+'</th>';
   });
   htr.innerHTML=hh;thead.appendChild(htr);
   var tbody=document.getElementById('p1-tbody');tbody.innerHTML='';
   EMPS.forEach(function(emp,ei){
-    if(emp.hidden)return; // MASQUÉ — pas dans le PDF
     var tr=document.createElement('tr');
-    var cells='<td class="en">'+emp.name+'</td>';
-    DAYS.forEach(function(_,di){
-      var dd=DATA[ei][di];var we=IS_WE[di];var inner='';
+    if(emp.hidden){
+      tr.className='hpr';
+      tr.innerHTML='<td class="en">'+emp.name+'</td><td colspan="7"><span class="hpv">Hors planning</span></td>';
+      tbody.appendChild(tr);
+      return;
+    }
+    var mergeStatuses=['Vacances','Arr\u00eat maladie','CFA'];
+    var hasMergedStatus=false;
+    for(var scan=0;scan<DAYS.length;scan++){
+      var scanDay=DATA[ei][scan];
+      if(scanDay&&mergeStatuses.indexOf(scanDay.status)!==-1){hasMergedStatus=true;break;}
+    }
+
+    var cells='<td class="en'+(hasMergedStatus?' status-name':'')+'">'+emp.name+'</td>';
+    var di=0;
+    while(di<DAYS.length){
+      var dd=DATA[ei][di]||{};
+
+      // VACANCES / ARRÊT MALADIE / CFA : fusion des jours consécutifs identiques.
+      if(mergeStatuses.indexOf(dd.status)!==-1){
+        var run=1;
+        while(di+run<DAYS.length){
+          var nextDay=DATA[ei][di+run]||{};
+          if(nextDay.status!==dd.status)break;
+          run++;
+        }
+        cells+='<td colspan="'+run+'" class="merged-status">'+dd.status.toUpperCase()+'</td>';
+        di+=run;
+        continue;
+      }
+
+      var we=IS_WE[di];var inner='';
       if(dd.status){
-        if(dd.status==='Coupure')inner='<span class="cv">Coupure 11h-15h/18h-01h</span>';
-        else if(dd.status==='Coupure2')inner='<span class="cv">10h-15h / 18h-01h</span>';
-        else if(dd.status==='Vacances')inner='<span class="vv">Vacances</span>';
-        else if(dd.status==='Arr\u00eat maladie')inner='<span class="arv">Arr\u00eat maladie</span>';
+        if(dd.status==='Coupure')inner='<span class="cv">COUPURE</span>';
+        else if(dd.status==='Coupure2')inner='<span class="cv">COUPURE 10H</span>';
         else if(dd.status==='Escale')inner='<span class="escv">\u2693 Escale</span>';
         else inner='<span class="spv">'+dd.status+'</span>';
       } else if(dd.x){
         inner='<span class="av">&mdash;</span>';
       } else if(dd.shifts){
-        var parts=dd.shifts.filter(function(s){return s.s&&s.s!=='—';}).map(function(s){var st=s.s.replace(':00','h').replace(':30','h30');var en=s.e&&s.e!=='—'?s.e.replace(':00','h').replace(':30','h30'):'';return st+(en?'&ndash;'+en:'');});
-        if(parts.length===2)inner='<span class="cv">Coupure</span>';
+        var parts=dd.shifts.filter(function(s){return s.s&&s.s!=='—';}).map(function(s){var st=s.s.replace(':00','h').replace(':30','h30');var en='';if(s.e&&s.e!=='—'){en=s.e==='01:00'?'F':s.e.replace(':00','h').replace(':30','h30');}return st+(en?'&ndash;'+en:'');});
+        if(parts.length===2){
+          var firstStart=dd.shifts[0]&&dd.shifts[0].s;
+          inner='<span class="cv">'+(firstStart==='10:00'?'COUPURE 10H':'COUPURE')+'</span>';
+        }
         else if(parts.length===1)inner='<span class="sv">'+parts[0]+'</span>';
         else inner='<span class="av">&mdash;</span>';
       }
       cells+='<td'+(we?' class="wd"':'')+'>'+inner+'</td>';
-    });
+      di++;
+    }
     tr.innerHTML=cells;tbody.appendChild(tr);
   });
-  ['Midi (12&ndash;15h)','Soir (21h+)'].forEach(function(lbl,fi){
+  [
+    {label:'Midi (12&ndash;15h)',type:'midi'},
+    {label:'Apr&egrave;s-midi (15&ndash;18h)',type:'apm'},
+    {label:'Soir (21h+)',type:'soir'}
+  ].forEach(function(item){
     var fr=document.createElement('tr');fr.className='fr';
-    var cells='<td class="fl">'+lbl+'</td>';
+    var cells='<td class="fl">'+item.label+'</td>';
     DAYS.forEach(function(_,di){
       var count=0;
-      EMPS.forEach(function(emp,ei){
-        if(emp.hidden)return;
-        var dd=DATA[ei][di];if(!dd||dd.x)return;if(dd.status&&dd.status!=='Coupure')return;
-        if(dd.shifts)dd.shifts.forEach(function(sh){if(fi===0&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<15*60&&em>12*60)count++;}if(fi===1&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm2=toMinN(sh.s),em2=toMinN(sh.e);if(em2<=sm2)em2+=1440;if(sm2<21*60&&em2>=21*60)count++;}});
-      });
+      if(item.type==='midi')count=cntMidi(di);
+      else if(item.type==='apm')count=minCovApm(di);
+      else count=cntSoir(di);
       cells+='<td>'+(count>0?'<span class="fc">'+count+' pers.</span>':'')+'</td>';
     });
     fr.innerHTML=cells;tbody.appendChild(fr);
@@ -884,10 +1049,11 @@ function exportCSV(){
     var row=[emp.name];
     DAYS.forEach(function(_,di){
       var dd=DATA[ei][di];
-      if(dd.status==='Coupure'){row.push('Coupure');return;}
+      if(dd.status==='Coupure'){row.push('COUPURE');return;}
+      if(dd.status==='Coupure2'){row.push('COUPURE 10H');return;}
       if(dd.status){row.push(dd.status);return;}
       if(dd.x){row.push('');return;}
-      var parts=(dd.shifts||[]).filter(function(s){return s.s&&s.s!=='—';}).map(function(s){return s.s+(s.e&&s.e!=='—'?' - '+s.e:'');});
+      var parts=(dd.shifts||[]).filter(function(s){return s.s&&s.s!=='—';}).map(function(s){var en=s.e&&s.e!=='—'?(s.e==='01:00'?'F':s.e):'';return s.s+(en?' - '+en:'');});
       row.push(parts.join(' / '));
     });
     rows.push(row);
@@ -929,7 +1095,9 @@ function searchEvents(){
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
-      prompt:'Recherche les evenements, festivals, marches, concerts, regates, tournois, salons prevus a Vannes et dans un rayon de 15km (Morbihan) du '+fmtFull(mon)+' au '+fmtFull(sun)+'. Reponds UNIQUEMENT avec un tableau JSON valide sans texte ni backticks: [{"name":"nom","date":"date","lieu":"lieu","impact":"high/medium/low","note":"impact sur restauration"}]. Si aucun evenement: [].'
+      startDate:isoLocal(mon),
+      endDate:isoLocal(sun),
+      prompt:'Recherche les evenements, festivals, marches, concerts, regates, tournois, salons prevus a Vannes et dans un rayon de 15km (Morbihan) du '+fmtFull(mon)+' au '+fmtFull(sun)+'.'
     })
   }).then(function(r){return r.json();}).then(function(data){
     if(data.error){body.innerHTML='<div class="evt-empty">Erreur : '+data.error+'</div>';btn.disabled=false;btn.textContent='🔍 Actualiser';return;}
@@ -940,7 +1108,6 @@ function searchEvents(){
     // La météo est affichée directement dans l'en-tête de chaque jour.
     // On masque donc l'ancienne carte météo hebdomadaire éventuelle.
     evts=(evts||[]).filter(function(ev){return ev&&ev.type!=='weather_context';});
-    fetchWeatherForWeek(wkDate);
     if(!evts||!evts.length){
       body.innerHTML='<div class="evt-empty">Aucun evenement trouve pour cette semaine.</div>';
     } else {
@@ -1029,7 +1196,7 @@ function importJSON(evt){
       buildBody();
       setDates(new Date(wd));
       loadEvents(wd);
-    }catch(ex){alert('Erreur lors de l\'import : '+ex.message);}
+    }catch(ex){alert("Erreur lors de l\'import : "+ex.message);}
   };
   reader.readAsText(file);
   evt.target.value='';
