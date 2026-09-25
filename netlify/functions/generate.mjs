@@ -129,7 +129,7 @@ function formatReferenceDay(d) {
   return shifts.map(s => `${s.s}${s.e ? ' > ' + s.e : ''}`).join(' / ');
 }
 
-exports.handler = async function(event) {
+export const handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return response(200, {});
   if (event.httpMethod !== 'POST') return response(405, { error: 'Méthode non autorisée' });
 
@@ -310,3 +310,4 @@ Valeurs autorisées pour chaque jour :
     console.error('generate function error:', e);
     return response(500, { error: e.message || 'Erreur inconnue' });
   }
+};
