@@ -1013,6 +1013,55 @@ function parseAIShift(val) {
   return null;
 }
 
+
+function fetchAIContext(weekDate) {
+  var mon = new Date(weekDate + 'T12:00:00');
+  var sun = new Date(mon); sun.setDate(sun.getDate()+6);
+
+  function iso(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  function fmtFull(d){ return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear(); }
+
+  var startDate = iso(mon), endDate = iso(sun);
+
+  var eventsPromise = fetch('/.netlify/functions/events', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      startDate:startDate,
+      endDate:endDate,
+      prompt:'Recherche les evenements, festivals, marches, concerts, regates, tournois, salons prevus a Vannes et dans un rayon de 15km (Morbihan) du '+fmtFull(mon)+' au '+fmtFull(sun)+'.'
+    })
+  }).then(function(r){ return r.json(); }).then(function(data){
+    var txt = data && data.text ? data.text : '[]';
+    var s = txt.indexOf('['), e = txt.lastIndexOf(']');
+    if(s<0 || e<0) return [];
+    try { return JSON.parse(txt.slice(s,e+1)); } catch(_) { return []; }
+  }).catch(function(){ return []; });
+
+  var weatherUrl='https://api.open-meteo.com/v1/forecast?latitude=47.6582&longitude=-2.7608&timezone=Europe%2FParis&forecast_days=16&daily=weather_code,temperature_2m_max,precipitation_probability_max';
+  var weatherPromise = fetch(weatherUrl).then(function(r){ return r.json(); }).then(function(data){
+    var daily=data.daily||{}, times=daily.time||[], out={};
+    times.forEach(function(date,i){
+      if(date<startDate || date>endDate) return;
+      out[date]={
+        code:Number(daily.weather_code&&daily.weather_code[i]),
+        max:Number(daily.temperature_2m_max&&daily.temperature_2m_max[i]),
+        rainProb:Number(daily.precipitation_probability_max&&daily.precipitation_probability_max[i])
+      };
+    });
+    return out;
+  }).catch(function(){
+    try {
+      var raw=localStorage.getItem('locean_weather_'+weekDate);
+      return raw ? (JSON.parse(raw)||{}) : {};
+    } catch(_) { return {}; }
+  });
+
+  return Promise.all([eventsPromise, weatherPromise]).then(function(all){
+    return { events: all[0], weather: all[1] };
+  });
+}
+
 function generatePlanning() {
   var btn = document.getElementById('aiBtn');
   btn.disabled = true;
@@ -1022,14 +1071,20 @@ function generatePlanning() {
   document.getElementById('aiApplyBtn').style.display = 'none';
   document.getElementById('aiModal').classList.add('open');
 
-  fetch('/.netlify/functions/generate', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      weekDate: document.getElementById('weekDate').value,
-      emps: EMPS.map(function(e,i){ return {name:e.name, contract:e.contract||0, hidden:!!e.hidden}; }),
-      data: DATA
-    })
+  var aiWeekDate = document.getElementById('weekDate').value;
+  document.getElementById('aiBody').innerHTML = '<div style="text-align:center;padding:30px;color:var(--g400)">🔎 Analyse météo, événements, vacances & activité...<br><small style="font-size:10px;margin-top:8px;display:block">Puis génération du planning</small></div>';
+
+  fetchAIContext(aiWeekDate).then(function(context) {
+    return fetch('/.netlify/functions/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        weekDate: aiWeekDate,
+        emps: EMPS.map(function(e,i){ return {name:e.name, contract:e.contract||0, hidden:!!e.hidden}; }),
+        data: DATA,
+        context: context
+      })
+    });
   }).then(function(r){ return r.json(); }).then(function(res) {
     btn.disabled = false;
     btn.textContent = '✨ Planning IA';
