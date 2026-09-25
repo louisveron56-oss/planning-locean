@@ -388,3 +388,4 @@ Valeurs autorisées pour chaque jour :
     console.error('generate function error:', e);
     return response(500, { error: e.message || 'Erreur inconnue' });
   }
+};
