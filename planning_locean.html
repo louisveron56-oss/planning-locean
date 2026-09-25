@@ -1082,7 +1082,8 @@ function generatePlanning() {
         weekDate: aiWeekDate,
         emps: EMPS.map(function(e,i){ return {name:e.name, contract:e.contract||0, hidden:!!e.hidden}; }),
         data: DATA,
-        context: context
+        context: context,
+        allowedShifts: Object.keys(AI_PRESET_MAP)
       })
     });
   }).then(function(r){ return r.json(); }).then(function(res) {
@@ -1203,4 +1204,3 @@ fetchWeatherForWeek(document.getElementById('weekDate').value);
 </div>
 
 </body>
-</html>
