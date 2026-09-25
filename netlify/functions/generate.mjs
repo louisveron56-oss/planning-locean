@@ -145,9 +145,12 @@ Les valeurs possibles pour chaque jour : un horaire comme "09h > 17h30" ou "16h 
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 4000,
+        model: 'openai/gpt-oss-120b',
+        max_completion_tokens: 4000,
         temperature: 0.3,
+        reasoning_effort: 'low',
+        reasoning_format: 'hidden',
+        response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: 'Tu es un assistant de planification pour restaurant. Tu réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans backticks.' },
           { role: 'user', content: prompt }
