@@ -30,6 +30,54 @@ const COMPETENCES = {
   'Louis':        { rangs: ['Bar','Salle bas','Salle 400','Grand côté','Petit côté','Fond','Accueil','Runner'], shifts: ['Matin','Soir'], ghost: true, note: 'FANTÔME : peut apparaître au planning mais peut être mobilisé à L\'Escale. Ne jamais le compter pour atteindre un minimum de couverture.' }
 };
 
+const SHIFT_PREFERENCES = {
+  'Virginie': {
+    preferred: ['07h > 16h','08h > 17h','09h > 18h30'],
+    note: 'Matin. Varier les prises de poste selon le besoin, ne pas la mettre automatiquement à 07h.'
+  },
+  'Raphael': {
+    preferred: ['07h > 16h','09h > 17h'],
+    note: 'Matin. Peut ouvrir ou arriver plus tard ; éviter 07h systématique.'
+  },
+  'Anthony': {
+    preferred: ['07h > 16h','08h > 17h','08h > 18h','10h > 18h30','11h > 16h'],
+    note: 'Matin/journée. Sert souvent de renfort décalé.'
+  },
+  'Salome': {
+    preferred: ['10h > 17h30'],
+    note: 'Arrivée autour de 10h30/11h acceptable. Avant midi : tâches hors service ; à partir de midi : accueil uniquement.'
+  },
+  'Ismaël': {
+    preferred: ['08h > 18h','09h > 18h30'],
+    note: 'Journée prioritaire. 09h > 18h30 est un shift naturel fréquent.'
+  },
+  'Pierre': {
+    preferred: ['15h > f','11h > 15h / 18h > f'],
+    note: 'Soir par défaut ; coupure si nécessaire.'
+  },
+  'Maxence': {
+    preferred: ['15h > f','17h > f','11h > 15h / 18h > f'],
+    note: 'Soir ; peut entrer à 15h, 17h ou être en coupure selon couverture.'
+  },
+  'Yoann': {
+    preferred: ['18h > f','15h > f','11h > 15h / 18h > f','10h > 15h / 18h > f'],
+    note: 'Soir ; souvent entrée tardive, coupure possible.'
+  },
+  'Martin F': {
+    preferred: ['18h > 23h','15h > f','11h > 15h / 18h > f','10h > 15h / 18h > f'],
+    note: 'Soir ; arrivée variable selon le besoin.'
+  },
+  'Martin V': {
+    preferred: ['09h > 17h','15h > f','17h > f','11h > 15h / 18h > f'],
+    note: 'Fantôme : horaires possibles mais ne compte jamais dans les minimums.'
+  },
+  'Louis': {
+    preferred: ['10h > 18h30','10h > 20h','15h > 23h','17h > f','18h > f','11h > 15h / 18h > f'],
+    note: 'Fantôme : horaires variés ; ne compte jamais dans les minimums.'
+  }
+};
+
+
 const REGLES_SERVICE = `
 RÈGLES DE SERVICE L'OCÉAN — Vannes
 
@@ -144,6 +192,9 @@ export const handler = async function(event) {
     const context = body.context || {};
     const externalEvents = Array.isArray(context.events) ? context.events : [];
     const weatherByDate = context.weather && typeof context.weather === 'object' ? context.weather : {};
+    const allowedShifts = Array.isArray(body.allowedShifts)
+      ? [...new Set(body.allowedShifts.map(v => String(v).trim()).filter(Boolean))]
+      : [];
     if (!weekDate || !emps) return response(400, { error: 'Paramètres manquants (weekDate, emps)' });
 
     // Construire la liste des employés disponibles cette semaine
@@ -170,7 +221,10 @@ export const handler = async function(event) {
       });
       const note = comp.note ? ` [${comp.note}]` : '';
       const ghost = comp.ghost ? ' [FANTÔME - ne compte pas dans les minimums]' : '';
-      empSummary += `- ${emp.name} (${emp.contract || '?'}h/sem)${ghost}${note}: rangs=[${comp.rangs.join(', ')}], profil=[${comp.shifts.join('/')||'non défini'}], repos fixes=${reposDays.join('/')||'aucun'}\n`;
+      const pref = SHIFT_PREFERENCES[emp.name] || { preferred: [], note: '' };
+      const prefText = pref.preferred.length ? `, shifts préférés=[${pref.preferred.join(' ; ')}]` : '';
+      const prefNote = pref.note ? ` [habitudes: ${pref.note}]` : '';
+      empSummary += `- ${emp.name} (${emp.contract || '?'}h/sem)${ghost}${note}${prefNote}: rangs=[${comp.rangs.join(', ')}], profil=[${comp.shifts.join('/')||'non défini'}], repos fixes=${reposDays.join('/')||'aucun'}${prefText}\n`;
 
       const current = days.map((day, di) => {
         const d = body.data && body.data[i] && body.data[i][di];
@@ -178,6 +232,10 @@ export const handler = async function(event) {
       }).join(' | ');
       referencePlanning += `- ${emp.name}: ${current}\n`;
     });
+
+    const allowedShiftsText = allowedShifts.length
+      ? allowedShifts.join(' ; ')
+      : 'Aucune liste transmise : utiliser uniquement les horaires déjà vus dans le planning de référence.';
 
     const externalContextText = [
       'ÉVÉNEMENTS / VACANCES / JOURS FÉRIÉS :',
@@ -203,6 +261,24 @@ ${referencePlanning}
 
 CONTEXTE EXTERNE DE LA SEMAINE :
 ${externalContextText}
+
+SHIFTS AUTORISÉS PAR L'INTERFACE :
+${allowedShiftsText}
+
+RÈGLES D'ÉCHELONNEMENT DES SHIFTS :
+- Choisis les horaires UNIQUEMENT parmi les shifts autorisés transmis par l'interface, sauf statut RH/Vacances/CFA/Arrêt maladie.
+- Ne crée pas artificiellement un shift unique pour toute l'équipe matin ou toute l'équipe soir.
+- "Équipe matin" et "Équipe soir" décrivent une famille de disponibilité, PAS un horaire identique.
+- Construis une montée en charge progressive : fais commencer chaque salarié le PLUS TARD POSSIBLE tout en respectant le besoin de couverture de chaque heure.
+- Matin café (mercredi/samedi/dimanche) : jusqu'à 10h, 2 personnels réels suffisent ; à partir de 10h, il en faut 3. Il est donc inutile de faire venir 4 ou 5 personnes à 07h.
+- Pour le midi, ajoute les renforts progressivement avant 12h seulement si nécessaire pour atteindre la couverture du service.
+- Pour le soir, échelonne les arrivées entre 15h, 16h, 17h et 18h selon les besoins. Il est interdit de mettre automatiquement toute l'équipe soir à 15h.
+- À 18h, la couverture complète du soir doit être atteinte.
+- À la fermeture, conserve 5 personnels réels jusqu'à F/01h.
+- Les shifts préférés par salarié sont des préférences fortes, pas des obligations : utilise-les d'abord lorsqu'ils permettent la couverture.
+- Évite que plus de 2 salariés d'une même famille commencent exactement à la même heure, sauf si la couverture l'exige réellement.
+- Privilégie la combinaison de shifts qui satisfait la couverture avec le moins d'heures inutiles.
+- Les shifts de Martin V et Louis n'aident jamais à satisfaire les minimums car ils sont FANTÔMES.
 
 INTERPRÉTATION DU NIVEAU D'ACTIVITÉ :
 - Le niveau par défaut est NORMAL.
@@ -236,6 +312,8 @@ CONSIGNES DE GÉNÉRATION :
 
 Avant de produire le JSON final, contrôle :
 - aucun salarié matin strict sur un service du soir ou une fermeture ;
+- les arrivées sont réellement échelonnées et non uniformisées par équipe ;
+- aucun shift hors de la liste autorisée n'a été inventé ;
 - Salome non comptée opérationnellement avant 12h, puis accueil uniquement ;
 - Martin V et Louis exclus de tous les calculs de minimum ;
 - 5 personnels réels à chaque fermeture ;
@@ -310,4 +388,3 @@ Valeurs autorisées pour chaque jour :
     console.error('generate function error:', e);
     return response(500, { error: e.message || 'Erreur inconnue' });
   }
-};
