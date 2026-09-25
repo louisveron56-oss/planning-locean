@@ -1,6 +1,3 @@
-
-
-Planning locean · HTML
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -174,7 +171,7 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
 </style>
 </head>
 <body>
- 
+
 <div class="print-doc" style="display:none" id="printDoc">
   <div class="p1h"><div class="p1h-logo">L'OCÉAN</div><div class="p1h-meta" id="ph-info-p1"></div></div>
   <table class="p1t"><thead id="p1-thead"></thead><tbody id="p1-tbody"></tbody></table>
@@ -184,7 +181,7 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
   </div>
   <div class="p1f"><span>Planning confidentiel — Maison L'Océan · 4 place Gambetta, Vannes</span><span id="pf-date-p1"></span></div>
 </div>
- 
+
 <header class="header">
   <div class="brand">
     <div class="logo">LO</div>
@@ -205,7 +202,7 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
     </button>
   </div>
 </header>
- 
+
 <main class="main">
   <div class="table-card">
     <div class="table-scroll">
@@ -215,7 +212,7 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
       </table>
     </div>
   </div>
- 
+
   <div class="evt-card">
     <div class="evt-hdr">
       <div class="evt-hdr-title">📅 Événements Vannes & alentours (15km)</div>
@@ -225,7 +222,7 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
       <div class="evt-empty">Sélectionne une semaine puis clique sur Rechercher.</div>
     </div>
   </div>
- 
+
   <div class="foot">
     <div class="foot-l no-print" style="font-size:10px;color:var(--g400)">Coupure = 11h–15h / 18h–F · Pause 30min par tranche déduite</div>
     <div class="foot-r no-print">
@@ -236,7 +233,7 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
     </div>
   </div>
 </main>
- 
+
 <div class="modal-overlay" id="rhModal" onclick="if(event.target===this)closeRH()">
   <div class="modal">
     <div class="modal-header">
@@ -253,14 +250,14 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
     </div>
   </div>
 </div>
- 
+
 <script>
 var DAYS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
 var DAYS_FULL=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 var IS_WE=[false,false,false,false,false,true,true];
 var STATUSES=['Absent','Vacances','CFA','Arrêt maladie','Congé','Formation','Repos','Escale'];
 var WEATHER_BY_DATE={};
- 
+
 var PRESETS=[
   {l:'07h > 16h',s:'07:00',e:'16:00'},
   {l:'07h > 17h',s:'07:00',e:'17:00'},
@@ -283,7 +280,7 @@ var PRESETS=[
   {l:'17h > 01h',s:'17:00',e:'01:00'},
   {l:'18h > 01h',s:'18:00',e:'01:00'},
 ];
- 
+
 function onMaster(ei,di,val){
   if(val==='__x__'){DATA[ei][di]={shifts:null,x:true,status:''};redrawCell(ei,di);return;}
   if(val.indexOf('ST_')===0){
@@ -301,9 +298,9 @@ function onMaster(ei,di,val){
     }
   }
 }
- 
+
 var COUPURE_SHIFTS=[{s:'11:00',e:'15:00'},{s:'18:00',e:'01:00'}];
- 
+
 var PALETTES=[
   {bg:'#E6F1FB',fg:'#0C447C'},{bg:'#EAF3DE',fg:'#3B6D11'},{bg:'#FAEEDA',fg:'#633806'},
   {bg:'#F3E8FF',fg:'#5B21B6'},{bg:'#FEE2E2',fg:'#991B1B'},{bg:'#D1FAE5',fg:'#065F46'},
@@ -313,7 +310,7 @@ var PALETTES=[
   {bg:'#F7FEE7',fg:'#3F6212'},{bg:'#FFF1F2',fg:'#881337'},{bg:'#F8FAFC',fg:'#334155'},
   {bg:'#ECFDF5',fg:'#064E3B'},{bg:'#FFF5F5',fg:'#7F1D1D'},
 ];
- 
+
 var EMPS=[
   {name:'Virginie', days:[{},{},{},{},{},{x:true},{x:true}]},
   {name:'Raphael',  days:[{},{},{},{},{x:true},{x:true},{}]},
@@ -334,7 +331,7 @@ var EMPS=[
   {name:'Martin V', days:[{x:true},{},{},{},{},{},{x:true}]},
   {name:'Louis',    days:[{},{x:true},{x:true},{},{},{},{}]},
 ];
- 
+
 function pad(n){return n<10?'0'+n:''+n;}
 function buildOpts(){var o=['—'];for(var h=0;h<=24;h++){o.push(pad(h)+':00');if(h<24)o.push(pad(h)+':30');}return o;}
 var OPTS=buildOpts();
@@ -351,7 +348,7 @@ function calcDayH(shifts){
   if(!shifts)return 0;
   return shifts.reduce(function(a,sh){return a+(calcH(sh.s,sh.e)||0);},0);
 }
- 
+
 var DATA={};
 function initData(){
   DATA={};
@@ -367,16 +364,16 @@ function initData(){
     });
   });
 }
- 
+
 function getColor(ei){return PALETTES[ei%PALETTES.length];}
- 
+
 function getTrancheLabel(si,total){
   if(total<=1)return '';
   if(si===0)return 'Midi';
   if(si===1&&total===2)return 'Soir';
   return 'Tranche '+(si+1);
 }
- 
+
 function renderShiftRow(ei,di,si,sh,we,total){
   var lbl=getTrancheLabel(si,total||1);
   var trCls=si===0&&total>1?'midi-tr':(si===1&&total===2?'soir-tr':'');
@@ -390,7 +387,7 @@ function renderShiftRow(ei,di,si,sh,we,total){
   html+='</div></div>';
   return html;
 }
- 
+
 function renderCell(ei,di){
   var d=DATA[ei][di];
   var we=IS_WE[di];
@@ -453,7 +450,7 @@ function renderCell(ei,di){
   html+='</div>';
   return html;
 }
- 
+
 function buildHeader(){
   var tr=document.getElementById('hrow');
   tr.innerHTML='<th class="th-emp">Employé·e</th>';
@@ -466,7 +463,7 @@ function buildHeader(){
   var th1=document.createElement('th');th1.className='th-tot';th1.textContent='Total';tr.appendChild(th1);
   var th2=document.createElement('th');th2.className='th-ccn';th2.textContent='CCN CHR';tr.appendChild(th2);
 }
- 
+
 function buildBody(){
   var tb=document.getElementById('tbody');tb.innerHTML='';
   EMPS.forEach(function(emp,ei){
@@ -487,7 +484,7 @@ function buildBody(){
     var ccntd=document.createElement('td');ccntd.className='td-ccn';ccntd.id='ccn'+ei;ccntd.innerHTML='<span style="font-size:9px;color:#059669">✓ OK</span>';tr.appendChild(ccntd);
     tb.appendChild(tr);
   });
- 
+
   var FLABELS=['Midi (12–15h)','Ap.-midi (15–18h)','Soir (21h+)','H. total'];
   var FIDS=['fmidi','fapm','fsoir','ftoth'];
   FLABELS.forEach(function(lbl,fi){
@@ -502,11 +499,11 @@ function buildBody(){
     var ftd3=document.createElement('td');ftd3.style.cssText='border-left:.5px solid var(--g200);background:#FFF5F5';fr.appendChild(ftd3);
     tb.appendChild(fr);
   });
- 
+
   applySelects();
   updateAllTotals();
 }
- 
+
 function applySelects(){
   EMPS.forEach(function(_,ei){
     DAYS.forEach(function(_,di){
@@ -523,7 +520,7 @@ function applySelects(){
     });
   });
 }
- 
+
 function redrawCell(ei,di){
   var cell=document.getElementById('cell'+ei+'_'+di);
   if(cell)cell.innerHTML=renderCell(ei,di);
@@ -542,7 +539,7 @@ function redrawCell(ei,di){
   updateFooter();
   saveToStorage();
 }
- 
+
 function onStatusChange(ei,di,val){
   if(val==='__absent__')DATA[ei][di]={shifts:null,x:true,status:''};
   else if(val==='Coupure')DATA[ei][di]={shifts:COUPURE_SHIFTS.map(function(s){return{s:s.s,e:s.e};}),x:false,status:'Coupure'};
@@ -550,7 +547,7 @@ function onStatusChange(ei,di,val){
   else{var ex=DATA[ei][di].status==='Coupure'?null:DATA[ei][di].shifts;DATA[ei][di]={shifts:ex&&ex.length?ex:[{s:'—',e:'—'}],x:false,status:''};}
   redrawCell(ei,di);
 }
- 
+
 function onShiftChange(ei,di,si,field,val){
   if(DATA[ei][di].shifts&&DATA[ei][di].shifts[si])DATA[ei][di].shifts[si][field]=val;
   if(field==='e'){
@@ -561,11 +558,11 @@ function onShiftChange(ei,di,si,field,val){
   }
   updateHBadge(ei,di);updateRowTotal(ei);updateFooter();saveToStorage();
 }
- 
+
 function addShift(ei,di){if(!DATA[ei][di].shifts)DATA[ei][di].shifts=[];DATA[ei][di].shifts.push({s:'—',e:'—'});redrawCell(ei,di);}
 function removeShift(ei,di,si){if(DATA[ei][di].shifts)DATA[ei][di].shifts.splice(si,1);redrawCell(ei,di);}
 function updateHBadge(ei,di){var d=DATA[ei][di];var el=document.getElementById('hb'+ei+'_'+di);if(!el)return;var t=calcDayH(d.shifts);el.textContent=t>0?t.toFixed(1)+'h':'—';}
- 
+
 // CCN CHR
 var CCN={MAX_DAY:11.5,MAX_AMP:13,MIN_REST:11,MAX_WEEK:48,MAX_CONS:6,MIN_COUP:2};
 function chkDay(ei,di){
@@ -606,14 +603,14 @@ function chkWeek(ei){
   if(rdays<2)alerts.push({t:'e',m:'< 2 jours repos'});
   return{tot:tot,alerts:alerts};
 }
- 
+
 function toMinN(s){if(!s||s==='—')return null;var p=s.split(':').map(Number);return p[0]*60+p[1];}
 function presentAt(sh,t){var sm=toMinN(sh.s),em=toMinN(sh.e);if(sm===null)return false;if(em===null)return sm<=t;if(em<=sm)em+=1440;return sm<=t&&em>=t;}
 function minCovApm(di){var slots=[15*60,15*60+30,16*60,16*60+30,17*60,17*60+30,18*60],mn=999;slots.forEach(function(t){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;d.shifts.forEach(function(sh){if(presentAt(sh,t))c++;});});if(c<mn)mn=c;});return mn===999?0:mn;}
 function cntMidi(di){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<15*60&&em>12*60)f=true;}});if(f)c++;});return c;}
 function cntSoir(di){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<21*60&&em>=21*60)f=true;}});if(f)c++;});return c;}
 function totHDay(di){var t=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;t+=calcDayH(d.shifts);});return t;}
- 
+
 function updateRowTotal(ei){
   if(EMPS[ei]&&EMPS[ei].hidden)return;
   var wk=chkWeek(ei);
@@ -641,7 +638,7 @@ function updateRowTotal(ei){
     }
   });
 }
- 
+
 function updateFooter(){
   DAYS.forEach(function(_,di){
     var midi=cntMidi(di),apm=minCovApm(di),soir=cntSoir(di),htot=totHDay(di);
@@ -651,9 +648,9 @@ function updateFooter(){
     var eh=document.getElementById('ftoth_'+di);if(eh)eh.innerHTML=htot>0?'<span style="font-size:9px;font-weight:600;color:var(--g900)">'+htot.toFixed(1)+'h</span>':'<span style="color:var(--g400)">—</span>';
   });
 }
- 
+
 function updateAllTotals(){EMPS.forEach(function(_,ei){updateRowTotal(ei);});updateFooter();}
- 
+
 function isoLocal(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
 function weatherIcon(code){
   code=Number(code);
@@ -717,9 +714,9 @@ function setDates(mon){
   var el=document.getElementById('weekRange');if(el)el.textContent=fmt(mon)+' — '+fmt(sun);
   renderWeatherHeaders(mon);
 }
- 
+
 function getWeekNum(d){var date=new Date(d);date.setHours(0,0,0,0);date.setDate(date.getDate()+3-(date.getDay()+6)%7);var w1=new Date(date.getFullYear(),0,4);return 1+Math.round(((date-w1)/86400000-3+(w1.getDay()+6)%7)/7);}
- 
+
 /* PRINT */
 function buildPrintDoc(){
   var mon=new Date(document.getElementById('weekDate').value);
@@ -779,7 +776,7 @@ function buildPrintDoc(){
     fr.innerHTML=cells;tbody.appendChild(fr);
   });
 }
- 
+
 function doPrint(){
   buildPrintDoc();
   var evtBody=document.getElementById('evtBody');
@@ -811,7 +808,7 @@ function doPrint(){
   }
   window.print();
 }
- 
+
 /* RH MODAL */
 function openRH(){
   var body=document.getElementById('rhBody'),html='';
@@ -836,7 +833,7 @@ function openRH(){
   document.getElementById('rhBody').innerHTML=html;
   document.getElementById('rhModal').classList.add('open');
 }
- 
+
 function toggleHidden(ei){
   EMPS[ei].hidden=!EMPS[ei].hidden;
   var row=document.getElementById('emprow'+ei);
@@ -853,10 +850,10 @@ function toggleHidden(ei){
   loadWeatherCache(document.getElementById('weekDate').value);
   setDates(new Date(document.getElementById('weekDate').value));
 }
- 
+
 function closeRH(){document.getElementById('rhModal').classList.remove('open');}
 function delEmp(ei){var r=document.getElementById('emprow'+ei);if(r)r.style.opacity='.3';document.getElementById('rh_name_'+ei).value='__DEL__';}
- 
+
 function moveEmp(ei,dir){
   var newIdx=ei+dir;
   if(newIdx<0||newIdx>=EMPS.length)return;
@@ -865,7 +862,7 @@ function moveEmp(ei,dir){
   saveToStorage();
   openRH();
 }
- 
+
 function addEmp(){EMPS.push({name:'Nouveau·elle',days:DAYS.map(function(){return{x:true};})});DATA[EMPS.length-1]={};DAYS.forEach(function(_,di){DATA[EMPS.length-1][di]={shifts:null,x:true,status:''};});openRH();}
 function saveRH(){
   var toRemove=[];
@@ -878,7 +875,7 @@ function saveRH(){
   toRemove.reverse().forEach(function(ei){EMPS.splice(ei,1);var newD={};Object.keys(DATA).forEach(function(k){var ki=parseInt(k);if(ki<ei)newD[ki]=DATA[ki];else if(ki>ei)newD[ki-1]=DATA[ki];});DATA=newD;});
   closeRH();buildHeader();loadWeatherCache(document.getElementById('weekDate').value);buildBody();setDates(new Date(document.getElementById('weekDate').value));saveToStorage();
 }
- 
+
 /* CSV */
 function exportCSV(){
   var rows=[['Employé·e','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche']];
@@ -898,7 +895,7 @@ function exportCSV(){
   var csv=rows.map(function(r){return r.map(function(c){return '"'+c+'"';}).join(',');}).join('\n');
   var a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='planning_locean.csv';a.click();
 }
- 
+
 /* LOCALSTORAGE */
 var STORAGE_KEY='locean_v16';
 function saveToStorage(){
@@ -916,7 +913,7 @@ function loadFromStorage(){
   }catch(e){localStorage.removeItem(STORAGE_KEY);return false;}
 }
 function hardReset(){if(confirm('Réinitialiser le planning aux données par défaut ?')){localStorage.removeItem(STORAGE_KEY);location.reload();}}
- 
+
 /* ÉVÉNEMENTS */
 function searchEvents(){
   var btn=document.getElementById('evtBtn');
@@ -927,7 +924,7 @@ function searchEvents(){
   function fmtFull(d){return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear();}
   btn.disabled=true;btn.textContent='Recherche...';
   body.innerHTML='<div class="evt-empty">Recherche en cours...</div>';
- 
+
   fetch('/.netlify/functions/events',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
@@ -963,7 +960,7 @@ function searchEvents(){
     btn.disabled=false;btn.textContent='🔍 Actualiser';
   });
 }
- 
+
 function loadEvents(weekDate){
   try{
     var raw=localStorage.getItem('locean_events_'+weekDate);
@@ -977,7 +974,7 @@ function loadEvents(weekDate){
     }
   }catch(e){}
 }
- 
+
 /* MODE SOMBRE */
 function toggleDark(){
   var isDark=document.documentElement.getAttribute('data-theme')==='dark';
@@ -993,7 +990,7 @@ function loadTheme(){
     if(btn)btn.textContent=t==='dark'?'☀️':'🌙';
   }catch(e){}
 }
- 
+
 /* EXPORT / IMPORT JSON */
 function exportJSON(){
   var payload={
@@ -1032,12 +1029,12 @@ function importJSON(evt){
       buildBody();
       setDates(new Date(wd));
       loadEvents(wd);
-    }catch(ex){alert('Erreur lors de l'import : '+ex.message);}
+    }catch(ex){alert('Erreur lors de l\'import : '+ex.message);}
   };
   reader.readAsText(file);
   evt.target.value='';
 }
- 
+
 /* INIT */
 loadTheme();
 var mon=new Date('2026-09-14');
@@ -1060,4 +1057,3 @@ fetchWeatherForWeek(currentWeekDate);
 </script>
 </body>
 </html>
- 
