@@ -1188,28 +1188,68 @@ var AI_PRESET_MAP = {
 };
 
 function parseAIShift(val) {
-  if(!val) return null;
-  var v = val.trim().toLowerCase();
-  if(v==='rh'||v==='repos'||v==='absent'||v===''||v==='—') return {type:'rh'};
+  if(val===null || val===undefined) return null;
+
+  var raw = String(val).trim();
+  if(!raw) return null;
+
+  var v = raw.toLowerCase();
+
+  // A blank AI cell means "do not change this cell".
+  if(v==='' || v==='—' || v==='-') return null;
+
+  if(v==='rh' || v==='repos' || v==='absent') return {type:'rh'};
   if(v.indexOf('vacances')>=0) return {type:'status',status:'Vacances'};
-  if(v.indexOf('arrêt')>=0||v.indexOf('arret')>=0) return {type:'status',status:'Arrêt maladie'};
+  if(v.indexOf('arrêt')>=0 || v.indexOf('arret')>=0) return {type:'status',status:'Arrêt maladie'};
   if(v.indexOf('cfa')>=0) return {type:'status',status:'CFA'};
   if(v.indexOf('escale')>=0) return {type:'status',status:'Escale'};
-  if(v.indexOf('coupure 10h')>=0||v.indexOf('10h-15h')>=0) return {type:'coupure2'};
+  if(v.indexOf('coupure 10h')>=0 || v.indexOf('10h-15h')>=0) return {type:'coupure2'};
   if(v.indexOf('coupure')>=0) return {type:'coupure'};
-  // Chercher dans les presets
-  var norm = val.trim().toLowerCase().replace('> F','> 01h').replace('>f','>01h');
-  if(AI_PRESET_MAP[norm]) return {type:'shift', s:AI_PRESET_MAP[norm].s, e:AI_PRESET_MAP[norm].e};
-  // Essayer de parser un horaire libre ex: "10h > 18h30" ou "10:00-18:30"
-  var m = val.match(/(\d{1,2})[h:](\d{0,2})\s*[>→\-–]\s*(\d{1,2})[h:](\d{0,2})/i);
-  if(m) {
-    var sh = pad(parseInt(m[1]))+':'+(m[2]?pad(parseInt(m[2])):'00');
-    var eh = parseInt(m[3]);
-    var em2 = m[4]?pad(parseInt(m[4])):'00';
-    var se = pad(eh)+':'+em2;
-    if(val.toLowerCase().indexOf('f')>=0&&eh===1) se='01:00';
-    return {type:'shift', s:sh, e:se};
+
+  // Canonicalisation : F = fermeture = 01:00.
+  // On compare tout en minuscules pour éviter le bug "F" vs "f".
+  var norm = v
+    .replace(/\s+/g,' ')
+    .replace(/>\s*f\b/g,'> 01h')
+    .replace(/>\s*01h00\b/g,'> 01h')
+    .trim();
+
+  var preset = null;
+  Object.keys(AI_PRESET_MAP).some(function(key){
+    var keyNorm = String(key).toLowerCase()
+      .replace(/\s+/g,' ')
+      .replace(/>\s*f\b/g,'> 01h')
+      .replace(/>\s*01h00\b/g,'> 01h')
+      .trim();
+    if(keyNorm===norm){
+      preset=AI_PRESET_MAP[key];
+      return true;
+    }
+    return false;
+  });
+
+  if(preset) {
+    return {type:'shift', s:preset.s, e:preset.e};
   }
+
+  // Parse directement les horaires avec fermeture F.
+  var mf = raw.match(/^\s*(\d{1,2})h(?:(\d{2}))?\s*[>→\-–]\s*F\s*$/i);
+  if(mf) {
+    return {
+      type:'shift',
+      s:pad(parseInt(mf[1],10))+':'+(mf[2]?pad(parseInt(mf[2],10)):'00'),
+      e:'01:00'
+    };
+  }
+
+  // Horaire libre : "10h > 18h30", "10:00-18:30", etc.
+  var m = raw.match(/(\d{1,2})[h:](\d{0,2})\s*[>→\-–]\s*(\d{1,2})[h:](\d{0,2})/i);
+  if(m) {
+    var sh = pad(parseInt(m[1],10))+':'+(m[2]?pad(parseInt(m[2],10)):'00');
+    var eh = pad(parseInt(m[3],10))+':'+(m[4]?pad(parseInt(m[4],10)):'00');
+    return {type:'shift', s:sh, e:eh};
+  }
+
   return null;
 }
 
@@ -1336,33 +1376,83 @@ function generatePlanning() {
 
 function applyPlanning() {
   if(!AI_PLANNING_DATA) return;
-  if(!confirm('Appliquer cette ébauche au planning ? Les horaires actuels seront remplacés.')) return;
+  if(!confirm('Appliquer cette ébauche au planning ? Les horaires proposés seront transférés dans le module.')) return;
+
   var dayKeys = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+  var applied = 0;
+  var skipped = [];
+
   AI_PLANNING_DATA.forEach(function(row) {
+    if(!row || !row.name) return;
+
     var ei = -1;
-    EMPS.forEach(function(emp,i){ if(emp.name===row.name) ei=i; });
-    if(ei<0) return;
+    EMPS.forEach(function(emp,i){
+      if(String(emp.name).trim().toLowerCase()===String(row.name).trim().toLowerCase()) ei=i;
+    });
+    if(ei<0) {
+      skipped.push(row.name+' : employé introuvable');
+      return;
+    }
+
+    if(!DATA[ei]) DATA[ei]={};
+
     dayKeys.forEach(function(k,di) {
       var val = row[k];
-      if(!val) return;
+
+      // Empty AI cells intentionally leave the current planning unchanged.
+      if(val===null || val===undefined || String(val).trim()==='' || String(val).trim()==='—') return;
+
       var parsed = parseAIShift(val);
-      if(!parsed) return;
+      if(!parsed) {
+        skipped.push(row.name+' / '+k+' : '+val);
+        return;
+      }
+
       if(parsed.type==='rh') {
         DATA[ei][di] = {shifts:null, x:true, status:''};
+        applied++;
       } else if(parsed.type==='status') {
         DATA[ei][di] = {shifts:null, x:false, status:parsed.status};
+        applied++;
       } else if(parsed.type==='coupure') {
-        DATA[ei][di] = {shifts:[{s:'11:00',e:'15:00'},{s:'18:00',e:'01:00'}], x:false, status:'Coupure'};
+        DATA[ei][di] = {
+          shifts:[{s:'11:00',e:'15:00'},{s:'18:00',e:'01:00'}],
+          x:false,
+          status:'Coupure'
+        };
+        applied++;
       } else if(parsed.type==='coupure2') {
-        DATA[ei][di] = {shifts:[{s:'10:00',e:'15:00'},{s:'18:00',e:'01:00'}], x:false, status:'Coupure2'};
+        DATA[ei][di] = {
+          shifts:[{s:'10:00',e:'15:00'},{s:'18:00',e:'01:00'}],
+          x:false,
+          status:'Coupure2'
+        };
+        applied++;
       } else if(parsed.type==='shift') {
-        DATA[ei][di] = {shifts:[{s:parsed.s, e:parsed.e}], x:false, status:''};
+        DATA[ei][di] = {
+          shifts:[{s:parsed.s,e:parsed.e}],
+          x:false,
+          status:''
+        };
+        applied++;
       }
     });
   });
+
   closeAI();
   buildBody();
+  setDates(new Date(document.getElementById('weekDate').value));
   saveToStorage();
+
+  if(skipped.length){
+    console.warn('Horaires IA non appliqués:',skipped);
+    alert(
+      applied+' case(s) appliquée(s).\n\n'+
+      skipped.length+' proposition(s) non reconnue(s) :\n'+
+      skipped.slice(0,8).join('\n')+
+      (skipped.length>8?'\n…':'')
+    );
+  }
 }
 
 function closeAI() {
