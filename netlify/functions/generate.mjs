@@ -313,7 +313,7 @@ function shiftStartMinutes(label) {
   return parseInt(m[1], 10) * 60 + (m[2] ? parseInt(m[2], 10) : 0);
 }
 
-function chooseHabitualShift(name, allowedShifts, dayStartCounts) {
+function chooseHabitualShift(name, allowedShifts, dayStartCounts, remainingHours, usedLabels) {
   const allowed = allowedContinuousMap(allowedShifts);
   const prefs = (SHIFT_PREFERENCES[name]?.preferred || [])
     .map(x => allowed.get(normalizeShiftLabel(x)))
@@ -329,9 +329,23 @@ function chooseHabitualShift(name, allowedShifts, dayStartCounts) {
   pool.forEach((label, rank) => {
     const start = shiftStartMinutes(label);
     const sameStartCount = dayStartCounts.get(start) || 0;
+    const shiftHours = parseShiftHoursLabel(label) || 0;
+    const sameLabelCount = usedLabels.get(normalizeShiftLabel(label)) || 0;
 
-    // Preference first, but strongly penalize identical starting times.
-    const score = (rank * 2) + (sameStartCount * 6);
+    // Lower is better:
+    // - keep employee preferences,
+    // - avoid cloning the exact same shift all week,
+    // - avoid same starts across the team,
+    // - move toward the employee's contract target.
+    let score = rank * 1.5;
+    score += sameStartCount * 3.5;
+    score += sameLabelCount * 2.5;
+
+    if (remainingHours !== null) {
+      score += Math.abs(remainingHours - shiftHours) * 1.2;
+      if (shiftHours > remainingHours + 2) score += 8;
+    }
+
     if (score < bestScore) {
       bestScore = score;
       best = label;
@@ -341,6 +355,45 @@ function chooseHabitualShift(name, allowedShifts, dayStartCounts) {
   return best;
 }
 
+
+function parseShiftHoursLabel(label) {
+  const s = String(label || '').trim().toLowerCase();
+  if (!s || isCoupureValue(s)) return null;
+  const m = s.match(/^(\d{1,2})h(?:(\d{2}))?\s*>\s*(f|01h|23h|(\d{1,2})h(?:(\d{2}))?)$/i);
+  if (!m) return null;
+
+  const sh = parseInt(m[1],10);
+  const sm = m[2] ? parseInt(m[2],10) : 0;
+
+  let eh, em;
+  if (m[3] === 'f' || m[3] === '01h') {
+    eh = 1; em = 0;
+  } else if (m[3] === '23h') {
+    eh = 23; em = 0;
+  } else {
+    eh = parseInt(m[4],10);
+    em = m[5] ? parseInt(m[5],10) : 0;
+  }
+
+  let start = sh * 60 + sm;
+  let end = eh * 60 + em;
+  if (end <= start) end += 24 * 60;
+  return (end - start) / 60;
+}
+
+function currentPlannedHours(row) {
+  const dayKeys = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+  return dayKeys.reduce((sum,k) => {
+    const h = parseShiftHoursLabel(row[k]);
+    return sum + (h || 0);
+  }, 0);
+}
+
+function contractTargetHours(emp) {
+  const n = Number(emp && emp.contract);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts) {
   const dayKeys = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
   const byName = new Map((planningRows || []).map(r => [r && r.name, r]));
@@ -348,7 +401,7 @@ function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts) {
   const notes = [];
   const dayStartCounts = dayKeys.map(() => new Map());
 
-  // Copy the sanitized proposal and count existing starts.
+  // Copy sanitized proposal and count existing starts.
   (emps || []).forEach((emp) => {
     const src = byName.get(emp.name) || { name: emp.name };
     const row = { name: emp.name };
@@ -366,34 +419,69 @@ function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts) {
     result.push(row);
   });
 
-  // Fill genuinely free slots with habitual continuous shifts.
-  (emps || []).forEach((emp, i) => {
+  // Build people in order of greatest remaining contract need first.
+  const order = (emps || []).map((emp,i) => {
+    const row = result[i];
+    const target = contractTargetHours(emp);
+    const current = currentPlannedHours(row);
+    return { emp, i, target, current, gap: target === null ? 0 : Math.max(0, target-current) };
+  }).sort((a,b) => b.gap - a.gap);
+
+  order.forEach(item => {
+    const emp = item.emp;
+    const i = item.i;
     const row = result[i];
     const profilePool = new Set(
       shiftProfilePool(emp.name, allowedShifts).map(normalizeShiftLabel)
     );
+    const usedLabels = new Map();
+
+    dayKeys.forEach(k => {
+      if (isWorkingValue(row[k])) {
+        const nk = normalizeShiftLabel(row[k]);
+        usedLabels.set(nk, (usedLabels.get(nk) || 0) + 1);
+      }
+    });
 
     let worked = dayKeys.filter(k => isWorkingValue(row[k])).length;
+    let plannedHours = currentPlannedHours(row);
+    const target = contractTargetHours(emp);
 
     dayKeys.forEach((k, di) => {
       const ref = data && data[i] && data[i][di];
 
-      // Manager-entered content stays untouched.
+      // Manager-entered content remains untouched.
       if (referenceOutputValue(ref) !== null) return;
-
-      // Keep any valid AI proposal already present.
       if (row[k]) return;
-
-      // Never create a 7/7. Do not invent RH.
       if (worked >= 6) return;
 
-      const candidate = chooseHabitualShift(emp.name, allowedShifts, dayStartCounts[di]);
-      if (!candidate) return;
+      // If the contract is known and already close enough, stop auto-filling.
+      // We deliberately leave human blanks instead of creating avoidable overtime.
+      if (target !== null && plannedHours >= target - 1.5) return;
 
+      const remaining = target === null ? null : Math.max(0, target - plannedHours);
+      const candidate = chooseHabitualShift(
+        emp.name,
+        allowedShifts,
+        dayStartCounts[di],
+        remaining,
+        usedLabels
+      );
+      if (!candidate) return;
       if (!profilePool.has(normalizeShiftLabel(candidate))) return;
+
+      const h = parseShiftHoursLabel(candidate);
+      if (!h) return;
+
+      // Do not knowingly push a known contract wildly above target.
+      if (target !== null && plannedHours + h > target + 2.0) return;
 
       row[k] = candidate;
       worked += 1;
+      plannedHours += h;
+
+      const nk = normalizeShiftLabel(candidate);
+      usedLabels.set(nk, (usedLabels.get(nk) || 0) + 1);
 
       const st = shiftStartMinutes(candidate);
       if (st !== 9999) {
@@ -401,13 +489,21 @@ function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts) {
       }
     });
 
-    const remaining = dayKeys.filter((k, di) => {
+    const remainingCells = dayKeys.filter((k, di) => {
       const ref = data && data[i] && data[i][di];
       return referenceOutputValue(ref) === null && !row[k];
     });
 
-    if (remaining.length) {
-      notes.push(`${emp.name}: ${remaining.join(', ')}`);
+    if (target !== null) {
+      const finalHours = currentPlannedHours(row);
+      const delta = Math.round((finalHours-target)*10)/10;
+      if (Math.abs(delta) > 2) {
+        notes.push(`${emp.name}: ${finalHours.toFixed(1)}h / contrat ${target}h (${delta>0?'+':''}${delta}h)`);
+      }
+    }
+
+    if (remainingCells.length) {
+      notes.push(`${emp.name}: ${remainingCells.join(', ')} à compléter si besoin`);
     }
   });
 
@@ -653,11 +749,12 @@ REGLES DURES:
 7) Normal midi/soir = 6 personnels réels; fort = 7. Fermeture = 5 personnels réels jusqu'à F/01h.
 8) Matin mer/sam/dim: jusqu'à 10h = 2 réels (bar+plateau); dès 10h = 3 réels.
 9) Echelonne réellement les prises de poste : journée = 07h/08h/09h/10h/11h selon besoin ; soir = 15h/16h/17h/18h selon besoin.
-10) Les "pref" sont les habitudes fortes de chaque salarié. Commence par elles avant tout autre shift continu compatible.
-11) COUPURES INTERDITES : n'écris jamais C10, C11, "Coupure", ni deux tranches. Si une coupure semble nécessaire, laisse la case "" et indique dans notes : "Coupure manuelle à envisager : [jour] — [raison]".
-12) Répartis la charge entre les salariés disponibles. Ne surutilise pas Emile ou un autre pour combler tous les trous.
-13) Respecte au mieux le contrat h transmis. N'invente jamais un contrat.
-14) Si aucune solution continue sûre n'existe, laisse la case vide. Un préplanning incomplet est préférable à une mauvaise affectation.
+10) Les "pref" sont des habitudes, PAS un copier-coller obligatoire. Varie les shifts d'un même salarié quand plusieurs habitudes sont compatibles.
+11) ÉQUILIBRE HEURES : utilise le contrat h transmis comme cible hebdomadaire forte (tolérance environ ±2h). N'ajoute pas un jour complet à quelqu'un déjà proche de sa cible.
+12) COUPURES INTERDITES : n'écris jamais C10, C11, "Coupure", ni deux tranches. Si une coupure semble nécessaire, laisse la case "" et indique dans notes : "Coupure manuelle à envisager : [jour] — [raison]".
+13) Répartis la charge entre les salariés disponibles. Ne surutilise pas Emile ou un autre pour combler tous les trous.
+14) N'invente jamais un contrat. Si le contrat vaut "?", n'utilise pas de cible d'heures inventée.
+15) Si aucune solution continue sûre n'existe, laisse la case vide. Un préplanning incomplet est préférable à une mauvaise affectation.
 
 CONTEXTE:
 events=${relevantEvents || '-'}
