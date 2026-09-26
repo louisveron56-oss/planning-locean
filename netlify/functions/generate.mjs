@@ -31,50 +31,23 @@ const COMPETENCES = {
 };
 
 const SHIFT_PREFERENCES = {
-  'Virginie': {
-    preferred: ['07h > 16h','08h > 17h','09h > 18h30'],
-    note: 'Matin. Varier les prises de poste selon le besoin, ne pas la mettre automatiquement à 07h.'
-  },
-  'Raphael': {
-    preferred: ['07h > 16h','09h > 17h'],
-    note: 'Matin. Peut ouvrir ou arriver plus tard ; éviter 07h systématique.'
-  },
-  'Anthony': {
-    preferred: ['07h > 16h','08h > 17h','08h > 18h','10h > 18h30','11h > 16h'],
-    note: 'Matin/journée. Sert souvent de renfort décalé.'
-  },
-  'Salome': {
-    preferred: ['10h > 17h30'],
-    note: 'Arrivée autour de 10h30/11h acceptable. Avant midi : tâches hors service ; à partir de midi : accueil uniquement.'
-  },
-  'Ismaël': {
-    preferred: ['08h > 18h','09h > 18h30'],
-    note: 'Journée prioritaire. 09h > 18h30 est un shift naturel fréquent.'
-  },
-  'Pierre': {
-    preferred: ['15h > f','11h > 15h / 18h > f'],
-    note: 'Soir par défaut ; coupure si nécessaire.'
-  },
-  'Maxence': {
-    preferred: ['15h > f','17h > f','11h > 15h / 18h > f'],
-    note: 'Soir ; peut entrer à 15h, 17h ou être en coupure selon couverture.'
-  },
-  'Yoann': {
-    preferred: ['18h > f','15h > f','11h > 15h / 18h > f','10h > 15h / 18h > f'],
-    note: 'Soir ; souvent entrée tardive, coupure possible.'
-  },
-  'Martin F': {
-    preferred: ['18h > 23h','15h > f','11h > 15h / 18h > f','10h > 15h / 18h > f'],
-    note: 'Soir ; arrivée variable selon le besoin.'
-  },
-  'Martin V': {
-    preferred: ['09h > 17h','15h > f','17h > f','11h > 15h / 18h > f'],
-    note: 'Fantôme : horaires possibles mais ne compte jamais dans les minimums.'
-  },
-  'Louis': {
-    preferred: ['10h > 18h30','10h > 20h','15h > 23h','17h > f','18h > f','11h > 15h / 18h > f'],
-    note: 'Fantôme : horaires variés ; ne compte jamais dans les minimums.'
-  }
+  'Virginie': { preferred: ['07h > 16h','08h > 17h','09h > 18h30'], note: 'Matin strict. Pas de soir ni fermeture.' },
+  'Raphael': { preferred: ['09h > 17h','07h > 16h','08h > 17h'], note: 'Matin strict. Arrivée souvent décalée.' },
+  'Seb': { preferred: ['08h > 17h','07h > 16h','09h > 17h'], note: 'Matin strict. Journée continue.' },
+  'Anthony': { preferred: ['10h > 18h30','08h > 17h','07h > 16h','09h > 18h30','11h > 18h30'], note: 'Matin/journée. Renfort décalé. Pas de tranche soir.' },
+  'Catherine': { preferred: ['15h > f','16h > f','17h > f','15h > 23h'], note: 'Soir par défaut.' },
+  'Ismaël': { preferred: ['09h > 18h30','08h > 18h30','10h > 19h','11h > 20h'], note: 'Journée prioritaire. Soir possible si besoin.' },
+  'Pierre': { preferred: ['15h > f','16h > f','17h > f','15h > 23h'], note: 'Soir par défaut.' },
+  'Maxence': { preferred: ['15h > f','17h > f','18h > f','16h > f'], note: 'Soir. Arrivées à échelonner.' },
+  'Arthur-Paul': { preferred: ['15h > f','16h > f','17h > f','18h > f'], note: 'Soir.' },
+  'Yoann': { preferred: ['18h > f','17h > f','15h > f','16h > f'], note: 'Soir. Arrivée tardive fréquente.' },
+  'Martin F': { preferred: ['15h > f','16h > f','18h > f','15h > 23h'], note: 'Soir.' },
+  'Antoine': { preferred: ['15h > f','16h > f','17h > f','18h > f'], note: 'Soir.' },
+  'Emile': { preferred: ['18h > f','17h > f','15h > f','16h > f'], note: 'Soir. Ne pas le surutiliser.' },
+  'Salome': { preferred: ['10h > 17h30'], note: 'Accueil uniquement à partir de midi. Shift naturel 10h > 17h30.' },
+  'Erwann': { preferred: ['15h > f','16h > f','17h > f','15h > 23h'], note: 'Soir.' },
+  'Martin V': { preferred: ['15h > f','17h > f','09h > 17h','16h > f'], note: 'Fantôme : ne compte jamais dans les minimums.' },
+  'Louis': { preferred: ['17h > f','18h > f','15h > 23h','10h > 18h30','11h > 20h'], note: 'Fantôme : ne compte jamais dans les minimums.' }
 };
 
 
@@ -203,6 +176,67 @@ function normalizeStatusValue(v) {
   return '';
 }
 
+
+function normalizeShiftLabel(v) {
+  return String(v || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/\s*>\s*/g, ' > ')
+    .replace('01h00', '01h');
+}
+
+function isCoupureValue(v) {
+  const s = String(v || '').toLowerCase();
+  return s.includes('coupure') ||
+         /10h\s*-\s*15h/.test(s) ||
+         /11h\s*-\s*15h/.test(s) ||
+         (s.includes('/') && s.includes('18h'));
+}
+
+function allowedContinuousMap(allowedShifts) {
+  const map = new Map();
+  (allowedShifts || []).forEach(label => {
+    const s = String(label || '').trim();
+    if (!s || isCoupureValue(s)) return;
+    map.set(normalizeShiftLabel(s), s);
+  });
+  return map;
+}
+
+function shiftProfilePool(name, allowedShifts) {
+  const map = allowedContinuousMap(allowedShifts);
+  const take = labels => labels
+    .map(x => map.get(normalizeShiftLabel(x)))
+    .filter(Boolean);
+
+  const morning = take([
+    '07h > 16h','07h > 17h','08h > 17h','08h > 18h30',
+    '09h > 17h','09h > 17h30','09h > 18h','09h > 18h30',
+    '10h > 17h30','10h > 18h30','10h > 19h','11h > 18h30'
+  ]);
+
+  const day = take([
+    '08h > 18h30','09h > 17h30','09h > 18h','09h > 18h30',
+    '10h > 17h30','10h > 18h30','10h > 19h',
+    '11h > 18h30','11h > 20h','11h > 21h'
+  ]);
+
+  const evening = take([
+    '15h > 23h','15h > f','15h > 01h',
+    '16h > 23h','16h > f','16h > 01h',
+    '17h > f','17h > 01h','18h > f','18h > 01h'
+  ]);
+
+  if (name === 'Salome') return take(['10h > 17h30']);
+  if (['Virginie','Raphael','Seb','Anthony'].includes(name)) return morning;
+  if (name === 'Ismaël') return day;
+  if (['Pierre','Catherine'].includes(name)) return evening.concat(day);
+  if (['Maxence','Arthur-Paul','Yoann','Martin F','Antoine','Emile','Erwann'].includes(name)) return evening;
+  if (['Martin V','Louis'].includes(name)) return [...map.values()];
+  return [...map.values()];
+}
+
 function validatePlanningProposal(planningRows, emps, data) {
   const errors = [];
   const dayKeys = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
@@ -272,62 +306,101 @@ function referenceOutputValue(d) {
   return shifts.map(s => `${fmt(s.s)} > ${fmt(s.e)}`).join(' / ');
 }
 
-function sanitizePlanningProposal(planningRows, emps, data) {
+function sanitizePlanningProposal(planningRows, emps, data, allowedShifts) {
   const dayKeys = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
   const byName = new Map((planningRows || []).map(r => [r && r.name, r]));
   const cleaned = [];
   const warnings = [];
+  const manualCoupureDays = new Set();
+  const catalogue = allowedContinuousMap(allowedShifts);
 
   (emps || []).forEach((emp, i) => {
     const source = byName.get(emp.name) || { name: emp.name };
     const row = { name: emp.name };
     const aiFilled = [];
+    const profilePool = new Set(
+      shiftProfilePool(emp.name, allowedShifts).map(normalizeShiftLabel)
+    );
 
     dayKeys.forEach((k, di) => {
       const ref = data && data[i] && data[i][di];
       const fixed = referenceOutputValue(ref);
 
-      // Philosophy V5.3: anything already entered by the manager is untouchable.
+      // Tout ce qui a été saisi par le manager est intouchable.
       if (fixed !== null) {
         row[k] = fixed;
         return;
       }
 
-      const proposed = source[k];
-      const proposedStatus = normalizeStatusValue(proposed);
+      const proposed = String(source[k] || '').trim();
+      const status = normalizeStatusValue(proposed);
 
-      // AI is forbidden to invent statuses on a free slot.
-      if (['RH','Vacances','CFA','Arrêt maladie','Absent'].includes(proposedStatus)) {
+      // L'IA ne crée aucun statut.
+      if (['RH','Vacances','CFA','Arrêt maladie','Absent'].includes(status)) {
         row[k] = '';
-        warnings.push(`${emp.name} ${dayKeys[di]} laissé à compléter : l'IA avait proposé ${proposedStatus}`);
+        warnings.push(`${emp.name} ${dayKeys[di]} : case laissée vide, statut ${status} refusé`);
         return;
       }
 
-      row[k] = proposed || '';
-      if (isWorkingValue(row[k])) aiFilled.push({ key:k, di });
+      // L'IA ne pose JAMAIS une coupure.
+      if (isCoupureValue(proposed)) {
+        row[k] = '';
+        manualCoupureDays.add(dayKeys[di]);
+        warnings.push(`${emp.name} ${dayKeys[di]} : coupure refusée en automatique`);
+        return;
+      }
+
+      // Vide volontaire = décision humaine ultérieure.
+      if (!proposed) {
+        row[k] = '';
+        return;
+      }
+
+      // Le shift doit exister réellement dans le HTML.
+      const norm = normalizeShiftLabel(proposed);
+      const canonical = catalogue.get(norm);
+      if (!canonical) {
+        row[k] = '';
+        warnings.push(`${emp.name} ${dayKeys[di]} : shift "${proposed}" absent du catalogue`);
+        return;
+      }
+
+      // Le shift doit appartenir à la famille habituelle du salarié.
+      if (!profilePool.has(norm)) {
+        row[k] = '';
+        warnings.push(`${emp.name} ${dayKeys[di]} : shift ${canonical} incompatible avec son profil habituel`);
+        return;
+      }
+
+      row[k] = canonical;
+      aiFilled.push({ key:k, di });
     });
 
-    // Never keep a 7/7 generated by AI. Leave a human decision instead of inventing RH.
+    // Jamais 7 jours IA. On laisse une case à compléter au lieu d'inventer un RH.
     let worked = dayKeys.filter(k => isWorkingValue(row[k])).length;
     if (worked > 6) {
-      // Prefer leaving a weekday AI-filled slot blank; weekend last.
       const candidates = aiFilled.slice().sort((a,b) => {
-        const aWe = a.di >= 5 ? 1 : 0;
-        const bWe = b.di >= 5 ? 1 : 0;
-        return aWe - bWe || b.di - a.di;
+        const aWeekend = a.di >= 5 ? 1 : 0;
+        const bWeekend = b.di >= 5 ? 1 : 0;
+        return aWeekend - bWeekend || b.di - a.di;
       });
+
       while (worked > 6 && candidates.length) {
         const c = candidates.shift();
         row[c.key] = '';
         worked--;
-        warnings.push(`${emp.name} ${dayKeys[c.di]} laissé à compléter pour éviter 7 jours travaillés`);
+        warnings.push(`${emp.name} ${dayKeys[c.di]} : laissé à compléter pour éviter 7 jours travaillés`);
       }
     }
 
     cleaned.push(row);
   });
 
-  return { planning: cleaned, warnings };
+  return {
+    planning: cleaned,
+    warnings,
+    manualCoupureDays: [...manualCoupureDays]
+  };
 }
 
 
@@ -411,8 +484,12 @@ export const handler = async function(event) {
     const teamLines = emps.map((emp, i) => {
       const comp = COMPETENCES[emp.name] || { rangs: [], shifts: [], ghost: false };
       const pref = SHIFT_PREFERENCES[emp.name];
+      const currentAllowed = allowedContinuousMap(allowedShifts);
       const prefs = pref && pref.preferred && pref.preferred.length
-        ? pref.preferred.join(',')
+        ? pref.preferred
+            .map(x => currentAllowed.get(normalizeShiftLabel(x)))
+            .filter(Boolean)
+            .join(',')
         : '-';
       const week = days.map((_, di) => compactDay(body.data?.[i]?.[di])).join('|');
       // IMPORTANT : contrat repris uniquement de la base transmise par le HTML.
@@ -422,9 +499,10 @@ export const handler = async function(event) {
       return `${emp.name};h=${contract};p=${profileCode(emp.name, comp)};r=${roleCodes(comp)};pref=${prefs};w=${week}`;
     }).join('\n');
 
-    const allowedCompact = allowedShifts.length
-      ? allowedShifts.join(',')
-      : 'shifts déjà visibles uniquement';
+    const continuousShifts = [...allowedContinuousMap(allowedShifts).values()];
+    const allowedCompact = continuousShifts.length
+      ? continuousShifts.join(',')
+      : 'shifts continus déjà visibles uniquement';
 
     // Contexte externe volontairement filtré et compacté.
     const relevantEvents = externalEvents
@@ -458,18 +536,20 @@ SHIFTS AUTORISES:
 ${allowedCompact}
 
 REGLES DURES:
-1) Sur "." : propose uniquement un shift de travail autorisé ou une coupure si indispensable. JAMAIS RH/VAC/AM/CFA/Absent.
+1) Sur "." : propose UNIQUEMENT un shift CONTINU présent dans SHIFTS AUTORISES, ou laisse "". JAMAIS RH/VAC/AM/CFA/Absent.
 2) Une case déjà avec un horaire/statut est une forte référence: conserve-la sauf impossibilité de couverture/légalité.
-3) Maximum 6 jours travaillés; jamais 7/7. Max 48h. Repos entre journées >=11h. Max 2 coupures.
+3) Maximum 6 jours travaillés; jamais 7/7. Max 48h. Repos entre journées >=11h.
 4) M: aucun soir/fermeture/coupure soir. Guillaume non planifié.
 5) Salome: avant 12h ne compte pas; dès 12h = accueil seulement.
 6) Martin V et Louis (G) peuvent être planifiés mais ne comptent JAMAIS dans les minimums.
 7) Normal midi/soir = 6 personnels réels; fort = 7. Fermeture = 5 personnels réels jusqu'à F/01h.
 8) Matin mer/sam/dim: jusqu'à 10h = 2 réels (bar+plateau); dès 10h = 3 réels.
-9) Echelonne: ne mets pas toute l'équipe au même départ. Fais venir chacun le plus tard possible compatible avec couverture.
-10) Préfère les shifts "pref". Continu avant coupure. Respecte au mieux le contrat h transmis; n'invente jamais un contrat.
-11) Répartis la charge entre disponibles: évite surutilisation d'Emile ou d'un autre alors que des collègues compatibles sont disponibles.
-12) Si impossible, garde les règles dures et explique le manque dans notes.
+9) Echelonne réellement les prises de poste : journée = 07h/08h/09h/10h/11h selon besoin ; soir = 15h/16h/17h/18h selon besoin.
+10) Les "pref" sont les habitudes fortes de chaque salarié. Commence par elles avant tout autre shift continu compatible.
+11) COUPURES INTERDITES : n'écris jamais C10, C11, "Coupure", ni deux tranches. Si une coupure semble nécessaire, laisse la case "" et indique dans notes : "Coupure manuelle à envisager : [jour] — [raison]".
+12) Répartis la charge entre les salariés disponibles. Ne surutilise pas Emile ou un autre pour combler tous les trous.
+13) Respecte au mieux le contrat h transmis. N'invente jamais un contrat.
+14) Si aucune solution continue sûre n'existe, laisse la case vide. Un préplanning incomplet est préférable à une mauvaise affectation.
 
 CONTEXTE:
 events=${relevantEvents || '-'}
@@ -481,9 +561,9 @@ défaut=NORMAL; événement fort peut renforcer le service concerné; beau temps
 SORTIE JSON UNIQUEMENT:
 {"planning":[{"name":"Prénom","lundi":"...","mardi":"...","mercredi":"...","jeudi":"...","vendredi":"...","samedi":"...","dimanche":"..."}],"notes":"court"}
 
-Pour "." utilise uniquement un shift autorisé ou C11/C10 si indispensable.
-Dans la sortie écris les statuts verrouillés en toutes lettres: RH, Vacances, Arrêt maladie, CFA.
-C11 => "Coupure 11h-15h/18h-01h"; C10 => "Coupure 10h-15h/18h-01h".`;
+Pour "." utilise uniquement un shift CONTINU exactement présent dans SHIFTS AUTORISES, sinon "".
+Ne génère JAMAIS une coupure. Une éventuelle coupure doit uniquement être signalée dans "notes" pour pose manuelle.
+Dans la sortie écris les statuts verrouillés en toutes lettres: RH, Vacances, Arrêt maladie, CFA.`;
 
     async function callGroq(promptText) {
       const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -497,7 +577,7 @@ C11 => "Coupure 11h-15h/18h-01h"; C10 => "Coupure 10h-15h/18h-01h".`;
           max_completion_tokens: 2600,
           temperature: 0.1,
           reasoning_effort: 'low',
-          reasoning_format: 'hidden',
+          include_reasoning: false,
           response_format: { type: 'json_object' },
           messages: [
             { role: 'system', content: 'Planification restaurant. Respect absolu des contraintes dures. JSON uniquement.' },
@@ -530,7 +610,7 @@ C11 => "Coupure 11h-15h/18h-01h"; C10 => "Coupure 10h-15h/18h-01h".`;
     // - tout ce que le manager avait déjà saisi est recopié par le code, pas par l'IA ;
     // - un RH/Vacances/CFA/Arrêt inventé sur une case libre est supprimé et laissé à compléter ;
     // - un éventuel 7/7 est ramené à 6 jours en laissant une case IA à compléter.
-    const sanitized = sanitizePlanningProposal(rawPlanning?.planning, emps, body.data);
+    const sanitized = sanitizePlanningProposal(rawPlanning?.planning, emps, body.data, allowedShifts);
 
     const validationErrors = validatePlanningProposal(sanitized.planning, emps, body.data);
     if (validationErrors.length) {
@@ -541,6 +621,9 @@ C11 => "Coupure 11h-15h/18h-01h"; C10 => "Coupure 10h-15h/18h-01h".`;
     }
 
     const baseNotes = rawPlanning?.notes ? String(rawPlanning.notes) : '';
+    const coupureNote = sanitized.manualCoupureDays.length
+      ? `Coupure(s) à évaluer et poser MANUELLEMENT si nécessaire : ${sanitized.manualCoupureDays.join(', ')}.`
+      : '';
     const warningNotes = sanitized.warnings.length
       ? `Cases laissées volontairement à compléter : ${sanitized.warnings.join(' ; ')}`
       : '';
@@ -548,7 +631,7 @@ C11 => "Coupure 11h-15h/18h-01h"; C10 => "Coupure 10h-15h/18h-01h".`;
     return response(200, {
       planning: {
         planning: sanitized.planning,
-        notes: [baseNotes, warningNotes].filter(Boolean).join(' | ')
+        notes: [baseNotes, coupureNote, warningNotes].filter(Boolean).join(' | ')
       }
     });
 
