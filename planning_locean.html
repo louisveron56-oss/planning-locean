@@ -270,24 +270,64 @@ var PRESETS=[
 ];
 
 function onMaster(ei,di,val){
+  ensureEmpRhDays(EMPS[ei],ei);
+
   if(val.indexOf('WEEK_')===0){
     var weekStatus=val.slice(5);
-    DAYS.forEach(function(_,dii){DATA[ei][dii]={shifts:null,x:false,status:weekStatus};});
-    buildBody();saveToStorage();return;
+    DAYS.forEach(function(_,dii){
+      DATA[ei][dii]={shifts:null,x:false,status:weekStatus};
+    });
+    buildBody();
+    saveToStorage();
+    return;
   }
-  if(val==='__x__'){DATA[ei][di]={shifts:null,x:true,status:''};redrawCell(ei,di);return;}
+
+  if(val==='CLEAR_WEEK'){
+    // Remove only the full-week absence and restore the employee's usual RH.
+    DAYS.forEach(function(_,dii){
+      DATA[ei][dii]={
+        shifts:null,
+        x:EMPS[ei].rhDays.indexOf(dii)>=0,
+        status:''
+      };
+    });
+    buildBody();
+    saveToStorage();
+    return;
+  }
+
+  if(val==='__x__'){
+    DATA[ei][di]={shifts:null,x:true,status:''};
+    // A manually selected RH also becomes part of the usual RH pattern.
+    if(EMPS[ei].rhDays.indexOf(di)<0)EMPS[ei].rhDays.push(di);
+    redrawCell(ei,di);saveToStorage();return;
+  }
+
   if(val.indexOf('ST_')===0){
     var st=val.slice(3);
     DATA[ei][di]={shifts:null,x:false,status:st};
-    redrawCell(ei,di);return;
+    redrawCell(ei,di);saveToStorage();return;
   }
-  if(val==='COUP1'){DATA[ei][di]={shifts:[{s:'11:00',e:'15:00'},{s:'18:00',e:'01:00'}],x:false,status:'Coupure'};redrawCell(ei,di);return;}
-  if(val==='COUP2'){DATA[ei][di]={shifts:[{s:'10:00',e:'15:00'},{s:'18:00',e:'01:00'}],x:false,status:'Coupure2'};redrawCell(ei,di);return;}
-  if(val==='FREE'){DATA[ei][di]={shifts:[{s:'—',e:'—'}],x:false,status:''};redrawCell(ei,di);return;}
+
+  if(val==='COUP1'){
+    DATA[ei][di]={shifts:[{s:'11:00',e:'15:00'},{s:'18:00',e:'01:00'}],x:false,status:'Coupure'};
+    redrawCell(ei,di);saveToStorage();return;
+  }
+
+  if(val==='COUP2'){
+    DATA[ei][di]={shifts:[{s:'10:00',e:'15:00'},{s:'18:00',e:'01:00'}],x:false,status:'Coupure2'};
+    redrawCell(ei,di);saveToStorage();return;
+  }
+
+  if(val==='FREE'){
+    DATA[ei][di]={shifts:[{s:'—',e:'—'}],x:false,status:''};
+    redrawCell(ei,di);saveToStorage();return;
+  }
+
   for(var i=0;i<PRESETS.length;i++){
     if(PRESETS[i].l===val){
       DATA[ei][di]={shifts:[{s:PRESETS[i].s,e:PRESETS[i].e}],x:false,status:''};
-      redrawCell(ei,di);return;
+      redrawCell(ei,di);saveToStorage();return;
     }
   }
 }
@@ -342,16 +382,52 @@ function calcDayH(shifts){
   return shifts.reduce(function(a,sh){return a+(calcH(sh.s,sh.e)||0);},0);
 }
 
+
+function ensureEmpRhDays(emp,ei){
+  if(!emp.rhDays){
+    emp.rhDays=[];
+    // First migration: use the employee's original default days when available.
+    if(emp.days){
+      DAYS.forEach(function(_,di){
+        if(emp.days[di]&&emp.days[di].x)emp.rhDays.push(di);
+      });
+    }else if(DATA[ei]){
+      DAYS.forEach(function(_,di){
+        if(DATA[ei][di]&&DATA[ei][di].x)emp.rhDays.push(di);
+      });
+    }
+  }
+  emp.rhDays=emp.rhDays
+    .map(function(v){return parseInt(v,10);})
+    .filter(function(v,i,a){return v>=0&&v<7&&a.indexOf(v)===i;});
+  return emp.rhDays;
+}
+
+function isWeekAbsenceStatus(st){
+  return st==='Vacances'||st==='Arrêt maladie'||st==='CFA';
+}
+
+function hasFullWeekAbsence(ei){
+  if(!DATA[ei]||!DATA[ei][0])return '';
+  var st=DATA[ei][0].status;
+  if(!isWeekAbsenceStatus(st))return '';
+  for(var di=1;di<7;di++){
+    if(!DATA[ei][di]||DATA[ei][di].status!==st)return '';
+  }
+  return st;
+}
+
 var DATA={};
 function initData(){
   DATA={};
   EMPS.forEach(function(emp,ei){
+    ensureEmpRhDays(emp,ei);
     DATA[ei]={};
     DAYS.forEach(function(_,di){
-      var d=emp.days[di]||{x:true};
+      var d=emp.days[di]||{x:false};
       DATA[ei][di]={
         shifts:d.shifts?d.shifts.map(function(sh){return{s:sh.s,e:sh.e||null};}):null,
-        x:!!d.x,
+        x:emp.rhDays.indexOf(di)>=0,
         status:d.s||''
       };
     });
@@ -389,7 +465,15 @@ function renderCell(ei,di){
     html+='<select class="status-sel compact" onchange="onMaster('+ei+','+di+',this.value)">';
     html+='<option value="__x__">— Absent</option>';
     STATUSES.forEach(function(st){html+='<option value="ST_'+st+'" '+(d.status===st?'selected':'')+'>'+st+'</option>';});
-    if(di===0){html+='<option value="WEEK_Vacances">Vacances — toute la semaine</option>';html+='<option value="WEEK_Arrêt maladie">Arrêt maladie — toute la semaine</option>';html+='<option value="WEEK_CFA">CFA — toute la semaine</option>';}
+    if(di===0){
+      html+='<option value="WEEK_Vacances">Vacances — toute la semaine</option>';
+      html+='<option value="WEEK_Arrêt maladie">Arrêt maladie — toute la semaine</option>';
+      html+='<option value="WEEK_CFA">CFA — toute la semaine</option>';
+      var fullWeekStatus=hasFullWeekAbsence(ei);
+      if(fullWeekStatus){
+        html+='<option value="CLEAR_WEEK">↩ Retirer '+fullWeekStatus+' — restaurer les RH</option>';
+      }
+    }
     html+='<option disabled>---------</option>';
     for(var pii=0;pii<PRESETS.length;pii++){html+='<option value="'+PRESETS[pii].l+'">'+PRESETS[pii].l+'</option>';}
     html+='<option value="COUP1">Coupure 11h-15h / 18h-01h</option>';
@@ -403,7 +487,15 @@ function renderCell(ei,di){
     html+='<select class="status-sel compact" onchange="onMaster('+ei+','+di+',this.value)">';
     html+='<option value="__x__" selected>— Absent</option>';
     STATUSES.forEach(function(st){html+='<option value="ST_'+st+'">'+st+'</option>';});
-    if(di===0){html+='<option value="WEEK_Vacances">Vacances — toute la semaine</option>';html+='<option value="WEEK_Arrêt maladie">Arrêt maladie — toute la semaine</option>';html+='<option value="WEEK_CFA">CFA — toute la semaine</option>';}
+    if(di===0){
+      html+='<option value="WEEK_Vacances">Vacances — toute la semaine</option>';
+      html+='<option value="WEEK_Arrêt maladie">Arrêt maladie — toute la semaine</option>';
+      html+='<option value="WEEK_CFA">CFA — toute la semaine</option>';
+      var fullWeekStatus=hasFullWeekAbsence(ei);
+      if(fullWeekStatus){
+        html+='<option value="CLEAR_WEEK">↩ Retirer '+fullWeekStatus+' — restaurer les RH</option>';
+      }
+    }
     html+='<option disabled>---------</option>';
     for(var pii=0;pii<PRESETS.length;pii++){html+='<option value="'+PRESETS[pii].l+'">'+PRESETS[pii].l+'</option>';}
     html+='<option value="COUP1">Coupure 11h-15h / 18h-01h</option>';
@@ -421,7 +513,15 @@ function renderCell(ei,di){
     html+='<select class="status-sel" onchange="onMaster('+ei+','+di+',this.value)">';
     html+='<option value="__x__">— Absent</option>';
     STATUSES.forEach(function(st){html+='<option value="ST_'+st+'">'+st+'</option>';});
-    if(di===0){html+='<option value="WEEK_Vacances">Vacances — toute la semaine</option>';html+='<option value="WEEK_Arrêt maladie">Arrêt maladie — toute la semaine</option>';html+='<option value="WEEK_CFA">CFA — toute la semaine</option>';}
+    if(di===0){
+      html+='<option value="WEEK_Vacances">Vacances — toute la semaine</option>';
+      html+='<option value="WEEK_Arrêt maladie">Arrêt maladie — toute la semaine</option>';
+      html+='<option value="WEEK_CFA">CFA — toute la semaine</option>';
+      var fullWeekStatus=hasFullWeekAbsence(ei);
+      if(fullWeekStatus){
+        html+='<option value="CLEAR_WEEK">↩ Retirer '+fullWeekStatus+' — restaurer les RH</option>';
+      }
+    }
     html+='<option disabled>---------</option>';
     for(var pi=0;pi<PRESETS.length;pi++){html+='<option value="'+PRESETS[pi].l+'" '+(curLbl===PRESETS[pi].l?'selected':'')+'>'+PRESETS[pi].l+'</option>';}
     html+='<option value="COUP1" '+(curLbl==="COUP1"?"selected":"")+'>Coupure 11h-15h / 18h-01h</option>';
@@ -939,7 +1039,7 @@ function openRH(){
   var body=document.getElementById('rhBody'),html='';
   EMPS.forEach(function(emp,ei){
     var col=getColor(ei);
-    var reposDays=[];DAYS.forEach(function(_,di){if(DATA[ei]&&DATA[ei][di]&&DATA[ei][di].x)reposDays.push(di);});
+    var reposDays=ensureEmpRhDays(emp,ei).slice();
     var isHidden=!!emp.hidden;
     html+='<div class="emp-edit-row'+(isHidden?' hidden-emp':'')+'" id="emprow'+ei+'">';
     html+='<div style="display:grid;grid-template-columns:28px 1fr 80px auto auto auto auto;gap:8px;align-items:center;width:100%">';
@@ -968,6 +1068,13 @@ function syncRHModalToData(){
     if(n&&n.value&&n.value!=='__DEL__')emp.name=n.value.trim()||emp.name;
     if(c&&c.value!=='')emp.contract=parseFloat(c.value)||0;
 
+    var newRhDays=[];
+    DAYS.forEach(function(_,di){
+      var cb=document.getElementById('rh_repos_'+ei+'_'+di);
+      if(cb&&cb.checked)newRhDays.push(di);
+    });
+    emp.rhDays=newRhDays;
+
     DAYS.forEach(function(_,di){
       var cb=document.getElementById('rh_repos_'+ei+'_'+di);
       if(!cb)return;
@@ -975,16 +1082,18 @@ function syncRHModalToData(){
       if(!DATA[ei])DATA[ei]={};
       if(!DATA[ei][di])DATA[ei][di]={shifts:null,x:false,status:''};
 
-      var wasRest=!!DATA[ei][di].x;
-      DATA[ei][di].x=!!cb.checked;
+      // If the employee is currently on a full-week absence, keep the status visible.
+      // rhDays is stored underneath and will be restored with CLEAR_WEEK.
+      if(isWeekAbsenceStatus(DATA[ei][di].status)){
+        DATA[ei][di].x=false;
+        DATA[ei][di].shifts=null;
+        return;
+      }
 
+      DATA[ei][di].x=!!cb.checked;
       if(cb.checked){
         DATA[ei][di].shifts=null;
-        // RH/rest selected in team management wins over ordinary status.
-        if(DATA[ei][di].status==='')DATA[ei][di].status='';
-      }else if(wasRest){
-        // Re-open the day cleanly when a previously checked rest is unchecked.
-        DATA[ei][di].x=false;
+        DATA[ei][di].status='';
       }
     });
   });
@@ -1022,6 +1131,7 @@ function addEmp(){
     name:'Nouveau·elle',
     contract:42,
     hidden:false,
+    rhDays:[],
     days:DAYS.map(function(){return{x:false};})
   });
   DATA[EMPS.length-1]={};
@@ -1081,18 +1191,60 @@ function exportCSV(){
 /* LOCALSTORAGE */
 var STORAGE_KEY='locean_v16';
 function saveToStorage(){
-  try{localStorage.setItem(STORAGE_KEY,JSON.stringify({data:DATA,emps:EMPS.map(function(e){return{name:e.name,contract:e.contract||0,role:e.role||'',hidden:!!e.hidden};}),weekDate:document.getElementById('weekDate').value}));}catch(e){}
+  try{
+    localStorage.setItem(STORAGE_KEY,JSON.stringify({
+      data:DATA,
+      emps:EMPS.map(function(e){
+        return{
+          name:e.name,
+          contract:e.contract||0,
+          role:e.role||'',
+          hidden:!!e.hidden,
+          rhDays:ensureEmpRhDays(e,EMPS.indexOf(e)).slice()
+        };
+      }),
+      weekDate:document.getElementById('weekDate').value
+    }));
+  }catch(e){}
 }
 function loadFromStorage(){
   try{
     var raw=localStorage.getItem(STORAGE_KEY);if(!raw)return false;
     var p=JSON.parse(raw);
-    if(!p.data||Object.keys(p.data).length!==EMPS.length){localStorage.removeItem(STORAGE_KEY);return false;}
-    if(p.emps)p.emps.forEach(function(e,ei){if(EMPS[ei]){EMPS[ei].name=e.name;EMPS[ei].contract=e.contract;EMPS[ei].role=e.role||'';EMPS[ei].hidden=!!e.hidden;}});
+    if(!p.data||Object.keys(p.data).length!==EMPS.length){
+      localStorage.removeItem(STORAGE_KEY);return false;
+    }
+
+    if(p.emps)p.emps.forEach(function(e,ei){
+      if(EMPS[ei]){
+        EMPS[ei].name=e.name;
+        EMPS[ei].contract=e.contract;
+        EMPS[ei].role=e.role||'';
+        EMPS[ei].hidden=!!e.hidden;
+        if(Array.isArray(e.rhDays))EMPS[ei].rhDays=e.rhDays.slice();
+      }
+    });
+
     if(p.data)Object.keys(p.data).forEach(function(ei){DATA[ei]=p.data[ei];});
+
+    // Migration for existing saved plans that predate rhDays.
+    EMPS.forEach(function(emp,ei){
+      if(!Array.isArray(emp.rhDays)){
+        emp.rhDays=[];
+        if(emp.days){
+          DAYS.forEach(function(_,di){
+            if(emp.days[di]&&emp.days[di].x)emp.rhDays.push(di);
+          });
+        }
+      }
+      ensureEmpRhDays(emp,ei);
+    });
+
     if(p.weekDate)document.getElementById('weekDate').value=p.weekDate;
     return true;
-  }catch(e){localStorage.removeItem(STORAGE_KEY);return false;}
+  }catch(e){
+    localStorage.removeItem(STORAGE_KEY);return false;
+  }
 }
 function hardReset(){if(confirm('Réinitialiser le planning aux données par défaut ?')){localStorage.removeItem(STORAGE_KEY);location.reload();}}
 
