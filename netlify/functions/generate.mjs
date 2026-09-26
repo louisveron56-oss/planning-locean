@@ -280,147 +280,125 @@ export const handler = async function(event) {
       return `${days[i]} ${d.getUTCDate()}/${d.getUTCMonth()+1}`;
     });
 
-    // Résumé des employés, contraintes et planning actuellement affiché
-    let empSummary = '';
-    let referencePlanning = '';
-    emps.forEach((emp, i) => {
-      const comp = COMPETENCES[emp.name] || { rangs: [], shifts: [], ghost: false };
-      const reposDays = days.filter((_, di) => {
-        const d = body.data && body.data[i] && body.data[i][di];
-        return d && d.x === true;
+    // ------------------------------------------------------------
+    // V5.2 COMPACTE : mêmes règles métier, beaucoup moins de tokens.
+    // Le modèle complète le squelette existant au lieu de réinventer la semaine.
+    // ------------------------------------------------------------
+
+    function roleCodes(comp) {
+      const roles = new Set();
+      (comp.rangs || []).forEach(r => {
+        if (r === 'Bar') roles.add('B');
+        if (['Grand côté','Petit côté'].includes(r)) roles.add('T');
+        if (['Salle bas','Salle 400','Fond'].includes(r)) roles.add('I');
+        if (r === 'Accueil') roles.add('A');
+        if (r === 'Runner') roles.add('R');
       });
-      const note = comp.note ? ` [${comp.note}]` : '';
-      const ghost = comp.ghost ? ' [FANTÔME - ne compte pas dans les minimums]' : '';
-      const pref = SHIFT_PREFERENCES[emp.name] || { preferred: [], note: '' };
-      const prefText = pref.preferred.length ? `, shifts préférés=[${pref.preferred.join(' ; ')}]` : '';
-      const prefNote = pref.note ? ` [habitudes: ${pref.note}]` : '';
-      empSummary += `- ${emp.name} (${emp.contract || '?'}h/sem)${ghost}${note}${prefNote}: rangs=[${comp.rangs.join(', ')}], profil=[${comp.shifts.join('/')||'non défini'}], repos fixes=${reposDays.join('/')||'aucun'}${prefText}\n`;
-
-      const current = days.map((day, di) => {
-        const d = body.data && body.data[i] && body.data[i][di];
-        return `${day}=${formatReferenceDay(d)}`;
-      }).join(' | ');
-      referencePlanning += `- ${emp.name}: ${current}\n`;
-    });
-
-    const allowedShiftsText = allowedShifts.length
-      ? allowedShifts.join(' ; ')
-      : 'Aucune liste transmise : utiliser uniquement les horaires déjà vus dans le planning de référence.';
-
-    const externalContextText = [
-      'ÉVÉNEMENTS / VACANCES / JOURS FÉRIÉS :',
-      externalEvents.length
-        ? externalEvents.map(ev => `- ${ev.date || 'date inconnue'} | ${ev.name || 'Événement'} | lieu=${ev.lieu || ''} | impact=${ev.impact || 'non défini'} | ${ev.note || ''}`).join('\n')
-        : '- Aucun événement/context externe notable transmis.',
-      '',
-      'MÉTÉO PAR JOUR :',
-      Object.keys(weatherByDate).length
-        ? Object.entries(weatherByDate).map(([date,w]) => `- ${date} : code=${w.code}, max=${w.max}°C, probabilité pluie=${w.rainProb}%`).join('\n')
-        : '- Météo indisponible.'
-    ].join('\n');
-
-    const prompt = `Tu es un expert en planification opérationnelle de restaurant. Génère une ÉBAUCHE de planning hebdomadaire pour la semaine du ${dateLabels[0]} au ${dateLabels[6]} pour le restaurant L'Océan à Vannes.
-
-${REGLES_SERVICE}
-
-ÉQUIPE ET COMPÉTENCES :
-${empSummary}
-
-PLANNING DE RÉFÉRENCE ACTUELLEMENT AFFICHÉ :
-${referencePlanning}
-
-CONTEXTE EXTERNE DE LA SEMAINE :
-${externalContextText}
-
-SHIFTS AUTORISÉS PAR L'INTERFACE :
-${allowedShiftsText}
-
-RÈGLES D'ÉCHELONNEMENT DES SHIFTS :
-- Choisis les horaires UNIQUEMENT parmi les shifts autorisés transmis par l'interface, sauf statut RH/Vacances/CFA/Arrêt maladie.
-- Ne crée pas artificiellement un shift unique pour toute l'équipe matin ou toute l'équipe soir.
-- "Équipe matin" et "Équipe soir" décrivent une famille de disponibilité, PAS un horaire identique.
-- Construis une montée en charge progressive : fais commencer chaque salarié le PLUS TARD POSSIBLE tout en respectant le besoin de couverture de chaque heure.
-- Matin café (mercredi/samedi/dimanche) : jusqu'à 10h, 2 personnels réels suffisent ; à partir de 10h, il en faut 3. Il est donc inutile de faire venir 4 ou 5 personnes à 07h.
-- Pour le midi, ajoute les renforts progressivement avant 12h seulement si nécessaire pour atteindre la couverture du service.
-- Pour le soir, échelonne les arrivées entre 15h, 16h, 17h et 18h selon les besoins. Il est interdit de mettre automatiquement toute l'équipe soir à 15h.
-- À 18h, la couverture complète du soir doit être atteinte.
-- À la fermeture, conserve 5 personnels réels jusqu'à F/01h.
-- Les shifts préférés par salarié sont des préférences fortes, pas des obligations : utilise-les d'abord lorsqu'ils permettent la couverture.
-- Évite que plus de 2 salariés d'une même famille commencent exactement à la même heure, sauf si la couverture l'exige réellement.
-- Privilégie la combinaison de shifts qui satisfait la couverture avec le moins d'heures inutiles.
-- Les shifts de Martin V et Louis n'aident jamais à satisfaire les minimums car ils sont FANTÔMES.
-
-INTERPRÉTATION DU NIVEAU D'ACTIVITÉ :
-- Le niveau par défaut est NORMAL.
-- Un événement à fort impact le même jour (ex. RC Vannes à domicile, marathon, Vannetaise, gros salon/concert, Noël/centre-ville) peut faire passer le service concerné à FORT.
-- Beau temps seul ne suffit pas automatiquement à classer FORT : il renforce surtout la terrasse, particulièrement vendredi/samedi/dimanche et en période de vacances.
-- Vacances scolaires ou jour férié seuls = facteur de hausse, pas automatiquement FORT.
-- Plusieurs signaux cumulés (week-end + beau temps + vacances + événement fort) = FORT.
-- Pluie ou météo défavorable ne signifie pas automatiquement CALME : elle déplace surtout les besoins de terrasse vers l'intérieur.
-- Utilise l'heure de l'événement si elle est disponible : un match le soir doit surtout influencer le soir, pas forcément le midi.
-- Si le contexte est ambigu, reste NORMAL plutôt que d'inventer une hausse.
-- Dans "notes", indique brièvement quels jours/services tu as considérés FORTS et pourquoi.
-
-COMMENT UTILISER LE PLANNING DE RÉFÉRENCE :
-- Un statut RH, Vacances, Arrêt maladie ou CFA est VERROUILLÉ et doit être recopié à l'identique.
-- Tu n'as JAMAIS le droit de créer un nouveau RH, Vacances, CFA, Arrêt maladie ou Absent sur une case libre.
-- Une case VIDE signifie : tu dois choisir un shift de travail autorisé, sauf si une impossibilité réelle est signalée dans les notes.
-- Un horaire déjà présent est une forte préférence de stabilité : conserve-le s'il respecte les règles et la couverture.
-- Ne reconstruis pas toute la semaine inutilement : pars de ce squelette et modifie uniquement ce qui est nécessaire.
-- Les salariés FANTÔMES Martin V et Louis peuvent conserver leurs horaires, mais ils ne comptent jamais dans les effectifs minimums.
-
-CONSIGNES DE GÉNÉRATION :
-1. Respecte toutes les RÈGLES DURES avant toute autre considération.
-2. Vérifie mentalement la couverture de chaque service avec les PERSONNELS RÉELS uniquement.
-3. Salome peut être planifiée dès 10h30/11h pour préparation accueil, mais elle ne satisfait aucun besoin opérationnel avant 12h ; à partir de midi elle ne peut satisfaire que le besoin "Accueil".
-4. Pour un service normal, assure 6 personnels réels ; pour une fermeture, 5 personnels réels jusqu'à F.
-5. Aucun salarié ne doit travailler 7 jours sur 7. Maximum 6 jours travaillés dans la semaine.
-6. Tu ne peux PAS résoudre un problème de charge en inventant un RH supplémentaire : les RH viennent uniquement du planning de référence.
-7. N'utilise pas une coupure si un shift continu permet une couverture correcte ; maximum 2 coupures par salarié/semaine.
-8. Vise le contrat de chaque salarié avec une tolérance d'environ ±2h ; évite les heures supplémentaires inutiles.
-9. Répartis la charge équitablement entre les salariés disponibles : évite qu'un salarié libre soit planifié 7 jours alors qu'un autre comparable est très peu utilisé, sans toucher aux RH fixes.
-10. Préserve au maximum la stabilité du planning de référence.
-11. Guillaume reste en arrêt maladie et n'est pas planifié.
-12. Si une contrainte rend la couverture impossible, ne triche pas : indique le manque dans "notes".
-13. En l'absence d'un indicateur explicite de flux fort, considère le service au niveau NORMAL.
-
-Avant de produire le JSON final, contrôle :
-- aucun salarié matin strict sur un service du soir ou une fermeture ;
-- les arrivées sont réellement échelonnées et non uniformisées par équipe ;
-- aucun shift hors de la liste autorisée n'a été inventé ;
-- aucun RH/Vacances/CFA/Arrêt maladie/Absent n'a été créé sur une case libre ;
-- tous les RH/Vacances/CFA/Arrêt maladie du planning de référence sont recopiés à l'identique ;
-- aucun salarié ne travaille 7 jours sur 7 ;
-- Salome non comptée opérationnellement avant 12h, puis accueil uniquement ;
-- Martin V et Louis exclus de tous les calculs de minimum ;
-- 5 personnels réels à chaque fermeture ;
-- repos/statuts verrouillés conservés ;
-- aucune violation du repos minimum ;
-- heures contractuelles raisonnablement proches de la cible.
-
-Réponds UNIQUEMENT avec un objet JSON valide, sans texte ni backticks, au format :
-{
-  "planning": [
-    {
-      "name": "Prénom",
-      "lundi": "09h > 17h30" ou "RH" ou "Absent" ou "Vacances" ou "Coupure 11h-15h/18h-01h",
-      "mardi": "...",
-      "mercredi": "...",
-      "jeudi": "...",
-      "vendredi": "...",
-      "samedi": "...",
-      "dimanche": "..."
+      return [...roles].join('') || '-';
     }
-  ],
-  "notes": "Résumé concis des niveaux d’activité retenus par jour/service (NORMAL/FORT + raison), arbitrages, manques de couverture éventuels, dépassements ou exceptions."
-}
 
-Valeurs autorisées sur une CASE LIBRE :
-- uniquement un horaire de travail appartenant à la liste des shifts autorisés ;
-- "Coupure 11h-15h/18h-01h" ;
-- "Coupure 10h-15h/18h-01h".
+    function profileCode(name, comp) {
+      if (comp.ghost) return 'G';
+      if (name === 'Salome') return 'ACC';
+      if (['Virginie','Raphael','Seb','Anthony'].includes(name)) return 'M';
+      if (name === 'Ismaël') return 'J';
+      if (['Pierre','Catherine','Maxence','Arthur-Paul','Yoann','Martin F','Antoine','Emile','Erwann'].includes(name)) return 'S';
+      return 'X';
+    }
 
-Les valeurs "RH", "Vacances", "Arrêt maladie", "CFA" ne sont autorisées QUE si elles existaient déjà sur cette case dans le planning de référence. N'invente jamais "Absent".`;
+    function compactDay(d) {
+      if (!d) return '.';
+      if (d.x === true) return 'RH';
+      if (d.status === 'Vacances') return 'VAC';
+      if (d.status === 'Arrêt maladie') return 'AM';
+      if (d.status === 'CFA') return 'CFA';
+      if (d.status === 'Escale') return 'ESC';
+      if (d.status === 'Coupure') return 'C11';
+      if (d.status === 'Coupure2') return 'C10';
+      if (d.status) return d.status;
+      const shifts = Array.isArray(d.shifts)
+        ? d.shifts.filter(s => s && s.s && s.s !== '—' && s.e && s.e !== '—')
+        : [];
+      if (!shifts.length) return '.';
+      return shifts.map(s => `${s.s}-${s.e}`).join('+');
+    }
+
+    const teamLines = emps.map((emp, i) => {
+      const comp = COMPETENCES[emp.name] || { rangs: [], shifts: [], ghost: false };
+      const pref = SHIFT_PREFERENCES[emp.name];
+      const prefs = pref && pref.preferred && pref.preferred.length
+        ? pref.preferred.join(',')
+        : '-';
+      const week = days.map((_, di) => compactDay(body.data?.[i]?.[di])).join('|');
+      // IMPORTANT : contrat repris uniquement de la base transmise par le HTML.
+      const contract = (emp.contract === undefined || emp.contract === null || emp.contract === '')
+        ? '?'
+        : emp.contract;
+      return `${emp.name};h=${contract};p=${profileCode(emp.name, comp)};r=${roleCodes(comp)};pref=${prefs};w=${week}`;
+    }).join('\n');
+
+    const allowedCompact = allowedShifts.length
+      ? allowedShifts.join(',')
+      : 'shifts déjà visibles uniquement';
+
+    // Contexte externe volontairement filtré et compacté.
+    const relevantEvents = externalEvents
+      .filter(ev => {
+        const impact = String(ev?.impact || '').toLowerCase();
+        return impact.includes('fort') || impact.includes('high') ||
+               impact.includes('moy') || impact.includes('medium') ||
+               /rc vannes|marathon|vannetaise|no[eë]l|salon|concert|festival|f[ée]ri[ée]|vacances/i.test(String(ev?.name || ''));
+      })
+      .slice(0, 8)
+      .map(ev => `${ev.date || '?'}:${ev.name || 'evt'}${ev.impact ? '['+ev.impact+']' : ''}`)
+      .join(';');
+
+    const weatherCompact = Object.entries(weatherByDate)
+      .slice(0, 7)
+      .map(([date,w]) => `${date}:${w?.max ?? '?'}C/${w?.rainProb ?? '?'}%`)
+      .join(';');
+
+    const prompt = `PLAN L'OCEAN ${dateLabels[0]}-${dateLabels[6]}.
+Objectif: PRE-REMPLIR le squelette, pas réinventer le planning.
+
+LEGENDE profils: M=matin strict; S=soir défaut; J=journée prioritaire/soir possible; ACC=Salome accueil; G=fantôme.
+Rôles: B=bar,T=terrasse,I=intérieur,A=accueil,R=runner.
+Semaine w=Lun|Mar|Mer|Jeu|Ven|Sam|Dim. "."=case à compléter.
+RH/VAC/AM/CFA = VERROUILLES. ESC=Escale. C11/C10=coupures existantes.
+
+EQUIPE:
+${teamLines}
+
+SHIFTS AUTORISES:
+${allowedCompact}
+
+REGLES DURES:
+1) Ne modifie jamais RH,VAC,AM,CFA. N'en crée jamais sur ".".
+2) Une case déjà avec un horaire/statut est une forte référence: conserve-la sauf impossibilité de couverture/légalité.
+3) Maximum 6 jours travaillés; jamais 7/7. Max 48h. Repos entre journées >=11h. Max 2 coupures.
+4) M: aucun soir/fermeture/coupure soir. Guillaume non planifié.
+5) Salome: avant 12h ne compte pas; dès 12h = accueil seulement.
+6) Martin V et Louis (G) peuvent être planifiés mais ne comptent JAMAIS dans les minimums.
+7) Normal midi/soir = 6 personnels réels; fort = 7. Fermeture = 5 personnels réels jusqu'à F/01h.
+8) Matin mer/sam/dim: jusqu'à 10h = 2 réels (bar+plateau); dès 10h = 3 réels.
+9) Echelonne: ne mets pas toute l'équipe au même départ. Fais venir chacun le plus tard possible compatible avec couverture.
+10) Préfère les shifts "pref". Continu avant coupure. Respecte au mieux le contrat h transmis; n'invente jamais un contrat.
+11) Répartis la charge entre disponibles: évite surutilisation d'Emile ou d'un autre alors que des collègues compatibles sont disponibles.
+12) Si impossible, garde les règles dures et explique le manque dans notes.
+
+CONTEXTE:
+events=${relevantEvents || '-'}
+meteo=${weatherCompact || '-'}
+
+INTERPRETATION CONTEXTE:
+défaut=NORMAL; événement fort peut renforcer le service concerné; beau temps/vacances seuls ne rendent pas automatiquement FORT; pluie déplace vers intérieur.
+
+SORTIE JSON UNIQUEMENT:
+{"planning":[{"name":"Prénom","lundi":"...","mardi":"...","mercredi":"...","jeudi":"...","vendredi":"...","samedi":"...","dimanche":"..."}],"notes":"court"}
+
+Pour "." utilise uniquement un shift autorisé ou C11/C10 si indispensable.
+Dans la sortie écris les statuts verrouillés en toutes lettres: RH, Vacances, Arrêt maladie, CFA.
+C11 => "Coupure 11h-15h/18h-01h"; C10 => "Coupure 10h-15h/18h-01h".`;
 
     async function callGroq(promptText) {
       const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -431,13 +409,13 @@ Les valeurs "RH", "Vacances", "Arrêt maladie", "CFA" ne sont autorisées QUE si
         },
         body: JSON.stringify({
           model: 'openai/gpt-oss-120b',
-          max_completion_tokens: 4000,
+          max_completion_tokens: 2600,
           temperature: 0.1,
           reasoning_effort: 'low',
           reasoning_format: 'hidden',
           response_format: { type: 'json_object' },
           messages: [
-            { role: 'system', content: 'Tu es un assistant de planification pour restaurant. Tu réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans backticks. Les statuts verrouillés du planning de référence sont intouchables.' },
+            { role: 'system', content: 'Planification restaurant. Respect absolu des contraintes dures. JSON uniquement.' },
             { role: 'user', content: promptText }
           ]
         })
@@ -445,47 +423,28 @@ Les valeurs "RH", "Vacances", "Arrêt maladie", "CFA" ne sont autorisées QUE si
 
       if (!groqRes.ok) {
         const err = await groqRes.text();
-        throw new Error(`Groq erreur ${groqRes.status}: ${err.slice(0, 200)}`);
+        throw new Error(`Groq erreur ${groqRes.status}: ${err.slice(0, 350)}`);
       }
 
       const groqData = await groqRes.json();
       const text = groqData.choices?.[0]?.message?.content || '';
-      const start = text.indexOf('{');
-      const end = text.lastIndexOf('}');
-      if (start < 0 || end < 0) throw new Error('Réponse Groq non parseable');
+      const a = text.indexOf('{');
+      const b = text.lastIndexOf('}');
+      if (a < 0 || b < 0) throw new Error('Réponse Groq non parseable');
       try {
-        return JSON.parse(text.slice(start, end + 1));
-      } catch(e) {
+        return JSON.parse(text.slice(a, b + 1));
+      } catch (_) {
         throw new Error('Réponse Groq non parseable');
       }
     }
 
-    let planning = await callGroq(prompt);
-    let validationErrors = validatePlanningProposal(planning?.planning, emps, body.data);
+    // UNE SEULE requête Groq par clic pour éviter de doubler la consommation TPM.
+    const planning = await callGroq(prompt);
 
-    if (validationErrors.length) {
-      const correctionPrompt = `${prompt}
-
-CORRECTION OBLIGATOIRE :
-La première proposition est invalide pour les raisons suivantes :
-${validationErrors.map(e => '- ' + e).join('\n')}
-
-Corrige le planning en respectant TOUTES les règles.
-Rappels absolus :
-- ne crée aucun nouveau RH ;
-- ne crée aucun nouveau Vacances/CFA/Arrêt maladie/Absent ;
-- recopie tous les statuts verrouillés à l'identique ;
-- aucun salarié ne doit travailler 7 jours sur 7 ;
-- sur une case libre, choisis un shift de travail autorisé.
-Réponds uniquement avec le JSON final corrigé.`;
-
-      planning = await callGroq(correctionPrompt);
-      validationErrors = validatePlanningProposal(planning?.planning, emps, body.data);
-    }
-
+    const validationErrors = validatePlanningProposal(planning?.planning, emps, body.data);
     if (validationErrors.length) {
       return response(422, {
-        error: 'Planning IA encore invalide après correction',
+        error: 'Proposition IA refusée par le validateur',
         details: validationErrors.slice(0, 20)
       });
     }
