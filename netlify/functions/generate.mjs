@@ -306,6 +306,114 @@ function referenceOutputValue(d) {
   return shifts.map(s => `${fmt(s.s)} > ${fmt(s.e)}`).join(' / ');
 }
 
+
+function shiftStartMinutes(label) {
+  const m = String(label || '').match(/^(\d{1,2})h(?:(\d{2}))?\s*>/i);
+  if (!m) return 9999;
+  return parseInt(m[1], 10) * 60 + (m[2] ? parseInt(m[2], 10) : 0);
+}
+
+function chooseHabitualShift(name, allowedShifts, dayStartCounts) {
+  const allowed = allowedContinuousMap(allowedShifts);
+  const prefs = (SHIFT_PREFERENCES[name]?.preferred || [])
+    .map(x => allowed.get(normalizeShiftLabel(x)))
+    .filter(Boolean);
+
+  const fallback = shiftProfilePool(name, allowedShifts);
+  const pool = prefs.length ? prefs : fallback;
+  if (!pool.length) return '';
+
+  let best = '';
+  let bestScore = Infinity;
+
+  pool.forEach((label, rank) => {
+    const start = shiftStartMinutes(label);
+    const sameStartCount = dayStartCounts.get(start) || 0;
+
+    // Preference first, but strongly penalize identical starting times.
+    const score = (rank * 2) + (sameStartCount * 6);
+    if (score < bestScore) {
+      bestScore = score;
+      best = label;
+    }
+  });
+
+  return best;
+}
+
+function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts) {
+  const dayKeys = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+  const byName = new Map((planningRows || []).map(r => [r && r.name, r]));
+  const result = [];
+  const notes = [];
+  const dayStartCounts = dayKeys.map(() => new Map());
+
+  // Copy the sanitized proposal and count existing starts.
+  (emps || []).forEach((emp) => {
+    const src = byName.get(emp.name) || { name: emp.name };
+    const row = { name: emp.name };
+
+    dayKeys.forEach((k, di) => {
+      row[k] = src[k] || '';
+      if (isWorkingValue(row[k]) && !isCoupureValue(row[k])) {
+        const st = shiftStartMinutes(row[k]);
+        if (st !== 9999) {
+          dayStartCounts[di].set(st, (dayStartCounts[di].get(st) || 0) + 1);
+        }
+      }
+    });
+
+    result.push(row);
+  });
+
+  // Fill genuinely free slots with habitual continuous shifts.
+  (emps || []).forEach((emp, i) => {
+    const row = result[i];
+    const profilePool = new Set(
+      shiftProfilePool(emp.name, allowedShifts).map(normalizeShiftLabel)
+    );
+
+    let worked = dayKeys.filter(k => isWorkingValue(row[k])).length;
+
+    dayKeys.forEach((k, di) => {
+      const ref = data && data[i] && data[i][di];
+
+      // Manager-entered content stays untouched.
+      if (referenceOutputValue(ref) !== null) return;
+
+      // Keep any valid AI proposal already present.
+      if (row[k]) return;
+
+      // Never create a 7/7. Do not invent RH.
+      if (worked >= 6) return;
+
+      const candidate = chooseHabitualShift(emp.name, allowedShifts, dayStartCounts[di]);
+      if (!candidate) return;
+
+      if (!profilePool.has(normalizeShiftLabel(candidate))) return;
+
+      row[k] = candidate;
+      worked += 1;
+
+      const st = shiftStartMinutes(candidate);
+      if (st !== 9999) {
+        dayStartCounts[di].set(st, (dayStartCounts[di].get(st) || 0) + 1);
+      }
+    });
+
+    const remaining = dayKeys.filter((k, di) => {
+      const ref = data && data[i] && data[i][di];
+      return referenceOutputValue(ref) === null && !row[k];
+    });
+
+    if (remaining.length) {
+      notes.push(`${emp.name}: ${remaining.join(', ')}`);
+    }
+  });
+
+  return { planning: result, notes };
+}
+
 function sanitizePlanningProposal(planningRows, emps, data, allowedShifts) {
   const dayKeys = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
   const byName = new Map((planningRows || []).map(r => [r && r.name, r]));
@@ -522,7 +630,7 @@ export const handler = async function(event) {
       .join(';');
 
     const prompt = `PLAN L'OCEAN ${dateLabels[0]}-${dateLabels[6]}.
-Objectif: PRE-REMPLIR uniquement les "." du squelette. Tout ce qui est déjà saisi sera imposé par le code et n'est pas une décision IA.
+Objectif: PRE-REMPLIR le maximum de "." avec les shifts habituels CONTINUS. Tout ce qui est déjà saisi sera imposé par le code et n'est pas une décision IA. Ne laisse vide que si aucune solution habituelle sûre n'existe.
 
 LEGENDE profils: M=matin strict; S=soir défaut; J=journée prioritaire/soir possible; ACC=Salome accueil; G=fantôme.
 Rôles: B=bar,T=terrasse,I=intérieur,A=accueil,R=runner.
@@ -612,10 +720,19 @@ Dans la sortie écris les statuts verrouillés en toutes lettres: RH, Vacances, 
     // - un éventuel 7/7 est ramené à 6 jours en laissant une case IA à compléter.
     const sanitized = sanitizePlanningProposal(rawPlanning?.planning, emps, body.data, allowedShifts);
 
-    const validationErrors = validatePlanningProposal(sanitized.planning, emps, body.data);
+    // If Groq leaves too many blanks, the code itself pre-fills them
+    // from each employee's habitual continuous shifts.
+    const habitual = deterministicHabitualPrefill(
+      sanitized.planning,
+      emps,
+      body.data,
+      allowedShifts
+    );
+
+    const validationErrors = validatePlanningProposal(habitual.planning, emps, body.data);
     if (validationErrors.length) {
       return response(422, {
-        error: 'Proposition IA encore invalide après sécurisation',
+        error: 'Préplanning encore invalide après sécurisation',
         details: validationErrors.slice(0, 20)
       });
     }
@@ -624,14 +741,14 @@ Dans la sortie écris les statuts verrouillés en toutes lettres: RH, Vacances, 
     const coupureNote = sanitized.manualCoupureDays.length
       ? `Coupure(s) à évaluer et poser MANUELLEMENT si nécessaire : ${sanitized.manualCoupureDays.join(', ')}.`
       : '';
-    const warningNotes = sanitized.warnings.length
-      ? `Cases laissées volontairement à compléter : ${sanitized.warnings.join(' ; ')}`
+    const humanNote = habitual.notes.length
+      ? `À compléter manuellement si nécessaire : ${habitual.notes.join(' ; ')}`
       : '';
 
     return response(200, {
       planning: {
-        planning: sanitized.planning,
-        notes: [baseNotes, coupureNote, warningNotes].filter(Boolean).join(' | ')
+        planning: habitual.planning,
+        notes: [baseNotes, coupureNote, humanNote].filter(Boolean).join(' | ')
       }
     });
 
