@@ -152,68 +152,55 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
   .p1f{background:#f5f4f1;padding:4px 12px;display:flex;justify-content:space-between;font-size:7px;color:#aaa;border-top:.5px solid #ccc}
 }
 
-/* Statuts semaine entière : rendu visuel fusionné sur la ligne */
-.week-status-cell{
-  background:#F4E8CF !important;
-  border-left-color:transparent !important;
-  border-right-color:transparent !important;
+/* PDF ONLY — merged weekly statuses and Salomé accueil */
+@media print{
+  .pdf-week-merged{
+    background:#F4E8CF !important;
+    text-align:center !important;
+    vertical-align:middle !important;
+    padding:0 !important;
+  }
+  .pdf-week-merged-label{
+    width:100%;
+    text-align:center;
+    font-weight:700;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:#8A5A19;
+    opacity:.75;
+    padding:8px 0;
+  }
+  .pdf-accueil-merged{
+    background:#EAF3F8 !important;
+    text-align:center !important;
+    vertical-align:middle !important;
+    padding:0 !important;
+  }
+  .pdf-accueil-label{
+    width:100%;
+    text-align:center;
+    font-weight:700;
+    letter-spacing:.12em;
+    color:#2F5D73;
+    opacity:.8;
+    padding:8px 0;
+  }
+  .pdf-count-summary{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:3px;
+    margin:6px 0 5px 0;
+    font-size:7px;
+    text-align:center;
+    page-break-inside:avoid;
+  }
+  .pdf-count-day{
+    border:.5px solid #ddd;
+    border-radius:3px;
+    padding:3px 2px;
+    line-height:1.35;
+  }
 }
-.week-status-cell.week-status-first{
-  border-left-color:var(--g200) !important;
-  border-top-left-radius:6px;
-  border-bottom-left-radius:6px;
-}
-.week-status-cell.week-status-last{
-  border-right-color:var(--g200) !important;
-  border-top-right-radius:6px;
-  border-bottom-right-radius:6px;
-}
-.week-status-fade{
-  min-height:34px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  width:100%;
-  font-weight:700;
-  letter-spacing:.08em;
-  text-transform:uppercase;
-  color:#8A5A19;
-  opacity:.72;
-}
-.week-status-empty{
-  color:transparent !important;
-}
-
-
-/* Salomé : ACCUEIL fondu sur les jours travaillés, hors RH */
-.accueil-week-cell{
-  background:#EAF3F8 !important;
-  border-left-color:transparent !important;
-  border-right-color:transparent !important;
-}
-.accueil-week-cell.accueil-first{
-  border-left-color:var(--g200) !important;
-  border-top-left-radius:6px;
-  border-bottom-left-radius:6px;
-}
-.accueil-week-cell.accueil-last{
-  border-right-color:var(--g200) !important;
-  border-top-right-radius:6px;
-  border-bottom-right-radius:6px;
-}
-.accueil-week-label{
-  min-height:34px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  width:100%;
-  font-weight:700;
-  letter-spacing:.08em;
-  text-transform:uppercase;
-  color:#2F5D73;
-  opacity:.78;
-}
-.accueil-week-empty{color:transparent !important;}
 
 </style>
 </head>
@@ -440,66 +427,9 @@ function renderShiftRow(ei,di,si,sh,we,total){
   return html;
 }
 
-function fullWeekStatus(ei){
-  var row=DATA[ei]||[];
-  if(row.length<7)return '';
-  var allowed=['Vacances','Arrêt maladie','CFA'];
-  var st=row[0]&&row[0].status;
-  if(allowed.indexOf(st)<0)return '';
-  for(var i=1;i<7;i++){
-    if(!row[i]||row[i].status!==st)return '';
-  }
-  return st;
-}
-
-function salomeAccueilSpans(ei){
-  if(!EMPS[ei]||EMPS[ei].name!=='Salome')return [];
-  var row=DATA[ei]||[];
-  var worked=[];
-  for(var i=0;i<7;i++){
-    var d=row[i];
-    if(!d)continue;
-    if(d.x===true)continue; // RH
-    if(d.status==='Vacances'||d.status==='Arrêt maladie'||d.status==='CFA')continue;
-    var hasShift=false;
-    if(d.shifts&&d.shifts.length){
-      hasShift=d.shifts.some(function(s){
-        return s&&s.s&&s.s!=='—'&&s.e&&s.e!=='—';
-      });
-    }
-    if(hasShift)worked.push(i);
-  }
-  if(!worked.length)return [];
-  var spans=[], start=worked[0], prev=worked[0];
-  for(var j=1;j<worked.length;j++){
-    if(worked[j]===prev+1)prev=worked[j];
-    else{spans.push({start:start,end:prev});start=worked[j];prev=worked[j];}
-  }
-  spans.push({start:start,end:prev});
-  return spans;
-}
-
 function renderCell(ei,di){
   var d=DATA[ei][di];
   var we=IS_WE[di];
-  var ws=fullWeekStatus(ei);
-  if(ws){
-    var cls='week-status-cell'+(di===0?' week-status-first':'')+(di===6?' week-status-last':'');
-    var label=(di===3?ws:'');
-    return '<div class="day-inner '+cls+'"><div class="week-status-fade '+(label?'':'week-status-empty')+'">'+(label||'·')+'</div></div>';
-  }
-  if(EMPS[ei]&&EMPS[ei].name==='Salome'){
-    var spans=salomeAccueilSpans(ei);
-    for(var si=0;si<spans.length;si++){
-      var sp=spans[si];
-      if(di>=sp.start&&di<=sp.end){
-        var mid=Math.floor((sp.start+sp.end)/2);
-        var acls='accueil-week-cell'+(di===sp.start?' accueil-first':'')+(di===sp.end?' accueil-last':'');
-        var alabel=(di===mid?'ACCUEIL':'');
-        return '<div class="day-inner '+acls+'"><div class="accueil-week-label '+(alabel?'':'accueil-week-empty')+'">'+(alabel||'·')+'</div></div>';
-      }
-    }
-  }
   var html='<div class="day-inner">';
   if(d.status){
     html+='<select class="status-sel compact" onchange="onMaster('+ei+','+di+',this.value)">';
@@ -835,6 +765,34 @@ function setDates(mon){
 function getWeekNum(d){var date=new Date(d);date.setHours(0,0,0,0);date.setDate(date.getDate()+3-(date.getDay()+6)%7);var w1=new Date(date.getFullYear(),0,4);return 1+Math.round(((date-w1)/86400000-3+(w1.getDay()+6)%7)/7);}
 
 /* PRINT */
+
+function pdfFullWeekStatus(ei){
+  var row=DATA[ei]||[];
+  if(row.length<7)return '';
+  var allowed=['Vacances','Arrêt maladie','CFA'];
+  var st=row[0]&&row[0].status;
+  if(allowed.indexOf(st)<0)return '';
+  for(var i=1;i<7;i++){
+    if(!row[i]||row[i].status!==st)return '';
+  }
+  return st;
+}
+
+function pdfSalomeWorkedDays(ei){
+  if(!EMPS[ei]||EMPS[ei].name!=='Salome')return [];
+  var row=DATA[ei]||[], out=[];
+  for(var di=0;di<7;di++){
+    var d=row[di];
+    if(!d||d.x===true)continue;
+    if(d.status==='Vacances'||d.status==='Arrêt maladie'||d.status==='CFA')continue;
+    var hasShift=d.shifts&&d.shifts.some(function(s){
+      return s&&s.s&&s.s!=='—'&&s.e&&s.e!=='—';
+    });
+    if(hasShift)out.push(di);
+  }
+  return out;
+}
+
 function buildPrintDoc(){
   var mon=new Date(document.getElementById('weekDate').value);
   var sun=new Date(mon);sun.setDate(sun.getDate()+6);
@@ -854,61 +812,102 @@ function buildPrintDoc(){
   htr.innerHTML=hh;thead.appendChild(htr);
   var tbody=document.getElementById('p1-tbody');tbody.innerHTML='';
   EMPS.forEach(function(emp,ei){
-    if(emp.hidden)return; // MASQUÉ — pas dans le PDF
     var tr=document.createElement('tr');
-    var cells='<td class="en">'+emp.name+'</td>';
-    DAYS.forEach(function(_,di){
-      var dd=DATA[ei][di];var we=IS_WE[di];var inner='';
-      if(dd.status){
-        if(dd.status==='Coupure')inner='<span class="cv">Coupure 11h-15h/18h-01h</span>';
-        else if(dd.status==='Coupure2')inner='<span class="cv">10h-15h / 18h-01h</span>';
-        else if(dd.status==='Vacances')inner='<span class="vv">Vacances</span>';
-        else if(dd.status==='Arr\u00eat maladie')inner='<span class="arv">Arr\u00eat maladie</span>';
-        else if(dd.status==='Escale')inner='<span class="escv">\u2693 Escale</span>';
-        else inner='<span class="spv">'+dd.status+'</span>';
-      } else if(dd.x){
-        inner='<span class="av">&mdash;</span>';
-      } else if(dd.shifts){
-        var parts=dd.shifts.filter(function(s){return s.s&&s.s!=='—';}).map(function(s){var st=s.s.replace(':00','h').replace(':30','h30');var en=s.e&&s.e!=='—'?s.e.replace(':00','h').replace(':30','h30'):'';return st+(en?'&ndash;'+en:'');});
-        if(parts.length===2)inner='<span class="cv">Coupure</span>';
-        else if(parts.length===1)inner='<span class="sv">'+parts[0]+'</span>';
-        else inner='<span class="av">&mdash;</span>';
-      }
-      cells+='<td'+(we?' class="wd"':'')+'>'+inner+'</td>';
-    });
-    tr.innerHTML=cells;tbody.appendChild(tr);
-  });
-  ['Midi (12&ndash;15h)','Soir (21h+)'].forEach(function(lbl,fi){
-    var fr=document.createElement('tr');fr.className='fr';
-    var cells='<td class="fl">'+lbl+'</td>';
-    DAYS.forEach(function(_,di){
-      var count=0;
-      EMPS.forEach(function(emp,ei){
-        if(emp.hidden)return;
-        var dd=DATA[ei][di];if(!dd||dd.x)return;if(dd.status&&dd.status!=='Coupure')return;
-        if(dd.shifts)dd.shifts.forEach(function(sh){if(fi===0&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<15*60&&em>12*60)count++;}if(fi===1&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm2=toMinN(sh.s),em2=toMinN(sh.e);if(em2<=sm2)em2+=1440;if(sm2<21*60&&em2>=21*60)count++;}});
-      });
-      cells+='<td>'+(count>0?'<span class="fc">'+count+' pers.</span>':'')+'</td>';
-    });
-    fr.innerHTML=cells;tbody.appendChild(fr);
-  });
-}
+    if(emp.hidden)tr.className='emp-hidden-print';
 
-function doPrint(){
-  buildPrintDoc();
-  var evtBody=document.getElementById('evtBody');
-  // Résumé effectifs PDF : midi / après-midi / soir
-  var existingSummary=document.getElementById('p1-count-summary');
-  if(existingSummary)existingSummary.remove();
+    var tdName=document.createElement('td');
+    tdName.className='en';
+    tdName.innerHTML=emp.name+(emp.hidden?'<div style="font-size:7px;color:#999;font-weight:500">Hors planning</div>':'');
+    tr.appendChild(tdName);
+
+    var fullStatus=pdfFullWeekStatus(ei);
+
+    // PDF only: merge Vacances / Arrêt maladie / CFA across the 7 days.
+    if(fullStatus){
+      var td=document.createElement('td');
+      td.colSpan=7;
+      td.className='pdf-week-merged';
+      td.innerHTML='<div class="pdf-week-merged-label">'+fullStatus+'</div>';
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+
+    // PDF only: Salomé displays ACCUEIL over contiguous worked-day spans, RH remain separate.
+    if(emp.name==='Salome'){
+      var worked=pdfSalomeWorkedDays(ei);
+      var workedSet={};worked.forEach(function(d){workedSet[d]=true;});
+      var di=0;
+      while(di<7){
+        if(workedSet[di]){
+          var start=di,end=di;
+          while(end+1<7&&workedSet[end+1])end++;
+          var tdA=document.createElement('td');
+          tdA.colSpan=end-start+1;
+          tdA.className='pdf-accueil-merged';
+          tdA.innerHTML='<div class="pdf-accueil-label">ACCUEIL</div>';
+          tr.appendChild(tdA);
+          di=end+1;
+          continue;
+        }
+
+        var d=DATA[ei][di];
+        var tdS=document.createElement('td');
+        var inner='';
+        if(d&&d.status) inner='<span class="spv">'+d.status+'</span>';
+        else if(d&&d.x) inner='<span class="av">RH</span>';
+        else if(d&&d.shifts){
+          var parts=d.shifts.filter(function(s){return s.s&&s.s!=='—'&&s.e&&s.e!=='—';}).map(function(s){
+            function f(t){if(t==='01:00')return 'F';var p=t.split(':');return p[1]==='00'?parseInt(p[0])+'h':parseInt(p[0])+'h'+p[1];}
+            return f(s.s)+'–'+f(s.e);
+          });
+          inner=parts.join('<br>');
+        }
+        tdS.innerHTML=inner||'—';
+        tr.appendChild(tdS);
+        di++;
+      }
+      tbody.appendChild(tr);
+      return;
+    }
+
+    // Normal employees: one PDF cell per day.
+    DAYS.forEach(function(_,di){
+      var d=DATA[ei][di];
+      var td=document.createElement('td');
+      var inner='';
+      if(d.status){
+        if(d.status==='Coupure')inner='<span class="cv">COUPURE</span>';
+        else if(d.status==='Coupure2')inner='<span class="cv">COUPURE 10H</span>';
+        else inner='<span class="spv">'+d.status+'</span>';
+      }else if(d.x){
+        inner='<span class="av">RH</span>';
+      }else if(d.shifts){
+        var parts=d.shifts.filter(function(s){return s.s&&s.s!=='—'&&s.e&&s.e!=='—';}).map(function(s){
+          function f(t){if(t==='01:00')return 'F';var p=t.split(':');return p[1]==='00'?parseInt(p[0])+'h':parseInt(p[0])+'h'+p[1];}
+          return f(s.s)+'–'+f(s.e);
+        });
+        inner=parts.join('<br>');
+      }
+      td.innerHTML=inner||'—';
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+
+  // PDF only: staffing summary, including afternoon.
+  var oldSummary=document.getElementById('p1-count-summary');
+  if(oldSummary)oldSummary.remove();
   var summary=document.createElement('div');
   summary.id='p1-count-summary';
-  summary.style.cssText='display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:7px 0 5px 0;font-size:8px;text-align:center;';
+  summary.className='pdf-count-summary';
   var sh='';
   DAYS.forEach(function(_,di){
-    sh+='<div style="border:.5px solid #ddd;border-radius:4px;padding:4px 2px;">'
-      +'<b>Midi (12–15h)</b><br>'+cntMidi(di)+' pers.'
-      +'<br><b>Après-midi (15–18h)</b><br>'+minCovApm(di)+' pers.'
-      +'<br><b>Soir (21h+)</b><br>'+cntSoir(di)+' pers.'
+    sh+='<div class="pdf-count-day">'
+      +'<div><b>Midi (12–15h)</b><br>'+cntMidi(di)+' pers.</div>'
+      +'<div><b>Après-midi (15–18h)</b><br>'+minCovApm(di)+' pers.</div>'
+      +'<div><b>Soir (21h+)</b><br>'+cntSoir(di)+' pers.</div>'
       +'</div>';
   });
   summary.innerHTML=sh;
