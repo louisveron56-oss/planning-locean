@@ -111,6 +111,62 @@ function impactFor(event, distance) {
   return 'low';
 }
 
+
+function normalizedEventText(ev) {
+  return `${asText(ev.title)} ${asText(ev.description)}`.toLowerCase();
+}
+
+function isUsefulOpenAgendaEvent(ev, distance) {
+  const text = normalizedEventText(ev);
+
+  // Events we explicitly want to surface because they can materially affect trade.
+  const keepWords = [
+    'festival', 'concert', 'marathon', 'semi-marathon', 'course',
+    'régate', 'regate', 'salon', 'foire', 'braderie',
+    'grande braderie', 'carnaval', 'feu d’artifice', "feu d'artifice",
+    'tournoi', 'championnat', 'marché de noël', 'marche de noel',
+    'grande roue', 'parc chorus', 'chorus', 'fête', 'fete',
+    'vannetaise', 'triathlon', 'trail', 'compétition', 'competition'
+  ];
+
+  // Noise that was polluting the planning with grey cards.
+  const rejectWords = [
+    'atelier', 'conférence', 'conference', 'lecture', 'visite guidée',
+    'visite guidee', 'médiathèque', 'mediatheque', 'bibliothèque',
+    'bibliotheque', 'stage', 'cours', 'initiation', 'permanence',
+    'réunion', 'reunion', 'rencontre', 'dédicace', 'dedicace',
+    'exposition', 'expo', 'vernissage'
+  ];
+
+  if (rejectWords.some(w => text.includes(w))) return false;
+
+  const explicitlyUseful = keepWords.some(w => text.includes(w));
+  if (!explicitlyUseful) return false;
+
+  // Beyond 10 km, keep only genuinely strong events.
+  if (distance > 10) {
+    const veryStrong = [
+      'festival', 'concert', 'marathon', 'régate', 'regate',
+      'salon', 'foire', 'braderie', 'tournoi', 'championnat'
+    ];
+    return veryStrong.some(w => text.includes(w));
+  }
+
+  return true;
+}
+
+function eventPriority(item) {
+  if (item.type === 'major_local_event') return 100;
+  if (item.type === 'rcv_home') return 95;
+  if (item.type === 'public_holiday') return 90;
+  if (item.type === 'school_holiday') return 85;
+  if (item.type === 'rcv_home_relocated') return 70;
+  if (item.type === 'rcv_away') return 60;
+  if (item.impact === 'high') return 50;
+  if (item.impact === 'medium') return 40;
+  return 10;
+}
+
 // ============================================================
 // OPENAGENDA
 // ============================================================
@@ -341,6 +397,104 @@ async function getPublicHolidayContext(startDate, endDate) {
     console.warn('Jours fériés indisponibles:', error.message);
     return [];
   }
+}
+
+
+// ============================================================
+// MARATHON DE VANNES — SOURCE OFFICIELLE DÉDIÉE
+// On ne dépend pas d'OpenAgenda pour cet événement majeur.
+// Pour l'édition 2026 :
+// - samedi 26/09 : 5 km + 10 km nocturne
+// - dimanche 27/09 : 20 km + Marathon + Relais entreprises
+// ============================================================
+
+function dateInRange(dateIso, startDate, endDate) {
+  return dateIso >= startDate && dateIso <= endDate;
+}
+
+async function getMarathonVannesContext(startDate, endDate) {
+  const out = [];
+
+  // Dates officielles 2026, vérifiées sur le site du Marathon et la Ville de Vannes.
+  if (dateInRange('2026-09-26', startDate, endDate)) {
+    out.push({
+      type: 'major_local_event',
+      name: '🏃 Marathon de Vannes — 5 km + 10 km Gwened Nocturne',
+      date: 'samedi 26 septembre · 19h30 / 20h00',
+      lieu: 'Parc du Golfe / centre-ville — Vannes',
+      impact: 'high',
+      note: 'Événement majeur local — fortes perturbations et flux en centre-ville / place Gambetta',
+      url: 'https://marathon-vannes.com/faq/',
+      _sortDate: '2026-09-26T19:30:00'
+    });
+  }
+
+  if (dateInRange('2026-09-27', startDate, endDate)) {
+    out.push({
+      type: 'major_local_event',
+      name: '🏃 Marathon de Vannes — 20 km + Marathon + Relais entreprises',
+      date: 'dimanche 27 septembre · 8h30 / 9h30',
+      lieu: 'Remparts / centre-ville → Parc du Golfe — Vannes',
+      impact: 'high',
+      note: 'Événement majeur local — environ 10 000 coureurs sur le week-end, place Gambetta et plusieurs axes fermés',
+      url: 'https://www.mairie-vannes.fr/agenda/marathon-de-vannes-1',
+      _sortDate: '2026-09-27T08:30:00'
+    });
+  }
+
+  return out;
+}
+
+
+// ============================================================
+// LA VANNETAISE — SOURCE PRIORITAIRE DÉDIÉE
+// Édition 2026 : 9, 10 et 11 octobre.
+// On ne dépend pas d'OpenAgenda pour cet événement majeur.
+// ============================================================
+
+async function getVannetaiseContext(startDate, endDate) {
+  const out = [];
+
+  const events = [
+    {
+      dateIso: '2026-10-09',
+      date: 'vendredi 9 octobre · 19h00',
+      name: '🎀 La Vannetaise — Marche nordique',
+      lieu: 'Esplanade Simone-Veil — Vannes',
+      note: 'Événement majeur local — flux important en centre-ville'
+    },
+    {
+      dateIso: '2026-10-10',
+      date: 'samedi 10 octobre · 14h15 / 17h30',
+      name: '🎀 La Vannetaise — Marche 5 km + Pitchounettes',
+      lieu: 'Esplanade Simone-Veil — Vannes',
+      note: 'Événement majeur local — flux important en centre-ville'
+    },
+    {
+      dateIso: '2026-10-11',
+      date: 'dimanche 11 octobre · 10h15',
+      name: '🎀 La Vannetaise — Course + marche 6 km',
+      lieu: 'Esplanade Simone-Veil — Vannes',
+      note: 'Événement majeur local — flux important en centre-ville'
+    }
+  ];
+
+  events.forEach(ev => {
+    if (dateInRange(ev.dateIso, startDate, endDate)) {
+      out.push({
+        type: 'major_local_event',
+        name: ev.name,
+        date: ev.date,
+        lieu: ev.lieu,
+        impact: 'high',
+        note: ev.note,
+        url: 'https://lavannetaise.com/',
+        _sortDate: `${ev.dateIso}T12:00:00`
+      });
+    }
+  });
+
+  return out;
 }
 
 // ============================================================
@@ -718,11 +872,15 @@ export const handler = async function(event) {
       agendas,
       schoolContext,
       holidayContext,
+      marathonContext,
+      vannetaiseContext,
       rcvContext
     ] = await Promise.all([
       discoverAgendas(apiKey),
       getSchoolVacationContext(startDate, endDate),
       getPublicHolidayContext(startDate, endDate),
+      getMarathonVannesContext(startDate, endDate),
+      getVannetaiseContext(startDate, endDate),
       getRcvContext(startDate, endDate)
     ]);
 
@@ -754,6 +912,7 @@ export const handler = async function(event) {
       );
 
       if (distance > RADIUS_KM) continue;
+      if (!isUsefulOpenAgendaEvent(ev, distance)) continue;
 
       const timings = Array.isArray(ev.timings)
         ? ev.timings
@@ -772,7 +931,10 @@ export const handler = async function(event) {
       const place = loc.name || '';
       const lieu = [place, city].filter(Boolean).join(' - ');
       const date = formatDateTime(matching.begin);
-      const impact = impactFor(ev, distance);
+      let impact = impactFor(ev, distance);
+      // Retained OpenAgenda cards must be operationally useful:
+      // no grey "low" cards in the planning.
+      if (impact === 'low') impact = 'medium';
 
       const key =
         `${name.toLowerCase()}|` +
@@ -813,8 +975,28 @@ export const handler = async function(event) {
     );
 
     const cleanEvents = out
-      .slice(0, 40)
+      .filter(item => {
+        const t = String(item.name || '').toLowerCase();
+        return !t.includes('marathon de vannes') && !t.includes('vannetaise');
+      })
+      .slice(0, 20)
       .map(({ _begin, ...item }) => item);
+
+    const marathonClean = marathonContext
+      .sort(
+        (a, b) =>
+          new Date(a._sortDate).getTime() -
+          new Date(b._sortDate).getTime()
+      )
+      .map(({ _sortDate, ...item }) => item);
+
+    const vannetaiseClean = vannetaiseContext
+      .sort(
+        (a, b) =>
+          new Date(a._sortDate).getTime() -
+          new Date(b._sortDate).getTime()
+      )
+      .map(({ _sortDate, ...item }) => item);
 
     const rcvClean = rcvContext
       .sort(
@@ -824,12 +1006,16 @@ export const handler = async function(event) {
       )
       .map(({ _sortDate, ...item }) => item);
 
+    // Priority first: major local events + RCV + holidays.
+    // OpenAgenda is only used to supplement with genuinely useful events.
     const clean = [
+      ...marathonClean,
+      ...vannetaiseClean,
+      ...rcvClean,
       ...holidayContext,
       ...schoolContext,
-      ...rcvClean,
       ...cleanEvents
-    ];
+    ].sort((a,b) => eventPriority(b) - eventPriority(a));
 
     return response(200, {
       text: JSON.stringify(clean),
@@ -838,6 +1024,8 @@ export const handler = async function(event) {
         agendasFound: agendas.length,
         agendasQueried: settled.length,
         eventsFound: out.length,
+        marathonEventsFound: marathonClean.length,
+        vannetaiseEventsFound: vannetaiseClean.length,
         rcvMatchesFound: rcvClean.length,
         radiusKm: RADIUS_KM
       }
