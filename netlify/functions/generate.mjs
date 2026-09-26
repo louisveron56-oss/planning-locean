@@ -35,19 +35,19 @@ const SHIFT_PREFERENCES = {
   'Raphael': { preferred: ['09h > 17h','07h > 16h','08h > 17h'], note: 'Matin strict. Arrivée souvent décalée.' },
   'Seb': { preferred: ['08h > 17h','07h > 16h','09h > 17h'], note: 'Matin strict. Journée continue.' },
   'Anthony': { preferred: ['10h > 18h30','08h > 17h','07h > 16h','09h > 18h30','11h > 18h30'], note: 'Matin/journée. Renfort décalé. Pas de tranche soir.' },
-  'Catherine': { preferred: ['15h > f','16h > f','17h > f','15h > 23h'], note: 'Soir par défaut.' },
+  'Catherine': { preferred: ['15h > F','16h > F','17h > F','15h > 23h'], note: 'Soir par défaut.' },
   'Ismaël': { preferred: ['09h > 18h30','08h > 18h30','10h > 19h','11h > 20h'], note: 'Journée prioritaire. Soir possible si besoin.' },
-  'Pierre': { preferred: ['15h > f','16h > f','17h > f','15h > 23h'], note: 'Soir par défaut.' },
-  'Maxence': { preferred: ['15h > f','17h > f','18h > f','16h > f'], note: 'Soir. Arrivées à échelonner.' },
-  'Arthur-Paul': { preferred: ['15h > f','16h > f','17h > f','18h > f'], note: 'Soir.' },
-  'Yoann': { preferred: ['18h > f','17h > f','15h > f','16h > f'], note: 'Soir. Arrivée tardive fréquente.' },
-  'Martin F': { preferred: ['15h > f','16h > f','18h > f','15h > 23h'], note: 'Soir.' },
-  'Antoine': { preferred: ['15h > f','16h > f','17h > f','18h > f'], note: 'Soir.' },
-  'Emile': { preferred: ['18h > f','17h > f','15h > f','16h > f'], note: 'Soir. Ne pas le surutiliser.' },
+  'Pierre': { preferred: ['15h > F','16h > F','17h > F','15h > 23h'], note: 'Soir par défaut.' },
+  'Maxence': { preferred: ['15h > F','17h > F','18h > F','16h > F'], note: 'Soir. Arrivées à échelonner.' },
+  'Arthur-Paul': { preferred: ['15h > F','16h > F','17h > F','18h > F'], note: 'Soir.' },
+  'Yoann': { preferred: ['18h > F','17h > F','15h > F','16h > F'], note: 'Soir. Arrivée tardive fréquente.' },
+  'Martin F': { preferred: ['15h > F','16h > F','18h > F','15h > 23h'], note: 'Soir.' },
+  'Antoine': { preferred: ['15h > F','16h > F','17h > F','18h > F'], note: 'Soir.' },
+  'Emile': { preferred: ['18h > F','17h > F','15h > F','16h > F'], note: 'Soir. Ne pas le surutiliser.' },
   'Salome': { preferred: ['10h > 17h30'], note: 'Accueil uniquement à partir de midi. Shift naturel 10h > 17h30.' },
-  'Erwann': { preferred: ['15h > f','16h > f','17h > f','15h > 23h'], note: 'Soir.' },
-  'Martin V': { preferred: ['15h > f','17h > f','09h > 17h','16h > f'], note: 'Fantôme : ne compte jamais dans les minimums.' },
-  'Louis': { preferred: ['17h > f','18h > f','15h > 23h','10h > 18h30','11h > 20h'], note: 'Fantôme : ne compte jamais dans les minimums.' }
+  'Erwann': { preferred: ['15h > F','16h > F','17h > F','15h > 23h'], note: 'Soir.' },
+  'Martin V': { preferred: ['15h > F','17h > F','09h > 17h','16h > F'], note: 'Fantôme : ne compte jamais dans les minimums.' },
+  'Louis': { preferred: ['17h > F','18h > F','15h > 23h','10h > 18h30','11h > 20h'], note: 'Fantôme : ne compte jamais dans les minimums.' }
 };
 
 
@@ -177,13 +177,14 @@ function normalizeStatusValue(v) {
 }
 
 
-function normalizeShiftLabel(v) {
-  return String(v || '')
+function normalizeShiftLabel(value) {
+  return String(value || '')
     .trim()
     .toLowerCase()
     .replace(/\s+/g, ' ')
-    .replace(/\s*>\s*/g, ' > ')
-    .replace('01h00', '01h');
+    .replace(/01h00/g, '01h')
+    .replace(/>\s*f\b/g, '> 01h')
+    .replace(/>\s*01h\b/g, '> 01h');
 }
 
 function isCoupureValue(v) {
@@ -223,9 +224,9 @@ function shiftProfilePool(name, allowedShifts) {
   ]);
 
   const evening = take([
-    '15h > 23h','15h > f','15h > 01h',
-    '16h > 23h','16h > f','16h > 01h',
-    '17h > f','17h > 01h','18h > f','18h > 01h'
+    '15h > 23h','15h > F','15h > F',
+    '16h > 23h','16h > F','16h > F',
+    '17h > F','17h > F','18h > F','18h > F'
   ]);
 
   if (name === 'Salome') return take(['10h > 17h30']);
@@ -419,7 +420,7 @@ function isCoreEveningEmployee(name) {
 
 function eveningShiftCandidates(allowedShifts) {
   const allowed = allowedContinuousMap(allowedShifts);
-  const wanted = ['15h > f','16h > f','17h > f','18h > f','15h > 01h','16h > 01h','17h > 01h','18h > 01h'];
+  const wanted = ['15h > F','16h > F','17h > F','18h > F','15h > F','16h > F','17h > F','18h > F'];
   const seen = new Set(), out = [];
   wanted.forEach(x => {
     const v=allowed.get(normalizeShiftLabel(x));
@@ -871,7 +872,13 @@ REGLES DURES:
 9) Echelonne réellement les prises de poste : journée = 07h/08h/09h/10h/11h selon besoin ; soir = 15h/16h/17h/18h selon besoin.
 10) Les "pref" sont des habitudes, PAS un copier-coller obligatoire. Varie les shifts d'un même salarié quand plusieurs habitudes sont compatibles.
 11) ÉQUILIBRE HEURES : tout profil S = cible 42h par défaut ; Arthur-Paul apprenti = 35h. Fais tourner les départs 15h/16h/17h/18h : personne ne doit être systématiquement à 15h ou systématiquement à 18h. Un nouvel employé non configuré est automatiquement S/42h.
-12) COUPURES INTERDITES : n'écris jamais C10, C11, "Coupure", ni deux tranches. Si une coupure semble nécessaire, laisse la case "" et indique dans notes : "Coupure manuelle à envisager : [jour] — [raison]".
+12) 
+IMPORTANT FORMAT HORAIRE SOIR :
+- Utilise toujours la lettre majuscule F pour la fermeture.
+- Exemples valides : "15h > F", "16h > F", "17h > F", "18h > F".
+- N'écris jamais "15h > F", "16h > F", etc.
+
+COUPURES INTERDITES : n'écris jamais C10, C11, "Coupure", ni deux tranches. Si une coupure semble nécessaire, laisse la case "" et indique dans notes : "Coupure manuelle à envisager : [jour] — [raison]".
 13) Répartis la charge entre les salariés disponibles. Ne surutilise pas Emile ou un autre pour combler tous les trous.
 14) N'invente jamais un contrat. Si le contrat vaut "?", n'utilise pas de cible d'heures inventée.
 15) Si aucune solution continue sûre n'existe, laisse la case vide. Un préplanning incomplet est préférable à une mauvaise affectation.
