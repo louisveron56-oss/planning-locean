@@ -190,6 +190,7 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
   <div class="hright">
     <input type="date" id="weekDate">
     <span class="week-range" id="weekRange"></span>
+    <span id="saveStatus" style="font-size:10px;color:rgba(255,255,255,.55);white-space:nowrap">☁️ Connexion…</span>
     <button class="btn btn-ghost no-print" onclick="openRH()">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>Équipe
     </button>
@@ -1215,65 +1216,261 @@ function exportCSV(){
   var a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='planning_locean.csv';a.click();
 }
 
-/* LOCALSTORAGE */
-var STORAGE_KEY='locean_v16';
-function saveToStorage(){
+/* SAUVEGARDE LOCALE + SERVEUR NETLIFY BLOBS */
+var STORAGE_KEY='locean_v17';
+var CURRENT_WEEK=null;
+var SERVER_SAVE_TIMER=null;
+var SERVER_LOADING=false;
+var SERVER_TOKEN_KEY='locean_planning_server_token';
+
+function setSaveStatus(txt,isError){
+  var el=document.getElementById('saveStatus');
+  if(!el)return;
+  el.textContent=txt;
+  el.style.color=isError?'#FFD7D7':'rgba(255,255,255,.65)';
+}
+
+function localWeekKey(weekDate){
+  return STORAGE_KEY+'_week_'+weekDate;
+}
+
+function serializeTeam(){
+  return EMPS.map(function(e,ei){
+    return{
+      name:e.name,
+      contract:e.contract||0,
+      role:e.role||'',
+      hidden:!!e.hidden,
+      rhDays:ensureEmpRhDays(e,ei).slice()
+    };
+  });
+}
+
+function applySavedTeam(team){
+  if(!Array.isArray(team)||!team.length)return false;
+
+  EMPS=team.map(function(e){
+    var rh=Array.isArray(e.rhDays)?e.rhDays.map(function(v){return parseInt(v,10);}):[];
+    return{
+      name:e.name||'Employé',
+      contract:Number(e.contract)||0,
+      role:e.role||'',
+      hidden:!!e.hidden,
+      rhDays:rh,
+      days:DAYS.map(function(_,di){return{x:rh.indexOf(di)>=0};})
+    };
+  });
+  return true;
+}
+
+function freshWeekData(){
+  DATA={};
+  EMPS.forEach(function(emp,ei){
+    ensureEmpRhDays(emp,ei);
+    DATA[ei]={};
+    DAYS.forEach(function(_,di){
+      DATA[ei][di]={
+        shifts:null,
+        x:emp.rhDays.indexOf(di)>=0,
+        status:''
+      };
+    });
+  });
+}
+
+function saveLocalSnapshot(weekDate){
   try{
-    localStorage.setItem(STORAGE_KEY,JSON.stringify({
+    localStorage.setItem(STORAGE_KEY+'_team',JSON.stringify(serializeTeam()));
+    localStorage.setItem(localWeekKey(weekDate),JSON.stringify({
       data:DATA,
-      emps:EMPS.map(function(e){
-        return{
-          name:e.name,
-          contract:e.contract||0,
-          role:e.role||'',
-          hidden:!!e.hidden,
-          rhDays:ensureEmpRhDays(e,EMPS.indexOf(e)).slice()
-        };
-      }),
-      weekDate:document.getElementById('weekDate').value
+      manualEvents:getManualEvents(weekDate),
+      savedAt:new Date().toISOString()
     }));
   }catch(e){}
 }
-function loadFromStorage(){
+
+function loadLocalSnapshot(weekDate){
   try{
-    var raw=localStorage.getItem(STORAGE_KEY);if(!raw)return false;
-    var p=JSON.parse(raw);
-    if(!p.data||Object.keys(p.data).length!==EMPS.length){
-      localStorage.removeItem(STORAGE_KEY);return false;
+    var traw=localStorage.getItem(STORAGE_KEY+'_team');
+    if(traw){
+      var team=JSON.parse(traw);
+      applySavedTeam(team);
     }
 
-    if(p.emps)p.emps.forEach(function(e,ei){
-      if(EMPS[ei]){
-        EMPS[ei].name=e.name;
-        EMPS[ei].contract=e.contract;
-        EMPS[ei].role=e.role||'';
-        EMPS[ei].hidden=!!e.hidden;
-        if(Array.isArray(e.rhDays))EMPS[ei].rhDays=e.rhDays.slice();
+    var wraw=localStorage.getItem(localWeekKey(weekDate));
+    if(!wraw){
+      freshWeekData();
+      return false;
+    }
+
+    var p=JSON.parse(wraw);
+    if(p&&p.data){
+      DATA=p.data;
+      if(Array.isArray(p.manualEvents)){
+        localStorage.setItem(manualEventsKey(weekDate),JSON.stringify(p.manualEvents));
       }
+      return true;
+    }
+  }catch(e){}
+  freshWeekData();
+  return false;
+}
+
+function getServerToken(forceAsk){
+  var token='';
+  try{token=localStorage.getItem(SERVER_TOKEN_KEY)||'';}catch(e){}
+  if(token&&!forceAsk)return token;
+
+  token=prompt(
+    'Code de sauvegarde L’Océan\\n\\nEntre le code PLANNING_SAVE_TOKEN configuré dans Netlify. Il sera mémorisé uniquement dans ce navigateur.',
+    token
+  )||'';
+
+  token=token.trim();
+  if(token){
+    try{localStorage.setItem(SERVER_TOKEN_KEY,token);}catch(e){}
+  }
+  return token;
+}
+
+function serverHeaders(forceAsk){
+  var token=getServerToken(!!forceAsk);
+  if(!token)return null;
+  return{
+    'Content-Type':'application/json',
+    'X-Planning-Token':token
+  };
+}
+
+async function serverRequest(url,options,retry){
+  var res=await fetch(url,options);
+  if(res.status===401&&retry!==false){
+    try{localStorage.removeItem(SERVER_TOKEN_KEY);}catch(e){}
+    var headers=serverHeaders(true);
+    if(!headers)throw new Error('Code de sauvegarde requis');
+    options=Object.assign({},options,{headers:headers});
+    return serverRequest(url,options,false);
+  }
+  var data={};
+  try{data=await res.json();}catch(e){}
+  if(!res.ok)throw new Error(data.error||('Erreur serveur '+res.status));
+  return data;
+}
+
+function scheduleServerSave(){
+  if(SERVER_LOADING||!CURRENT_WEEK)return;
+  clearTimeout(SERVER_SAVE_TIMER);
+  setSaveStatus('☁️ Sauvegarde…',false);
+  SERVER_SAVE_TIMER=setTimeout(function(){
+    flushServerSave(CURRENT_WEEK);
+  },700);
+}
+
+async function flushServerSave(weekDate){
+  if(SERVER_LOADING||!weekDate)return false;
+  clearTimeout(SERVER_SAVE_TIMER);
+
+  saveLocalSnapshot(weekDate);
+
+  var headers=serverHeaders(false);
+  if(!headers){
+    setSaveStatus('☁️ Local seulement',true);
+    return false;
+  }
+
+  try{
+    await serverRequest('/.netlify/functions/storage',{
+      method:'POST',
+      headers:headers,
+      body:JSON.stringify({
+        weekDate:weekDate,
+        team:serializeTeam(),
+        data:DATA,
+        manualEvents:getManualEvents(weekDate)
+      })
     });
-
-    if(p.data)Object.keys(p.data).forEach(function(ei){DATA[ei]=p.data[ei];});
-
-    // Migration for existing saved plans that predate rhDays.
-    EMPS.forEach(function(emp,ei){
-      if(!Array.isArray(emp.rhDays)){
-        emp.rhDays=[];
-        if(emp.days){
-          DAYS.forEach(function(_,di){
-            if(emp.days[di]&&emp.days[di].x)emp.rhDays.push(di);
-          });
-        }
-      }
-      ensureEmpRhDays(emp,ei);
-    });
-
-    if(p.weekDate)document.getElementById('weekDate').value=p.weekDate;
+    setSaveStatus('☁️ Sauvegardé',false);
     return true;
   }catch(e){
-    localStorage.removeItem(STORAGE_KEY);return false;
+    console.error('Sauvegarde serveur:',e);
+    setSaveStatus('⚠️ Sauvegarde locale',true);
+    return false;
   }
 }
-function hardReset(){if(confirm('Réinitialiser le planning aux données par défaut ?')){localStorage.removeItem(STORAGE_KEY);location.reload();}}
+
+function saveToStorage(){
+  var week=CURRENT_WEEK||document.getElementById('weekDate').value;
+  if(!week)return;
+  saveLocalSnapshot(week);
+  scheduleServerSave();
+}
+
+async function loadServerWeek(weekDate){
+  SERVER_LOADING=true;
+  setSaveStatus('☁️ Chargement…',false);
+
+  var headers=serverHeaders(false);
+  if(!headers){
+    loadLocalSnapshot(weekDate);
+    SERVER_LOADING=false;
+    setSaveStatus('☁️ Local seulement',true);
+    return false;
+  }
+
+  try{
+    var result=await serverRequest(
+      '/.netlify/functions/storage?week='+encodeURIComponent(weekDate),
+      {method:'GET',headers:headers}
+    );
+
+    if(result.team&&Array.isArray(result.team)){
+      applySavedTeam(result.team);
+    }else{
+      try{
+        var localTeam=JSON.parse(localStorage.getItem(STORAGE_KEY+'_team')||'null');
+        if(localTeam)applySavedTeam(localTeam);
+      }catch(e){}
+    }
+
+    if(result.week&&result.week.data){
+      DATA=result.week.data;
+      if(Array.isArray(result.week.manualEvents)){
+        localStorage.setItem(
+          manualEventsKey(weekDate),
+          JSON.stringify(result.week.manualEvents)
+        );
+      }
+    }else{
+      // Première ouverture de cette semaine : ligne vierge + RH habituels.
+      freshWeekData();
+    }
+
+    saveLocalSnapshot(weekDate);
+    SERVER_LOADING=false;
+    setSaveStatus('☁️ Sauvegardé',false);
+    return true;
+  }catch(e){
+    console.error('Chargement serveur:',e);
+    loadLocalSnapshot(weekDate);
+    SERVER_LOADING=false;
+    setSaveStatus('⚠️ Mode local',true);
+    return false;
+  }
+}
+
+// Compatibilité avec les anciennes versions du fichier.
+function loadFromStorage(){
+  var week=document.getElementById('weekDate').value;
+  return loadLocalSnapshot(week);
+}
+
+async function hardReset(){
+  if(!confirm('Réinitialiser uniquement la semaine affichée ? Les RH habituels de l’équipe seront conservés.'))return;
+  freshWeekData();
+  try{localStorage.removeItem(localWeekKey(CURRENT_WEEK));}catch(e){}
+  buildBody();
+  await flushServerSave(CURRENT_WEEK);
+}
 
 /* ÉVÉNEMENTS */
 
@@ -1296,6 +1493,7 @@ function getManualEvents(weekDate){
 
 function setManualEvents(weekDate,items){
   try{localStorage.setItem(manualEventsKey(weekDate),JSON.stringify(items||[]));}catch(e){}
+  if(weekDate===CURRENT_WEEK)scheduleServerSave();
 }
 
 function toggleManualEventForm(){
@@ -1788,19 +1986,47 @@ function closeAI() {
 /* INIT */
 var mon=new Date('2026-09-14');
 document.getElementById('weekDate').value=mon.toISOString().slice(0,10);
-document.getElementById('weekDate').addEventListener('change',function(){
-  setDates(new Date(this.value));
-  saveToStorage();
-  loadEvents(this.value);
-  fetchWeatherForWeek(this.value);
-});
+
 initData();
 buildHeader();
-var restored=loadFromStorage();
-if(restored){buildBody();setDates(new Date(document.getElementById('weekDate').value));}
-else{buildBody();setDates(mon);}
-loadEvents(document.getElementById('weekDate').value);
-fetchWeatherForWeek(document.getElementById('weekDate').value);
+buildBody();
+setDates(mon);
+
+CURRENT_WEEK=document.getElementById('weekDate').value;
+
+document.getElementById('weekDate').addEventListener('change',async function(){
+  var nextWeek=this.value;
+  var previousWeek=CURRENT_WEEK;
+
+  // Sauvegarde immédiate de la semaine quittée avant de charger la suivante.
+  if(previousWeek&&previousWeek!==nextWeek){
+    await flushServerSave(previousWeek);
+  }
+
+  CURRENT_WEEK=nextWeek;
+  setDates(new Date(nextWeek));
+
+  await loadServerWeek(nextWeek);
+  buildHeader();
+  buildBody();
+  setDates(new Date(nextWeek));
+  loadEvents(nextWeek);
+  fetchWeatherForWeek(nextWeek);
+});
+
+(async function(){
+  await loadServerWeek(CURRENT_WEEK);
+  buildHeader();
+  buildBody();
+  setDates(new Date(CURRENT_WEEK));
+  loadEvents(CURRENT_WEEK);
+  fetchWeatherForWeek(CURRENT_WEEK);
+})();
+
+window.addEventListener('beforeunload',function(){
+  // Le snapshot local est synchrone et sert de filet de sécurité.
+  if(CURRENT_WEEK)saveLocalSnapshot(CURRENT_WEEK);
+});
 </script>
 
 <div class="modal-overlay" id="aiModal" onclick="if(event.target===this)closeAI()">
