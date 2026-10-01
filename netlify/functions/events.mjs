@@ -157,6 +157,7 @@ function isUsefulOpenAgendaEvent(ev, distance) {
 
 function eventPriority(item) {
   if (item.type === 'major_local_event') return 100;
+  if (item.type === 'major_sports_broadcast') return 98;
   if (item.type === 'rcv_home') return 95;
   if (item.type === 'public_holiday') return 90;
   if (item.type === 'school_holiday') return 85;
@@ -494,6 +495,223 @@ async function getVannetaiseContext(startDate, endDate) {
     }
   });
 
+  return out;
+}
+
+
+// ============================================================
+// ULTRA MARIN / FÊTE DE LA MUSIQUE / VANNES ÉCHOS JAZZ
+// Sources prioritaires pour les événements qui impactent fortement
+// les flux bars-restaurants à Vannes.
+// ============================================================
+
+function dateRangeDays(startIso, endIso) {
+  const out = [];
+  const d = new Date(`${startIso}T12:00:00Z`);
+  const end = new Date(`${endIso}T12:00:00Z`);
+  while (d <= end) {
+    out.push(d.toISOString().slice(0,10));
+    d.setUTCDate(d.getUTCDate()+1);
+  }
+  return out;
+}
+
+function frWeekdayDate(iso) {
+  const d = new Date(`${iso}T12:00:00Z`);
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone:'Europe/Paris',
+    weekday:'long',
+    day:'numeric',
+    month:'long'
+  }).format(d);
+}
+
+async function getUltraMarinContext(startDate, endDate) {
+  const out = [];
+
+  // Dates officielles déjà publiées pour 2027.
+  const editions = [
+    {
+      start:'2027-06-23',
+      end:'2027-06-27',
+      name:'🌊 Ultra Marin® — Golfe du Morbihan',
+      url:'https://www.ultra-marin.fr/',
+      note:'Très forte affluence attendue à Vannes : coureurs, accompagnants, arrivées au port et Outdoor Festival.'
+    }
+  ];
+
+  editions.forEach(ed => {
+    dateRangeDays(ed.start, ed.end).forEach(dateIso => {
+      if (!dateInRange(dateIso,startDate,endDate)) return;
+      out.push({
+        type:'major_local_event',
+        name:ed.name,
+        date:`${frWeekdayDate(dateIso)} · journée`,
+        lieu:'Vannes / Port / Parc du Golfe',
+        impact:'high',
+        note:ed.note,
+        url:ed.url,
+        _sortDate:`${dateIso}T12:00:00`
+      });
+    });
+  });
+
+  return out;
+}
+
+async function getFeteMusiqueContext(startDate, endDate) {
+  const out = [];
+  const years = new Set([startDate.slice(0,4),endDate.slice(0,4)]);
+
+  years.forEach(y => {
+    const iso = `${y}-06-21`;
+    if (!dateInRange(iso,startDate,endDate)) return;
+
+    out.push({
+      type:'major_local_event',
+      name:'🎵 Fête de la musique — Vannes',
+      date:`${frWeekdayDate(iso)} · soirée`,
+      lieu:'Centre-ville / Port / places de Vannes',
+      impact:'high',
+      note:'Rendez-vous national du 21 juin. À Vannes, forte animation des places et du centre-ville ; programmation locale exacte à confirmer selon l’édition.',
+      url:'https://www.mairie-vannes.fr/',
+      _sortDate:`${iso}T19:00:00`
+    });
+  });
+
+  return out;
+}
+
+function decodeBasicHtml(txt) {
+  return String(txt||'')
+    .replace(/<script[\s\S]*?<\/script>/gi,' ')
+    .replace(/<style[\s\S]*?<\/style>/gi,' ')
+    .replace(/<[^>]+>/g,' ')
+    .replace(/&nbsp;/gi,' ')
+    .replace(/&amp;/gi,'&')
+    .replace(/&#039;|&apos;/gi,"'")
+    .replace(/&quot;/gi,'"')
+    .replace(/\s+/g,' ');
+}
+
+function monthNumberFr(name) {
+  const n=String(name||'').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const months={
+    janvier:1,fevrier:2,mars:3,avril:4,mai:5,juin:6,
+    juillet:7,aout:8,septembre:9,octobre:10,novembre:11,decembre:12
+  };
+  return months[n]||0;
+}
+
+async function getVannesJazzContext(startDate,endDate) {
+  const out=[];
+  try{
+    const urls=[
+      'https://www.vannesechosjazz.bzh/',
+      'https://www.vannesechosjazz.bzh/le-festival-0'
+    ];
+
+    const pages=await Promise.allSettled(urls.map(async u=>{
+      const r=await fetch(u,{headers:{Accept:'text/html'}});
+      if(!r.ok)throw new Error(`HTTP ${r.status}`);
+      return {u,txt:decodeBasicHtml(await r.text())};
+    }));
+
+    const all=pages.filter(x=>x.status==='fulfilled').map(x=>x.value.txt).join(' ');
+    const yearWanted=[startDate.slice(0,4),endDate.slice(0,4)];
+
+    // Detect formulations such as "du 8 au 11 juillet 2026".
+    const rg=/du\s+(\d{1,2})\s+au\s+(\d{1,2})\s+(janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)\s+(20\d{2})/gi;
+    let m;
+    const seen=new Set();
+
+    while((m=rg.exec(all))){
+      const y=m[4];
+      if(!yearWanted.includes(y))continue;
+      const month=monthNumberFr(m[3]);
+      if(!month)continue;
+
+      const s=`${y}-${String(month).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+      const e=`${y}-${String(month).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
+      const key=`${s}|${e}`;
+      if(seen.has(key))continue;
+
+      // Require nearby textual evidence that this is Vannes Echos Jazz / festival.
+      const around=all.slice(Math.max(0,m.index-300),Math.min(all.length,m.index+300)).toLowerCase();
+      if(!/jazz|festival|vannes echos/.test(around))continue;
+      seen.add(key);
+
+      dateRangeDays(s,e).forEach(dateIso=>{
+        if(!dateInRange(dateIso,startDate,endDate))return;
+        out.push({
+          type:'major_local_event',
+          name:'🎷 Vannes Échos Jazz',
+          date:`${frWeekdayDate(dateIso)} · soirée`,
+          lieu:'Jardins des Remparts / centre-ville / bars partenaires',
+          impact:'high',
+          note:'Festival majeur avec concerts dans la ville et dans les bars/restaurants partenaires.',
+          url:'https://www.vannesechosjazz.bzh/',
+          _sortDate:`${dateIso}T19:00:00`
+        });
+      });
+    }
+  }catch(e){
+    console.warn('Vannes Echos Jazz indisponible:',e.message);
+  }
+  return out;
+}
+
+// Source football optionnelle sans clé : ESPN scoreboard.
+// On retient uniquement les matchs susceptibles d'avoir un impact bar fort :
+// PSG en Ligue des champions + phases finales majeures.
+async function getImportantFootballContext(startDate,endDate) {
+  const out=[];
+  try{
+    for(const iso of dateRangeDays(startDate,endDate)){
+      const compact=iso.replace(/-/g,'');
+      const url=`https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard?dates=${compact}`;
+      const r=await fetch(url,{headers:{Accept:'application/json'}});
+      if(!r.ok)continue;
+      const data=await r.json();
+
+      for(const ev of (data.events||[])){
+        const comp=ev.competitions&&ev.competitions[0];
+        if(!comp)continue;
+        const competitors=comp.competitors||[];
+        const names=competitors.map(c=>String(c.team?.displayName||c.team?.name||''));
+        const joined=names.join(' vs ');
+        const lower=joined.toLowerCase();
+
+        const seasonType=String(ev.season?.type||'');
+        const notes=JSON.stringify(comp.notes||[]).toLowerCase();
+        const isPSG=/paris saint-germain|paris sg|\bpsg\b/i.test(joined);
+        const isMajorKnockout=/semi|finale|final|quarter|quart/.test(notes);
+
+        if(!isPSG && !isMajorKnockout)continue;
+
+        const dt=new Date(ev.date);
+        const hour=new Intl.DateTimeFormat('fr-FR',{
+          timeZone:'Europe/Paris',hour:'2-digit',minute:'2-digit'
+        }).format(dt);
+
+        out.push({
+          type:'major_sports_broadcast',
+          name:`⚽ Ligue des champions — ${joined}`,
+          date:`${frWeekdayDate(iso)} · ${hour}`,
+          lieu:'Diffusion TV — impact bars',
+          impact:'high',
+          note:isPSG
+            ? 'Match PSG susceptible de générer une forte affluence dans les bars.'
+            : 'Phase finale majeure de Ligue des champions susceptible de générer une forte affluence dans les bars.',
+          url:'https://www.uefa.com/uefachampionsleague/',
+          _sortDate:ev.date||`${iso}T21:00:00`
+        });
+      }
+    }
+  }catch(e){
+    console.warn('Football important indisponible:',e.message);
+  }
   return out;
 }
 
@@ -874,6 +1092,10 @@ export const handler = async function(event) {
       holidayContext,
       marathonContext,
       vannetaiseContext,
+      ultraMarinContext,
+      feteMusiqueContext,
+      jazzContext,
+      footballContext,
       rcvContext
     ] = await Promise.all([
       discoverAgendas(apiKey),
@@ -881,6 +1103,10 @@ export const handler = async function(event) {
       getPublicHolidayContext(startDate, endDate),
       getMarathonVannesContext(startDate, endDate),
       getVannetaiseContext(startDate, endDate),
+      getUltraMarinContext(startDate, endDate),
+      getFeteMusiqueContext(startDate, endDate),
+      getVannesJazzContext(startDate, endDate),
+      getImportantFootballContext(startDate, endDate),
       getRcvContext(startDate, endDate)
     ]);
 
@@ -977,7 +1203,7 @@ export const handler = async function(event) {
     const cleanEvents = out
       .filter(item => {
         const t = String(item.name || '').toLowerCase();
-        return !t.includes('marathon de vannes') && !t.includes('vannetaise');
+        return !t.includes('marathon de vannes') && !t.includes('vannetaise') && !t.includes('ultra marin') && !t.includes('fête de la musique') && !t.includes('fete de la musique') && !t.includes('vannes échos jazz') && !t.includes('vannes echos jazz');
       })
       .slice(0, 20)
       .map(({ _begin, ...item }) => item);
@@ -998,6 +1224,17 @@ export const handler = async function(event) {
       )
       .map(({ _sortDate, ...item }) => item);
 
+    function cleanDedicated(list){
+      return (list||[])
+        .sort((a,b)=>new Date(a._sortDate).getTime()-new Date(b._sortDate).getTime())
+        .map(({_sortDate,...item})=>item);
+    }
+
+    const ultraMarinClean = cleanDedicated(ultraMarinContext);
+    const feteMusiqueClean = cleanDedicated(feteMusiqueContext);
+    const jazzClean = cleanDedicated(jazzContext);
+    const footballClean = cleanDedicated(footballContext);
+
     const rcvClean = rcvContext
       .sort(
         (a, b) =>
@@ -1006,11 +1243,15 @@ export const handler = async function(event) {
       )
       .map(({ _sortDate, ...item }) => item);
 
-    // Priority first: major local events + RCV + holidays.
-    // OpenAgenda is only used to supplement with genuinely useful events.
+    // Priority first: major local events + important sports broadcasts + RCV + holidays.
+    // OpenAgenda only supplements the radar.
     const clean = [
       ...marathonClean,
       ...vannetaiseClean,
+      ...ultraMarinClean,
+      ...feteMusiqueClean,
+      ...jazzClean,
+      ...footballClean,
       ...rcvClean,
       ...holidayContext,
       ...schoolContext,
@@ -1026,6 +1267,10 @@ export const handler = async function(event) {
         eventsFound: out.length,
         marathonEventsFound: marathonClean.length,
         vannetaiseEventsFound: vannetaiseClean.length,
+        ultraMarinEventsFound: ultraMarinClean.length,
+        feteMusiqueEventsFound: feteMusiqueClean.length,
+        jazzEventsFound: jazzClean.length,
+        importantFootballEventsFound: footballClean.length,
         rcvMatchesFound: rcvClean.length,
         radiusKm: RADIUS_KM
       }
