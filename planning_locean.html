@@ -131,36 +131,148 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
 .evt-item.manual-medium{background:#FAEEDA}
 .evt-item.manual-low{background:#F2F2F0}
 @media print{
-  @page{size:A4 landscape;margin:8mm 8mm}
+  @page{size:A4 landscape;margin:10mm 12mm}
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
   html,body{background:white!important}
   .header,.foot,.no-print,.modal-overlay,.table-card,.evt-card{display:none!important}
   .main{padding:0}
-  .print-doc{display:block!important}
-  .p1h{background:#1a2744;padding:7px 12px;display:flex;justify-content:space-between;align-items:center}
-  .p1h-logo{font-size:13px;font-weight:700;color:#e8b84b;letter-spacing:.1em}
-  .p1h-meta{font-size:8px;color:rgba(255,255,255,.6);text-align:right;line-height:1.6}
-  .p1t{width:100%;border-collapse:collapse;font-size:8px}
-  .p1t th{background:#f5f4f1;font-size:7px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;padding:4px 5px;border-bottom:1px solid #ccc;border-right:.5px solid #ddd;text-align:center}
-  .p1t th.eh{text-align:left;width:85px;border-right:1px solid #bbb}
+
+  /* PDF plus propre : bloc centré, légèrement moins large que la page */
+  .print-doc{
+    display:block!important;
+    width:96%!important;
+    margin:0 auto!important;
+  }
+
+  .p1h{
+    background:#1a2744;
+    padding:9px 14px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .p1h-logo{
+    font-size:15px;
+    font-weight:700;
+    color:#e8b84b;
+    letter-spacing:.1em
+  }
+  .p1h-meta{
+    font-size:9px;
+    color:rgba(255,255,255,.7);
+    text-align:right;
+    line-height:1.55
+  }
+
+  .p1t{
+    width:100%;
+    border-collapse:collapse;
+    font-size:9.2px
+  }
+  .p1t th{
+    background:#f5f4f1;
+    font-size:8.2px;
+    font-weight:700;
+    color:#777;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    padding:5px 6px;
+    border-bottom:1px solid #ccc;
+    border-right:.5px solid #ddd;
+    text-align:center
+  }
+  .p1t th.eh{
+    text-align:left;
+    width:92px;
+    border-right:1px solid #bbb
+  }
   .p1t th.wh{background:#fffbf0;color:#b8860b}
-  .p1t td{padding:4px 5px;border-bottom:.5px solid #e8e5de;border-right:.5px solid #e8e5de;text-align:center;vertical-align:middle;font-size:8px}
-  .p1t td.en{text-align:left;font-weight:600;color:#1a2744;border-right:1px solid #bbb;background:#fafaf8}
+  .p1t td{
+    padding:5px 6px;
+    border-bottom:.5px solid #e8e5de;
+    border-right:.5px solid #e8e5de;
+    text-align:center;
+    vertical-align:middle;
+    font-size:9.2px
+  }
+  .p1t td.en{
+    text-align:left;
+    font-weight:600;
+    color:#1a2744;
+    border-right:1px solid #bbb;
+    background:#fafaf8;
+    font-size:9.3px
+  }
   .p1t td.wd{background:#fffbf0}
-  .sv{color:#1a2744;font-weight:500}.av{color:#ccc}.cv{color:#633806;font-weight:500}
-  .vv{color:#5B21B6;font-size:7px;font-style:italic}.arv{color:#991B1B;font-size:7px}
-  .escv{color:#065F46}.spv{background:#fef9ee;color:#c4933a;border-radius:6px;padding:1px 4px;font-size:7px}
-  .fr td{background:#1a2744;color:rgba(255,255,255,.7);font-size:7px;padding:3px 5px;text-align:center;border:none}
-  .fr td.fl{text-align:left;padding-left:8px;color:rgba(255,255,255,.4);font-size:7px}
-  .fc{background:rgba(255,255,255,.15);border-radius:6px;padding:1px 5px;font-weight:700;color:white;font-size:7px}
-  .p1-evt{margin-top:6mm;border-top:1px solid #ddd;padding-top:4mm}
-  .p1-evt-title{font-size:9px;font-weight:700;color:#1a2744;text-transform:uppercase;letter-spacing:.07em;margin-bottom:3mm}
-  .p1-evt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3mm}
-  .p1-evt-item{display:flex;align-items:flex-start;gap:4px;font-size:8px}
-  .p1-evt-ico{flex-shrink:0;font-size:10px}
+
+  .sv{color:#1a2744;font-weight:600}
+  .av{color:#c7c7c7}
+  .cv{color:#633806;font-weight:600}
+  .vv{color:#5B21B6;font-size:8px;font-style:italic}
+  .arv{color:#991B1B;font-size:8px}
+  .escv{color:#065F46}
+  .spv{
+    background:#fef9ee;
+    color:#c4933a;
+    border-radius:6px;
+    padding:1px 4px;
+    font-size:8px
+  }
+
+  .fr td{
+    background:#1a2744;
+    color:rgba(255,255,255,.78);
+    font-size:8.3px;
+    padding:4px 5px;
+    text-align:center;
+    border:none
+  }
+  .fr td.fl{
+    text-align:left;
+    padding-left:8px;
+    color:rgba(255,255,255,.55);
+    font-size:8px
+  }
+  .fc{
+    background:rgba(255,255,255,.15);
+    border-radius:6px;
+    padding:1px 6px;
+    font-weight:700;
+    color:white;
+    font-size:8.2px
+  }
+
+  .p1-evt{
+    width:96%;
+    margin:7mm auto 0;
+    border-top:1px solid #ddd;
+    padding-top:4mm
+  }
+  .p1-evt-title{
+    font-size:10px;
+    font-weight:700;
+    color:#1a2744;
+    text-transform:uppercase;
+    letter-spacing:.07em;
+    margin-bottom:3mm
+  }
+  .p1-evt-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:3mm
+  }
+  .p1-evt-item{
+    display:flex;
+    align-items:flex-start;
+    gap:5px;
+    font-size:9px
+  }
+  .p1-evt-ico{flex-shrink:0;font-size:11px}
   .p1-evt-name{font-weight:600;color:#1a2744}
-  .p1-evt-meta{color:#888;font-size:7px}
-  .p1f{background:#f5f4f1;padding:4px 12px;display:flex;justify-content:space-between;font-size:7px;color:#aaa;border-top:.5px solid #ccc}
+  .p1-evt-meta{color:#777;font-size:8px}
+
+  /* Ancien pied de page interne supprimé */
+  .p1f{display:none!important}
 }
 
 @media print{
@@ -178,7 +290,6 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
     <div class="p1-evt-title">📅 Événements de la semaine — Vannes & alentours</div>
     <div class="p1-evt-grid" id="p1-evt-grid"></div>
   </div>
-  <div class="p1f"><span>Planning confidentiel — Maison L'Océan · 4 place Gambetta, Vannes</span><span id="pf-date-p1"></span></div>
 </div>
 
 <header class="header">
