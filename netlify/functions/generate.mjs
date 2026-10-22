@@ -93,11 +93,15 @@ Niveau FORT :
 - la 7e personne devient runner dédié.
 Shifts habituels : 15h ou 16h → 23h ou F/01h, ou coupure si nécessaire.
 
-COUVERTURE OPÉRATIONNELLE À RESPECTER :
-- MIDI 12h–15h : 5 opérationnels minimum HORS Salome/Accueil, Martin V et Louis.
+COUVERTURE OPÉRATIONNELLE HIVER À RESPECTER :
+- MIDI 12h–15h :
+  - Lundi, mardi, jeudi, vendredi : 6 opérationnels minimum HORS Salome/Accueil, Martin V et Louis.
+  - Mercredi, samedi, dimanche : 7 opérationnels minimum HORS Salome/Accueil, Martin V et Louis.
 - APRÈS-MIDI 15h–18h : 4 opérationnels minimum HORS Salome, Martin V et Louis.
 - À 18h00–18h30 : conserver au moins 2 salariés de JOURNÉE encore présents jusqu'à 18h30 pour permettre la rotation des repas de l'équipe du soir.
-- SOIR : 5 opérationnels minimum HORS Salome/Accueil, Martin V et Louis.
+- SOIR HIVER :
+  - Lundi à vendredi : 5 opérationnels minimum HORS Salome/Accueil, Martin V et Louis.
+  - Samedi et dimanche : 6 opérationnels minimum HORS Salome/Accueil, Martin V et Louis.
 - FERMETURE : 5 opérationnels réels jusqu'à F/01h.
 - Si l'équipe du soir est surdimensionnée alors que le midi est trop faible, basculer un salarié soir compatible sur une journée continue plutôt que laisser 4 au midi et 8 le soir.
 
@@ -124,8 +128,8 @@ HEURES ET ÉQUILIBRE :
 RÈGLES CCN CHR :
 - Repos minimum 11h entre deux journées de travail.
 - Maximum 48h par semaine.
-- Maximum 6 jours consécutifs.
-- Minimum 2 jours de repos par semaine.
+- Maximum 5 jours travaillés sur une semaine standard quand 2 jours de repos sont prévus.
+- Minimum 2 jours de repos par semaine, sauf situation explicitement gérée par le manager.
 - Amplitude max 13h, coupure incluse.
 - Pause de coupure minimum 2h.
 
@@ -321,7 +325,7 @@ function shiftStartMinutes(label) {
   return parseInt(m[1], 10) * 60 + (m[2] ? parseInt(m[2], 10) : 0);
 }
 
-function chooseHabitualShift(name, allowedShifts, dayStartCounts, remainingHours, usedLabels) {
+function chooseHabitualShift(name, allowedShifts, dayStartCounts, idealDailyHours, usedLabels) {
   const allowed = allowedContinuousMap(allowedShifts);
   const prefs = (SHIFT_PREFERENCES[name]?.preferred || [])
     .map(x => allowed.get(normalizeShiftLabel(x)))
@@ -340,18 +344,14 @@ function chooseHabitualShift(name, allowedShifts, dayStartCounts, remainingHours
     const shiftHours = parseShiftHoursLabel(label) || 0;
     const sameLabelCount = usedLabels.get(normalizeShiftLabel(label)) || 0;
 
-    // Lower is better:
-    // - keep employee preferences,
-    // - avoid cloning the exact same shift all week,
-    // - avoid same starts across the team,
-    // - move toward the employee's contract target.
-    let score = rank * 1.5;
-    score += sameStartCount * 3.5;
-    score += sameLabelCount * 2.5;
+    let score = rank * 1.2;
+    score += sameStartCount * 3.0;
+    score += sameLabelCount * 2.0;
 
-    if (remainingHours !== null) {
-      score += Math.abs(remainingHours - shiftHours) * 1.2;
-      if (shiftHours > remainingHours + 2) score += 8;
+    // IMPORTANT: aim at an average daily duration, not at all remaining weekly hours.
+    if (idealDailyHours !== null && Number.isFinite(idealDailyHours)) {
+      score += Math.abs(idealDailyHours - shiftHours) * 5.0;
+      if (shiftHours > idealDailyHours + 2) score += 8;
     }
 
     if (score < bestScore) {
@@ -362,7 +362,6 @@ function chooseHabitualShift(name, allowedShifts, dayStartCounts, remainingHours
 
   return best;
 }
-
 
 function parseShiftHoursLabel(label) {
   const s = String(label || '').trim().toLowerCase();
@@ -415,6 +414,25 @@ function contractTargetHours(emp) {
   return 42;
 }
 
+
+
+function desiredWorkDays(emp, dataRow) {
+  // Standard operational target: 5 worked days for a full-time week.
+  // Do not invent work on manager-locked absence/RH days.
+  // If fewer than 5 days are actually available because of Vacances/CFA/Arrêt/RH,
+  // use only the available days.
+  if (!emp || ['Martin V','Louis'].includes(emp.name)) return 0;
+
+  let unavailable = 0;
+  for (let di=0; di<7; di++) {
+    const d = dataRow && dataRow[di];
+    if (!d) continue;
+    if (d.x === true) unavailable++;
+    else if (['Vacances','Arrêt maladie','CFA'].includes(d.status)) unavailable++;
+  }
+
+  return Math.min(5, Math.max(0, 7 - unavailable));
+}
 
 function isCoreEveningEmployee(name) {
   if (['Martin V','Louis','Virginie','Raphael','Seb','Anthony','Salome','Ismaël'].includes(name)) return false;
@@ -719,12 +737,31 @@ function isStrongLocalEvent(ev) {
 }
 
 function serviceTargetsForDay(dayIndex, weekDate, externalEvents) {
+  // BASE HIVER L'OCÉAN
+  // dayIndex: 0=Lun ... 6=Dim
+  const isWednesday = dayIndex === 2;
+  const isWeekend = dayIndex >= 5;
+
   const normal = {
-    midi: 5,
+    // MIDI:
+    // Lun/Mar/Jeu/Ven = 6 opérationnels hors Salome
+    // Mercredi + Samedi + Dimanche = 7 opérationnels hors Salome
+    midi: (isWednesday || isWeekend) ? 7 : 6,
+
+    // APRÈS-MIDI inchangé
     afternoon: 4,
+
+    // Rotation repas équipe du soir
     bridge1830: 2,
-    evening: 5,
+
+    // SOIR HIVER:
+    // semaine = 5 opérationnels hors Salome
+    // week-end = 6 opérationnels hors Salome
+    evening: isWeekend ? 6 : 5,
+
+    // FERMETURE inchangée
     closing: 5,
+
     strong: false,
     reasons: []
   };
@@ -743,7 +780,7 @@ function serviceTargetsForDay(dayIndex, weekDate, externalEvents) {
     target.strong = true;
     target.reasons.push(`${label}${h === null ? '' : ` (${h.toFixed(h%1 ? 1 : 0)}h)`}`);
 
-    // Unknown / all-day event: reinforce the whole commercial day.
+    // Gros événement sans heure précise / toute la journée.
     if (h === null) {
       target.midi = Math.max(target.midi, 7);
       target.afternoon = Math.max(target.afternoon, 5);
@@ -751,15 +788,15 @@ function serviceTargetsForDay(dayIndex, weekDate, externalEvents) {
       return;
     }
 
-    // Event early in the day: mainly lunch + afternoon.
+    // Événement tôt : renfort midi + après-midi.
     if (h < 14) {
       target.midi = Math.max(target.midi, 7);
       target.afternoon = Math.max(target.afternoon, 5);
       return;
     }
 
-    // 14h–18h30: pre-event lunch + event flow + post-event dinner.
-    // Example: RCV at 16h => 7 lunch, 5 afternoon, 7 evening.
+    // 14h–18h30 : impact midi + après-midi + soir.
+    // Exemple : match RCV à 16h.
     if (h <= 18.5) {
       target.midi = Math.max(target.midi, 7);
       target.afternoon = Math.max(target.afternoon, 5);
@@ -767,14 +804,14 @@ function serviceTargetsForDay(dayIndex, weekDate, externalEvents) {
       return;
     }
 
-    // 18h30–20h30: afternoon transition + evening affected.
+    // 18h30–20h30 : impact après-midi + soir.
     if (h <= 20.5) {
       target.afternoon = Math.max(target.afternoon, 5);
       target.evening = Math.max(target.evening, 7);
       return;
     }
 
-    // Late event (e.g. 21h): dinner affected, not lunch.
+    // Événement tardif, ex. match à 21h : impact soir uniquement.
     target.evening = Math.max(target.evening, 7);
   });
 
@@ -1043,23 +1080,28 @@ function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts, w
       return referenceOutputValue(ref)===null;
     });
 
+    const wantedDays=desiredWorkDays(emp,data&&data[i]);
+
     freeDays.forEach((k,pos)=>{
-      if(worked>=6)return;
-      if(target!==null && planned>=target-0.5)return;
+      if(worked>=wantedDays)return;
 
       const remaining=Math.max(0,(target||planned)-planned);
-      const remainingSlots=freeDays.length-pos;
+      const daysNeeded=Math.max(1,wantedDays-worked);
+
+      // Only the number of days still needed matters for hour distribution.
       const candidate=chooseBalancedEveningShift(
         emp.name,i,dayKeys.indexOf(k),allowedShifts,dayStartCounts[dayKeys.indexOf(k)],
-        remaining,remainingSlots,usedLabels
+        remaining,daysNeeded,usedLabels
       );
       if(!candidate)return;
 
       const h=parseShiftHoursLabel(candidate);
       if(!h)return;
 
-      // Do not overshoot target by more than 2h.
-      if(target!==null && planned+h>target+2)return;
+      // Before the 5-day target is reached, prefer distribution over refusing the day.
+      // Still keep a hard protection against excessive weekly hours.
+      if(target!==null && worked+1>=wantedDays && planned+h>target+2.5)return;
+      if(planned+h>48)return;
 
       row[k]=candidate;
       planned+=h;worked++;
@@ -1102,19 +1144,49 @@ function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts, w
     let worked=dayKeys.filter(k=>isWorkingValue(row[k])).length;
     let planned=currentPlannedHours(row);
     const target=contractTargetHours(emp);
+    const wantedDays=desiredWorkDays(emp,data&&data[i]);
 
     dayKeys.forEach((k,di)=>{
       const ref=data&&data[i]&&data[i][di];
       if(referenceOutputValue(ref)!==null)return;
       if(row[k])return;
-      if(worked>=6)return;
-      if(target!==null&&planned>=target-1.5)return;
+      if(worked>=wantedDays)return;
 
       const remaining=target===null?null:Math.max(0,target-planned);
-      const candidate=chooseHabitualShift(emp.name,allowedShifts,dayStartCounts[di],remaining,usedLabels);
+      const daysNeeded=Math.max(1,wantedDays-worked);
+      const idealDaily=remaining===null?null:(remaining/daysNeeded);
+
+      const candidate=chooseHabitualShift(
+        emp.name,allowedShifts,dayStartCounts[di],idealDaily,usedLabels
+      );
       if(!candidate||!profilePool.has(normalizeShiftLabel(candidate)))return;
+
       const h=parseShiftHoursLabel(candidate);if(!h)return;
-      if(target!==null&&planned+h>target+2)return;
+
+      // 5-day distribution takes priority over prematurely stopping at the contract target.
+      // Hard weekly ceiling remains protected.
+      if(planned+h>48)return;
+
+      // On the final required day, avoid an excessive overshoot when another shorter
+      // compatible shift could have been selected.
+      if(target!==null && worked+1>=wantedDays && planned+h>target+2.5){
+        const alternatives=[...profilePool]
+          .map(n=>allowedContinuousMap(allowedShifts).get(n))
+          .filter(Boolean)
+          .map(label=>({label,h:parseShiftHoursLabel(label)||999}))
+          .filter(x=>planned+x.h<=target+2.5 && planned+x.h<=48)
+          .sort((a,b)=>Math.abs((target-planned)-a.h)-Math.abs((target-planned)-b.h));
+        if(alternatives.length){
+          row[k]=alternatives[0].label;
+          planned+=alternatives[0].h;
+          worked++;
+          const nk=normalizeShiftLabel(alternatives[0].label);
+          usedLabels.set(nk,(usedLabels.get(nk)||0)+1);
+          const st=shiftStartMinutes(alternatives[0].label);
+          if(st!==9999)dayStartCounts[di].set(st,(dayStartCounts[di].get(st)||0)+1);
+        }
+        return;
+      }
 
       row[k]=candidate;planned+=h;worked++;
       const nk=normalizeShiftLabel(candidate);
@@ -1122,6 +1194,10 @@ function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts, w
       const st=shiftStartMinutes(candidate);
       if(st!==9999)dayStartCounts[di].set(st,(dayStartCounts[di].get(st)||0)+1);
     });
+
+    if(worked<wantedDays){
+      notes.push(`${emp.name}: seulement ${worked}/${wantedDays} jours planifiés — vérifier les disponibilités ou les shifts autorisés`);
+    }
   });
 
   // Coverage pass AFTER individual-hours balancing.
@@ -1420,7 +1496,7 @@ ${allowedCompact}
 REGLES DURES:
 1) Sur "." : propose UNIQUEMENT un shift CONTINU présent dans SHIFTS AUTORISES, ou laisse "". JAMAIS RH/VAC/AM/CFA/Absent.
 2) Une case déjà avec un horaire/statut est une forte référence: conserve-la sauf impossibilité de couverture/légalité.
-3) Maximum 6 jours travaillés; jamais 7/7. Max 48h. Repos entre journées >=11h.
+3) SEMAINE STANDARD TEMPS PLEIN : viser 5 jours travaillés lorsque les RH/Vacances/CFA/Arrêts verrouillés le permettent. Ne concentre jamais volontairement le contrat sur seulement 4 grosses journées. Maximum 5 jours travaillés dans une semaine standard, max 48h, repos entre journées >=11h. Si des indisponibilités verrouillées réduisent les jours disponibles, adapte le nombre de jours sans inventer de RH.
 4) M: aucun soir/fermeture/coupure soir. Guillaume non planifié.
 5) Salome: avant 12h ne compte pas; dès 12h = accueil seulement.
 6) Martin V et Louis = MANUEL UNIQUEMENT : ne leur propose aucun shift sur une case libre et ne les compte jamais dans les minimums.
@@ -1430,11 +1506,13 @@ REGLES DURES:
 10) Les "pref" sont des habitudes, PAS un copier-coller obligatoire. Varie les shifts d'un même salarié quand plusieurs habitudes sont compatibles.
 11) ÉQUILIBRE HEURES : tout profil S = cible 42h par défaut ; Arthur-Paul apprenti = 35h. Fais tourner les départs 15h/16h/17h/18h : personne ne doit être systématiquement à 15h ou systématiquement à 18h. Un nouvel employé non configuré est automatiquement S/42h.
 12) COUVERTURE OPÉRATIONNELLE PRIORITAIRE : Salome/Accueil, Martin V et Louis ne comptent PAS dans les effectifs ci-dessous.
-- NIVEAU NORMAL :
-  - MIDI 12h–15h : minimum 5 opérationnels + Salome/Accueil en plus.
+- BASE HIVER :
+  - MIDI lundi/mardi/jeudi/vendredi : minimum 6 opérationnels + Salome/Accueil en plus.
+  - MIDI mercredi/samedi/dimanche : minimum 7 opérationnels + Salome/Accueil en plus.
   - APRÈS-MIDI 15h–18h : minimum 4 opérationnels.
   - ROTATION REPAS DU SOIR : minimum 2 salariés de JOURNÉE encore présents jusqu'à 18h30 au minimum.
-  - SOIR : minimum 5 opérationnels.
+  - SOIR lundi à vendredi : minimum 5 opérationnels.
+  - SOIR samedi/dimanche : minimum 6 opérationnels.
   - FERMETURE : minimum 5 opérationnels jusqu'à F.
 - NIVEAU FORT / GROS ÉVÉNEMENT LOCAL :
   - MIDI : minimum 7 opérationnels hors Salome.
@@ -1463,7 +1541,8 @@ events=${relevantEvents || '-'}
 meteo=${weatherCompact || '-'}
 
 INTERPRETATION CONTEXTE:
-défaut=NORMAL; événement fort peut renforcer le service concerné; beau temps/vacances seuls ne rendent pas automatiquement FORT; pluie déplace vers intérieur.
+La base hiver dépend déjà du jour : mercredi midi et week-end midi sont renforcés même sans événement ; le week-end soir est renforcé même sans événement.
+Un événement fort peut encore augmenter le service concerné jusqu'aux seuils FORTS ; beau temps/vacances seuls ne rendent pas automatiquement FORT ; pluie déplace vers intérieur.
 
 SORTIE JSON UNIQUEMENT:
 {"planning":[{"name":"Prénom","lundi":"...","mardi":"...","mercredi":"...","jeudi":"...","vendredi":"...","samedi":"...","dimanche":"..."}],"notes":"court"}
