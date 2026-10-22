@@ -142,6 +142,35 @@ function weeklySplitCount(row) {
   return keys.filter(k => isCoupureValue(row?.[k])).length;
 }
 
+function splitHoursForLabel(label='Coupure 11h-15h/18h-01h') {
+  return /10h\s*-\s*15h/i.test(label) ? 12 : 11;
+}
+
+function projectedHoursWithSplit(emp, row, currentLabel='') {
+  const currentTotal = currentPlannedHours(row);
+  const oldHours = currentLabel ? (parseShiftHoursLabel(currentLabel) || 0) : 0;
+  return currentTotal - oldHours + splitHoursForLabel();
+}
+
+function canUseSplitByHours(emp, row, currentLabel='') {
+  const projected = projectedHoursWithSplit(emp, row, currentLabel);
+  const target = contractTargetHours(emp);
+
+  if (projected > 48) return false;
+  if (target !== null && projected > target + 2.5) return false;
+  return true;
+}
+
+function splitCandidateScore(emp, row) {
+  const used = weeklySplitCount(row);
+  const target = contractTargetHours(emp);
+  const planned = currentPlannedHours(row);
+  const gap = target === null ? 0 : target - planned;
+
+  // 0 split always beats 1 split. This is intentionally dominant.
+  return used * 100 - Math.max(-10, Math.min(12, gap));
+}
+
 function shiftAllowedByEmployee(emp, label) {
   const cfg = runtimeConfig(emp);
 
@@ -247,6 +276,13 @@ RÈGLES MATIN NOMINATIVES NON NÉGOCIABLES :
 - Seb : vendredi 08h>17h, samedi 07h>16h, dimanche 08h>17h. Lundi/jeudi priorité 09h>18h30 ou 10h>18h30.
 - Anthony : uniquement prises de poste <=10h. Samedi 08h>17h strict, dimanche 09h>17h strict. En semaine priorité 09h>18h30, 08h>17h, 10h>18h30.
 - Ces règles ne sont annulées que par un RH/Vacances/CFA/Arrêt saisi par le manager.
+
+RÉPARTITION DES COUPURES :
+- Un salarié à 0 coupure est toujours prioritaire sur un salarié déjà à 1 coupure.
+- Une 2e coupure n'est autorisée que si aucun autre salarié éligible à 0 coupure ne peut résoudre le besoin.
+- Toute coupure doit respecter le contrat : projeté <= contrat +2h30 et jamais >48h.
+- Si un shift soir est remplacé par une coupure, recalculer en remplaçant les heures du shift existant, pas en ajoutant 11h.
+- Si seuls Cathy/Pierre sont proposés, vérifier les fiches Équipe des autres : pour être éligible au renfort midi ils doivent avoir Midi autorisé et un nombre de coupures >0.
 
 OPTIMISATION APRÈS-MIDI :
 - Le minimum après-midi est une cible opérationnelle, pas un objectif de sureffectif.
@@ -1311,44 +1347,61 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
         }
       }
 
-      // LEVEL 2 — Evening-primary employee: split is preferred over full-day conversion,
-      // but ONLY when lunch is actually short.
+      // LEVEL 2 — Evening-primary employee: split is preferred over full-day conversion.
+      // Fair distribution: anyone on 0 split is preferred over someone already on 1.
       if (!changed && midiDeficit > 0) {
-        const candidates = candidateIndexes(di, false);
+        const candidates = candidateIndexes(di, false)
+          .filter(i => {
+            const emp = emps[i];
+            if (!canUseLunchAsReinforcement(emp)) return false;
 
-        for (const i of candidates) {
-          const emp = emps[i];
-          if (!canUseLunchAsReinforcement(emp)) continue;
+            const maxSplits = autoSplitCapacity(emp);
+            if (maxSplits <= 0) return false;
+            if (weeklySplitCount(planning[i]) >= maxSplits) return false;
+            if (!canUseSplitByHours(emp, planning[i])) return false;
 
-          const maxSplits = autoSplitCapacity(emp);
-          if (maxSplits <= 0) continue;
-          if (weeklySplitCount(planning[i]) >= maxSplits) continue;
+            return true;
+          })
+          .sort((a,b) =>
+            splitCandidateScore(emps[a], planning[a]) -
+            splitCandidateScore(emps[b], planning[b])
+          );
 
+        if (candidates.length) {
+          const i = candidates[0];
           planning[i][key] = 'Coupure 11h-15h/18h-01h';
           changed = true;
-          break;
         }
       }
 
       // LEVEL 3 — Convert an existing evening shift to split if lunch is still short.
+      // Same fairness + hours controls.
       if (!changed && midiDeficit > 0) {
-        const candidates = candidateIndexes(di, true);
+        const candidates = candidateIndexes(di, true)
+          .filter(i => {
+            const emp = emps[i];
+            if (!canUseLunchAsReinforcement(emp)) return false;
 
-        for (const i of candidates) {
-          const emp = emps[i];
-          if (!canUseLunchAsReinforcement(emp)) continue;
+            const maxSplits = autoSplitCapacity(emp);
+            if (maxSplits <= 0) return false;
+            if (weeklySplitCount(planning[i]) >= maxSplits) return false;
 
-          const maxSplits = autoSplitCapacity(emp);
-          if (maxSplits <= 0 || weeklySplitCount(planning[i]) >= maxSplits) continue;
+            const current = planning[i][key];
+            const b = shiftBoundsMinutes(current);
+            if (!b || b.start < 15*60) return false;
+            if (!canUseSplitByHours(emp, planning[i], current)) return false;
 
-          const current = planning[i][key];
-          const b = shiftBoundsMinutes(current);
-          if (!b || b.start < 15*60) continue;
+            return true;
+          })
+          .sort((a,b) =>
+            splitCandidateScore(emps[a], planning[a]) -
+            splitCandidateScore(emps[b], planning[b])
+          );
 
-          // One evening worker becomes one lunch reinforcement.
+        if (candidates.length) {
+          const i = candidates[0];
           planning[i][key] = 'Coupure 11h-15h/18h-01h';
           changed = true;
-          break;
         }
       }
 
@@ -1578,6 +1631,7 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
 
         const b = shiftBoundsMinutes(current);
         if (!b) return;
+        if (!canUseSplitByHours(emp, planning[i], current)) return;
 
         if (!coversWholeWindow(current, 12*60, 15*60)) return;
         if (!coversWholeWindow(current, 15*60, 18*60)) return;
@@ -1601,7 +1655,8 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
         if (isDayBridgeShift(current) && snap.bridge1830 - 1 < TARGET.bridge1830) return;
 
         const h = parseShiftHoursLabel(current) || 0;
-        let score = -h;
+        // Fewer existing splits dominates; then prefer longer continuous shift to trim.
+        let score = weeklySplitCount(planning[i]) * 100 - h;
 
         if (score < bestScore) {
           bestScore = score;
