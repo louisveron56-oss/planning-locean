@@ -1287,6 +1287,11 @@ function dayShiftCandidatesForEmployee(emp, allowedShifts) {
     });
 }
 
+function v7IsManagerFixed(data, i, di) {
+  const ref = data && data[i] && data[i][di];
+  return referenceOutputValue(ref) !== null;
+}
+
 function canReplaceShiftWithoutBreakingStrict(emp, di, current, replacement, allowedShifts) {
   if (!replacement) return false;
   if (!shiftAllowedByEmployee(emp, replacement)) return false;
@@ -1320,7 +1325,7 @@ function isUsefulEveningSurplusCandidate(planning, emps, i, di, weekDate, extern
   return snap.evening > target.evening || snap.closing > target.closing;
 }
 
-function rebalanceDayByBestMove(planning, emps, di, allowedShifts, weekDate, externalEvents) {
+function rebalanceDayByBestMove(planning, emps, di, allowedShifts, weekDate, externalEvents, data) {
   const key = V7_DAY_KEYS[di];
   const target = serviceTargetsForDay(di, weekDate, externalEvents);
 
@@ -1348,7 +1353,7 @@ function rebalanceDayByBestMove(planning, emps, di, allowedShifts, weekDate, ext
 
     (emps || []).forEach((emp, i) => {
       if (!canAutoPlan(emp)) return;
-      if (isManagerFixed(i, di)) return;
+      if (v7IsManagerFixed(data, i, di)) return;
 
       const current = planning[i]?.[key];
       if (!current || isCoupureValue(current)) return;
@@ -1904,7 +1909,7 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
 
     // 1B) V7: BEFORE adding anyone, try to move surplus evening/closing staff
     // into more useful day shifts (10h-18h30, 11h-21h, etc.).
-    rebalanceDayByBestMove(planning, emps, di, allowedShifts, weekDate, externalEvents);
+    rebalanceDayByBestMove(planning, emps, di, allowedShifts, weekDate, externalEvents, data);
 
     // Recheck the opening curve after the simulated reallocation.
     enforceOpeningCurve();
@@ -1918,7 +1923,7 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
 
     // 3B) V7 second pass: if evening/closing now has surplus while day is still short,
     // convert the least useful evening shift into a day shift before creating splits.
-    rebalanceDayByBestMove(planning, emps, di, allowedShifts, weekDate, externalEvents);
+    rebalanceDayByBestMove(planning, emps, di, allowedShifts, weekDate, externalEvents, data);
 
     // 4) Final lunch repair after closing, because closing choices may have moved people.
     forceRepairLunch(di, false);
