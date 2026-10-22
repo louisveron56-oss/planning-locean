@@ -149,12 +149,16 @@ IMPORTANT — CONFIGURATION ÉQUIPE :
 - Début au plus tôt / fin au plus tard sont des limites dures.
 - Les rangs cochés sont les seuls rangs connus.
 - Les règles de la fiche Équipe priment sur tout ancien profil historique.
+- Les préférences historiques d'horaires déjà connues pour les salariés existants restent des PRIORITÉS SOUPLES : les utiliser en premier lorsqu'elles respectent la fiche Équipe et la couverture.
+- Ne jamais réduire les horaires à un modèle unique d'ouverture / journée / fermeture si plusieurs shifts habituels sont possibles.
 
-CAFÉ / MATIN — Mercredi, Samedi, Dimanche uniquement :
-- Jusqu'à 10h00 : minimum 2 personnels réels = 1 au bar + 1 en salle/plateau.
-- À partir de 10h00 : minimum 3 personnels réels = 1 au bar + 2 au plateau.
-- Salome ne compte jamais dans ces besoins.
-- Shifts habituels : départ 07h ou 08h, fin 16h ou 17h environ.
+OUVERTURE / MATIN — Tous les jours :
+- De l'ouverture à 10h00 : minimum 2 personnels opérationnels présents.
+- De 10h00 à 11h00 : minimum 3 personnels opérationnels présents.
+- Mercredi, samedi et dimanche restent des matinées particulièrement importantes : conserver au moins ces mêmes seuils, sans les sacrifier pour atteindre seulement le midi.
+- Un salarié autorisé "Matin" doit pouvoir être utilisé sur des départs 07h / 08h / 09h selon ses limites horaires.
+- Un salarié autorisé seulement "Midi" ne doit pas être utilisé avant 10h.
+- Salome / Accueil ne compte pas dans ces minimums si "Compte" est décoché.
 
 SERVICE MIDI — 12h00 à 15h00, tous les jours :
 Niveau NORMAL :
@@ -185,6 +189,11 @@ Niveau FORT :
 Shifts habituels : 15h ou 16h → 23h ou F/01h, ou coupure si nécessaire.
 
 COUVERTURE OPÉRATIONNELLE HIVER À RESPECTER :
+- OUVERTURE TOUS LES JOURS :
+  - avant 10h : minimum 2 opérationnels réellement présents ;
+  - 10h–11h : minimum 3 opérationnels réellement présents ;
+  - ne jamais considérer un midi correctement couvert comme suffisant si l'ouverture est en déficit ;
+  - privilégier les salariés avec Matin autorisé et respecter leur début au plus tôt.
 - MIDI 12h–15h :
   - Lundi, mardi, jeudi, vendredi : 6 opérationnels minimum HORS Salome/Accueil, Martin V et Louis.
   - Mercredi, samedi, dimanche : 7 opérationnels minimum HORS Salome/Accueil, Martin V et Louis.
@@ -382,34 +391,52 @@ function shiftStartMinutes(label) {
 }
 
 function chooseHabitualShift(emp, allowedShifts, dayStartCounts, idealDailyHours, usedLabels) {
-  const pool = shiftProfilePool(emp, allowedShifts);
-  if (!pool.length) return '';
+  const allowedPool = shiftProfilePool(emp, allowedShifts);
+  if (!allowedPool.length) return '';
 
+  const allowedMap = new Map(allowedPool.map(label => [normalizeShiftLabel(label), label]));
+  const historicalPrefs = (SHIFT_PREFERENCES[emp.name]?.preferred || [])
+    .map(label => allowedMap.get(normalizeShiftLabel(label)))
+    .filter(Boolean);
+
+  const primaryPool = historicalPrefs.length ? historicalPrefs : allowedPool;
   const pref = runtimeConfig(emp).preferredService || 'flexible';
+
   let best = '';
   let bestScore = Infinity;
 
-  pool.forEach(label => {
+  primaryPool.forEach(label => {
     const start = shiftStartMinutes(label);
     const sameStartCount = dayStartCounts.get(start) || 0;
     const shiftHours = parseShiftHoursLabel(label) || 0;
     const sameLabelCount = usedLabels.get(normalizeShiftLabel(label)) || 0;
     const b = shiftBoundsMinutes(label);
 
-    let score = sameStartCount * 3 + sameLabelCount * 2;
+    let score = 0;
 
     if (idealDailyHours !== null && Number.isFinite(idealDailyHours)) {
-      score += Math.abs(idealDailyHours - shiftHours) * 5;
-      if (shiftHours > idealDailyHours + 2) score += 8;
+      score += Math.abs(idealDailyHours - shiftHours) * 4.0;
+      if (shiftHours > idealDailyHours + 2) score += 7;
     }
+
+    score += sameStartCount * 2.0;
+    score += sameLabelCount * 1.5;
 
     if (b) {
-      if (pref === 'morning') score += Math.max(0,(b.start-8*60)/60)*3;
-      if (pref === 'lunch') score += Math.abs(b.start-10*60)/60*1.5;
-      if (pref === 'evening') score += Math.abs(b.start-16*60)/60*1.5;
+      if (pref === 'morning') score += Math.max(0, (b.start - 8*60) / 60) * 1.2;
+      if (pref === 'lunch') score += Math.abs(b.start - 10*60) / 60 * 0.7;
+      if (pref === 'evening') score += Math.abs(b.start - 16*60) / 60 * 0.7;
     }
 
-    if (score < bestScore) { bestScore = score; best = label; }
+    if (historicalPrefs.length) {
+      const prefIndex = historicalPrefs.findIndex(x => normalizeShiftLabel(x) === normalizeShiftLabel(label));
+      if (prefIndex >= 0) score += prefIndex * 1.2;
+    }
+
+    if (score < bestScore) {
+      bestScore = score;
+      best = label;
+    }
   });
 
   return best;
@@ -483,14 +510,22 @@ function isCoreEveningEmployee(emp) {
 
 function eveningShiftCandidates(allowedShifts, emp) {
   const allowed = allowedContinuousMap(allowedShifts);
-  const wanted = ['15h > F','16h > F','17h > F','18h > F','15h > F','16h > F','17h > F','18h > F'];
+  const wanted = [
+    '15h > 23h','15h > F',
+    '16h > 23h','16h > F',
+    '17h > F',
+    '18h > F'
+  ];
+
   const seen = new Set(), out = [];
   wanted.forEach(x => {
-    const v=allowed.get(normalizeShiftLabel(x));
-    if(v && (!emp || shiftAllowedByEmployee(emp,v)) && !seen.has(normalizeShiftLabel(v))){
-      seen.add(normalizeShiftLabel(v));out.push(v);
+    const v = allowed.get(normalizeShiftLabel(x));
+    if (v && (!emp || shiftAllowedByEmployee(emp,v)) && !seen.has(normalizeShiftLabel(v))) {
+      seen.add(normalizeShiftLabel(v));
+      out.push(v);
     }
   });
+
   return out;
 }
 
@@ -498,36 +533,40 @@ function chooseBalancedEveningShift(emp, empIndex, dayIndex, allowedShifts, dayS
   const pool = eveningShiftCandidates(allowedShifts, emp);
   if (!pool.length) return '';
 
-  // Rotating preferred start by employee/day prevents Pierre always 15h and Yoann always 18h.
+  const prefLabels = (SHIFT_PREFERENCES[emp.name]?.preferred || []).map(normalizeShiftLabel);
   const rotation = [15*60,16*60,17*60,18*60];
   const desiredStart = rotation[(empIndex + dayIndex) % rotation.length];
   const idealHours = remainingFreeDays > 0 ? remainingHours / remainingFreeDays : remainingHours;
 
-  let best='',bestScore=Infinity;
+  let best='', bestScore=Infinity;
+
   pool.forEach(label => {
-    const start=shiftStartMinutes(label);
-    const hours=parseShiftHoursLabel(label)||0;
-    const dayCount=dayStartCounts.get(start)||0;
-    const sameCount=usedLabels.get(normalizeShiftLabel(label))||0;
+    const start = shiftStartMinutes(label);
+    const hours = parseShiftHoursLabel(label) || 0;
+    const dayCount = dayStartCounts.get(start) || 0;
+    const sameCount = usedLabels.get(normalizeShiftLabel(label)) || 0;
 
-    let score=0;
-    // Primary: land near the 42h/35h target.
-    score += Math.abs(hours-idealHours)*4.0;
-    // Strongly spread arrivals each evening.
-    score += dayCount*7.0;
-    // Rotate each employee's arrival across the week.
-    score += Math.abs(start-desiredStart)/60*1.6;
-    // Avoid repeating exact same shift all week.
-    score += sameCount*3.0;
+    let score = 0;
 
-    // Avoid overshooting the remaining weekly target too heavily.
-    if(hours>remainingHours+1.5)score+=15;
+    const idx = prefLabels.indexOf(normalizeShiftLabel(label));
+    if (idx >= 0) score += idx * 1.1;
+    else if (prefLabels.length) score += 3.5;
 
-    if(score<bestScore){bestScore=score;best=label;}
+    score += Math.abs(hours - idealHours) * 3.0;
+    score += dayCount * 3.5;
+    score += Math.abs(start - desiredStart) / 60 * 0.8;
+    score += sameCount * 1.8;
+
+    if (hours > remainingHours + 1.5) score += 10;
+
+    if (score < bestScore) {
+      bestScore = score;
+      best = label;
+    }
   });
+
   return best;
 }
-
 
 function shiftBoundsMinutes(label) {
   const s = String(label || '').trim().toLowerCase();
@@ -574,6 +613,8 @@ function isClosingShift(label) {
 }
 
 function coverageSnapshot(planning, emps, dayKey) {
+  let openingBefore10 = 0;
+  let opening10to11 = 0;
   let midi = 0;
   let afternoon = 0;
   let bridge1830 = 0;
@@ -594,6 +635,12 @@ function coverageSnapshot(planning, emps, dayKey) {
       return;
     }
 
+    const b = shiftBoundsMinutes(label);
+    if (b) {
+      if (b.start <= 9*60 && b.end >= 10*60) openingBefore10++;
+      if (b.start <= 10*60 && b.end >= 11*60) opening10to11++;
+    }
+
     if (coversWholeWindow(label, 12*60, 15*60)) midi++;
     if (coversWholeWindow(label, 15*60, 18*60)) afternoon++;
     if (isDayBridgeShift(label)) bridge1830++;
@@ -601,7 +648,7 @@ function coverageSnapshot(planning, emps, dayKey) {
     if (isClosingShift(label)) closing++;
   });
 
-  return { midi, afternoon, bridge1830, evening, closing };
+  return { openingBefore10, opening10to11, midi, afternoon, bridge1830, evening, closing };
 }
 
 function allowedDayCoverageShifts(allowedShifts) {
@@ -628,6 +675,56 @@ function allowedDayCoverageShifts(allowedShifts) {
   return out;
 }
 
+
+function allowedOpeningShifts(allowedShifts, emp, before10) {
+  const all = [...allowedContinuousMap(allowedShifts).values()];
+  return all.filter(label => {
+    if (!shiftAllowedByEmployee(emp,label)) return false;
+    const b = shiftBoundsMinutes(label);
+    if (!b) return false;
+
+    if (before10) {
+      // Must actually be there before 10, not arrive at 10.
+      return b.start <= 9*60 && b.end >= 10*60;
+    }
+    // 10–11 coverage can be supplied by a 10h arrival.
+    return b.start <= 10*60 && b.end >= 11*60;
+  });
+}
+
+function chooseOpeningShift(emp, allowedShifts, before10, currentLabel='') {
+  const pool = allowedOpeningShifts(allowedShifts, emp, before10);
+  if (!pool.length) return '';
+
+  const prefLabels = (SHIFT_PREFERENCES[emp.name]?.preferred || [])
+    .map(normalizeShiftLabel);
+
+  const currentHours = parseShiftHoursLabel(currentLabel);
+  let best = '', bestScore = Infinity;
+
+  pool.forEach(label => {
+    const b = shiftBoundsMinutes(label);
+    const h = parseShiftHoursLabel(label) || 0;
+    let score = 0;
+
+    const idx = prefLabels.indexOf(normalizeShiftLabel(label));
+    if (idx >= 0) score += idx * 1.2;
+    else if (prefLabels.length) score += 4.5;
+
+    const idealStart = before10 ? 8*60 : 10*60;
+    score += Math.abs(b.start - idealStart) / 60 * 0.55;
+
+    if (currentHours !== null) score += Math.abs(h - currentHours) * 2.0;
+
+    if (score < bestScore) {
+      bestScore = score;
+      best = label;
+    }
+  });
+
+  return best;
+}
+
 function chooseDayCoverageShift(currentLabel, allowedShifts, needBridge, emp) {
   const pool = allowedDayCoverageShifts(allowedShifts)
     .filter(label => (!emp || shiftAllowedByEmployee(emp,label)))
@@ -642,7 +739,9 @@ function chooseDayCoverageShift(currentLabel, allowedShifts, needBridge, emp) {
 
   if (!pool.length) return '';
 
+  const prefLabels = (SHIFT_PREFERENCES[emp?.name]?.preferred || []).map(normalizeShiftLabel);
   const currentHours = parseShiftHoursLabel(currentLabel);
+
   let best = '';
   let bestScore = Infinity;
 
@@ -651,15 +750,17 @@ function chooseDayCoverageShift(currentLabel, allowedShifts, needBridge, emp) {
     const b = shiftBoundsMinutes(label);
     let score = 0;
 
-    // Preserve weekly hours as much as possible when converting a shift.
-    if (currentHours !== null) score += Math.abs(h - currentHours) * 4;
+    const idx = prefLabels.indexOf(normalizeShiftLabel(label));
+    if (idx >= 0) score += idx * 1.2;
+    else if (prefLabels.length) score += 4.0;
 
-    // Prefer later starts to avoid unnecessary morning hours.
-    score += Math.max(0, (12*60 - b.start) / 60) * 0.25;
+    if (currentHours !== null) score += Math.abs(h - currentHours) * 2.5;
 
-    // 18:30 / 19:00 is ideal for the dinner rotation;
-    // longer shifts are used when their duration better matches the employee's hours.
-    score += Math.abs(b.end - (18*60+30)) / 60 * 0.15;
+    score += Math.abs(b.start - 10*60) / 60 * 0.35;
+
+    if (needBridge) {
+      score += Math.abs(b.end - (18*60+30)) / 60 * 0.2;
+    }
 
     if (score < bestScore) {
       bestScore = score;
@@ -679,7 +780,9 @@ function chooseClosingShift(currentLabel, allowedShifts, emp) {
   const pool = closingShiftCandidates(allowedShifts, emp);
   if (!pool.length) return '';
 
+  const prefLabels = (SHIFT_PREFERENCES[emp?.name]?.preferred || []).map(normalizeShiftLabel);
   const currentHours = parseShiftHoursLabel(currentLabel);
+
   let best = '';
   let bestScore = Infinity;
 
@@ -688,9 +791,13 @@ function chooseClosingShift(currentLabel, allowedShifts, emp) {
     const start = shiftStartMinutes(label);
     let score = 0;
 
-    if (currentHours !== null) score += Math.abs(h - currentHours) * 3;
-    // Prefer later arrivals when there is no coverage reason to start earlier.
-    score += Math.abs(start - 17*60) / 60 * 0.5;
+    const idx = prefLabels.indexOf(normalizeShiftLabel(label));
+    if (idx >= 0) score += idx * 1.1;
+    else if (prefLabels.length) score += 3.5;
+
+    if (currentHours !== null) score += Math.abs(h - currentHours) * 2.0;
+
+    score += Math.abs(start - 16*60) / 60 * 0.25;
 
     if (score < bestScore) {
       bestScore = score;
@@ -793,6 +900,11 @@ function serviceTargetsForDay(dayIndex, weekDate, externalEvents) {
   const isWeekend = dayIndex >= 5;
 
   const normal = {
+    // OUVERTURE / MATIN
+    // Minimum quotidien : 2 avant 10h, puis 3 de 10h à 11h.
+    openingBefore10: 2,
+    opening10to11: 3,
+
     // MIDI:
     // Lun/Mar/Jeu/Ven = 6 opérationnels hors Salome
     // Mercredi + Samedi + Dimanche = 7 opérationnels hors Salome
@@ -961,6 +1073,74 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
     return false;
   }
 
+
+  function ensureOpening(di, before10) {
+    const key = dayKeys[di];
+    const target = serviceTargetsForDay(di, weekDate, externalEvents);
+    const targetCount = before10 ? target.openingBefore10 : target.opening10to11;
+    let guard = 0;
+
+    while (guard++ < 12) {
+      const snap = coverageSnapshot(planning, emps, key);
+      const currentCount = before10 ? snap.openingBefore10 : snap.opening10to11;
+      if (currentCount >= targetCount) break;
+
+      let changed = false;
+
+      // First try to move an already scheduled compatible day employee earlier.
+      const scheduled = candidateIndexes(di, true);
+      for (const i of scheduled) {
+        const emp = emps[i];
+        const current = planning[i][key];
+        if (isCoupureValue(current)) continue;
+        const b = shiftBoundsMinutes(current);
+        if (!b) continue;
+
+        // Only touch day/morning workers, never evening staff here.
+        if (b.start >= 15*60) continue;
+
+        const replacement = chooseOpeningShift(emp, allowedShifts, before10, current);
+        if (!replacement || normalizeShiftLabel(replacement) === normalizeShiftLabel(current)) continue;
+
+        const row = planning[i];
+        const targetHours = contractTargetHours(emp);
+        const beforeHours = currentPlannedHours(row);
+        const oldH = parseShiftHoursLabel(current) || 0;
+        const newH = parseShiftHoursLabel(replacement) || 0;
+        if (targetHours !== null && beforeHours - oldH + newH > targetHours + 2.5) continue;
+
+        row[key] = replacement;
+        changed = true;
+        break;
+      }
+
+      if (changed) continue;
+
+      // Then add a free employee who is explicitly allowed to work mornings.
+      const free = candidateIndexes(di, false);
+      for (const i of free) {
+        const emp = emps[i];
+        const cfg = runtimeConfig(emp);
+        if (!cfg.services.morning) continue;
+
+        const replacement = chooseOpeningShift(emp, allowedShifts, before10, '');
+        if (!replacement) continue;
+
+        const row = planning[i];
+        const targetHours = contractTargetHours(emp);
+        const currentHours = currentPlannedHours(row);
+        const h = parseShiftHoursLabel(replacement) || 0;
+        if (targetHours !== null && currentHours + h > targetHours + 2.5) continue;
+
+        row[key] = replacement;
+        changed = true;
+        break;
+      }
+
+      if (!changed) break;
+    }
+  }
+
   function ensureClosing(di) {
     const key = dayKeys[di];
     const target = serviceTargetsForDay(di, weekDate, externalEvents);
@@ -1010,10 +1190,14 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
   dayKeys.forEach((key, di) => {
     const TARGET = serviceTargetsForDay(di, weekDate, externalEvents);
 
-    // 1) Protect the minimum number of closers first.
+    // 1) Build the opening first. Do not accept a good lunch count with nobody early.
+    ensureOpening(di, true);
+    ensureOpening(di, false);
+
+    // 2) Protect the minimum number of closers.
     ensureClosing(di);
 
-    // 2) Repair lunch / afternoon / 18:30 bridge by converting surplus evening staff.
+    // 3) Repair lunch / afternoon / 18:30 bridge by converting surplus evening staff.
     let guard = 0;
     while (guard++ < 12) {
       const snap = coverageSnapshot(planning, emps, key);
@@ -1387,6 +1571,8 @@ function buildCoverageAudit(planning, emps, weekDate, externalEvents) {
     const targets = serviceTargetsForDay(di, weekDate, externalEvents);
 
     const deficits = [];
+    if (counts.openingBefore10 < targets.openingBefore10) deficits.push(`Ouverture <10h ${counts.openingBefore10}/${targets.openingBefore10}`);
+    if (counts.opening10to11 < targets.opening10to11) deficits.push(`10–11h ${counts.opening10to11}/${targets.opening10to11}`);
     if (counts.midi < targets.midi) deficits.push(`Midi ${counts.midi}/${targets.midi}`);
     if (counts.afternoon < targets.afternoon) deficits.push(`Après-midi ${counts.afternoon}/${targets.afternoon}`);
     if (counts.bridge1830 < targets.bridge1830) deficits.push(`18h30 ${counts.bridge1830}/${targets.bridge1830}`);
@@ -1398,6 +1584,8 @@ function buildCoverageAudit(planning, emps, weekDate, externalEvents) {
       level: targets.strong ? 'FORT' : 'NORMAL',
       reasons: targets.reasons || [],
       counts: {
+        openingBefore10: counts.openingBefore10,
+        opening10to11: counts.opening10to11,
         midi: counts.midi,
         afternoon: counts.afternoon,
         bridge1830: counts.bridge1830,
@@ -1405,6 +1593,8 @@ function buildCoverageAudit(planning, emps, weekDate, externalEvents) {
         closing: counts.closing
       },
       targets: {
+        openingBefore10: targets.openingBefore10,
+        opening10to11: targets.opening10to11,
         midi: targets.midi,
         afternoon: targets.afternoon,
         bridge1830: targets.bridge1830,
