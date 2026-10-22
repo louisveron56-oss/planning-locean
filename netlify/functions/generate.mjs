@@ -189,10 +189,11 @@ Niveau FORT :
 Shifts habituels : 15h ou 16h → 23h ou F/01h, ou coupure si nécessaire.
 
 COUVERTURE OPÉRATIONNELLE HIVER À RESPECTER :
-- OUVERTURE — COURBE FIXE :
-  - Lundi, mardi, jeudi, vendredi : 1 arrivée à 07h, 1 à 08h, 1 à 09h, 1 à 10h.
-  - Mercredi, samedi, dimanche : 1 arrivée à 07h, 1 à 08h, 1 à 09h, 2 arrivées à 10h.
-  - Ces quotas d'arrivée sont des contraintes de couverture à respecter avant d'optimiser le reste de la journée.
+- OUVERTURE — COURBE FIXE ET NON NÉGOCIABLE :
+  - Lundi, mardi, jeudi, vendredi : EXACTEMENT au minimum 1 arrivée à 07h, 1 à 08h, 1 à 09h, 1 à 10h.
+  - Mercredi, samedi, dimanche : EXACTEMENT au minimum 1 arrivée à 07h, 1 à 08h, 1 à 09h, 2 arrivées à 10h.
+  - Un salarié déjà indispensable à 07h, 08h, 09h ou 10h ne peut pas être déplacé vers une autre heure si cela casse son quota.
+  - Ces quotas sont des contraintes dures, au même niveau que le minimum de fermetures.
   - Respecter les autorisations Matin/Midi et les limites horaires de chaque fiche Équipe.
 - MIDI 12h–15h :
   - Lundi, mardi, jeudi, vendredi : 6 opérationnels minimum HORS Salome/Accueil, Martin V et Louis.
@@ -1117,35 +1118,64 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
 
 
 
+  function openingTargetForHour(target, hour) {
+    if (hour === 7) return target.openingAt7;
+    if (hour === 8) return target.openingAt8;
+    if (hour === 9) return target.openingAt9;
+    if (hour === 10) return target.openingAt10;
+    return 0;
+  }
+
+  function openingCountForHour(snapshot, hour) {
+    if (hour === 7) return snapshot.openingAt7;
+    if (hour === 8) return snapshot.openingAt8;
+    if (hour === 9) return snapshot.openingAt9;
+    if (hour === 10) return snapshot.openingAt10;
+    return 0;
+  }
+
+  function canMoveFromCurrentOpeningSlot(di, currentLabel, targetHour) {
+    const b = shiftBoundsMinutes(currentLabel);
+    if (!b) return true;
+
+    const currentHour = Math.floor(b.start / 60);
+    if (![7,8,9,10].includes(currentHour)) return true;
+    if (currentHour === targetHour) return false;
+
+    const target = serviceTargetsForDay(di, weekDate, externalEvents);
+    const snap = coverageSnapshot(planning, emps, dayKeys[di]);
+
+    // Never steal the last person satisfying another required opening slot.
+    return openingCountForHour(snap, currentHour) > openingTargetForHour(target, currentHour);
+  }
+
   function ensureExactStart(di, hour, needed) {
     const key = dayKeys[di];
     let guard=0;
 
     function slotCount() {
-      const snap = coverageSnapshot(planning, emps, key);
-      if (hour === 7) return snap.openingAt7;
-      if (hour === 8) return snap.openingAt8;
-      if (hour === 9) return snap.openingAt9;
-      if (hour === 10) return snap.openingAt10;
-      return 0;
+      return openingCountForHour(coverageSnapshot(planning, emps, key), hour);
     }
 
-    while (guard++ < 12 && slotCount() < needed) {
+    while (guard++ < 16 && slotCount() < needed) {
       let changed=false;
 
-      // First, convert a compatible already-planned morning/day employee.
+      // First: convert an already-planned compatible morning/day worker,
+      // but NEVER steal someone who is the last person covering 7h/8h/9h/10h.
       const scheduled = candidateIndexes(di, true);
       for (const i of scheduled) {
         const emp=emps[i];
         const cfg=runtimeConfig(emp);
-        if (!cfg.services.morning && hour < 10) continue;
-        if (!cfg.services.lunch && hour === 10) continue;
+
+        if (hour < 10 && !cfg.services.morning) continue;
+        if (hour === 10 && !(cfg.services.morning || cfg.services.lunch)) continue;
 
         const current=planning[i][key];
         if (isCoupureValue(current)) continue;
 
         const b=shiftBoundsMinutes(current);
         if (!b || b.start>=15*60 || b.start===hour*60) continue;
+        if (!canMoveFromCurrentOpeningSlot(di, current, hour)) continue;
 
         const replacement=chooseExactStartShift(emp,allowedShifts,hour,current);
         if (!replacement) continue;
@@ -1154,7 +1184,6 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
         const beforeHours=currentPlannedHours(row);
         const oldH=parseShiftHoursLabel(current)||0;
         const newH=parseShiftHoursLabel(replacement)||0;
-
         if (beforeHours-oldH+newH>48) continue;
 
         row[key]=replacement;
@@ -1164,7 +1193,7 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
 
       if (changed) continue;
 
-      // Then add a free compatible employee.
+      // Second: use a free compatible employee.
       const free=candidateIndexes(di,false);
       for (const i of free) {
         const emp=emps[i];
@@ -1183,73 +1212,6 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
 
         row[key]=replacement;
         changed=true;
-        break;
-      }
-
-      if (!changed) break;
-    }
-  }
-
-  function ensureOpening(di, before10) {
-    const key = dayKeys[di];
-    const target = serviceTargetsForDay(di, weekDate, externalEvents);
-    const targetCount = before10 ? target.openingBefore10 : target.opening10to11;
-    let guard = 0;
-
-    while (guard++ < 12) {
-      const snap = coverageSnapshot(planning, emps, key);
-      const currentCount = before10 ? snap.openingBefore10 : snap.opening10to11;
-      if (currentCount >= targetCount) break;
-
-      let changed = false;
-
-      // First try to move an already scheduled compatible day employee earlier.
-      const scheduled = candidateIndexes(di, true);
-      for (const i of scheduled) {
-        const emp = emps[i];
-        const current = planning[i][key];
-        if (isCoupureValue(current)) continue;
-        const b = shiftBoundsMinutes(current);
-        if (!b) continue;
-
-        // Only touch day/morning workers, never evening staff here.
-        if (b.start >= 15*60) continue;
-
-        const replacement = chooseOpeningShift(emp, allowedShifts, before10, current);
-        if (!replacement || normalizeShiftLabel(replacement) === normalizeShiftLabel(current)) continue;
-
-        const row = planning[i];
-        const targetHours = contractTargetHours(emp);
-        const beforeHours = currentPlannedHours(row);
-        const oldH = parseShiftHoursLabel(current) || 0;
-        const newH = parseShiftHoursLabel(replacement) || 0;
-        if (targetHours !== null && beforeHours - oldH + newH > targetHours + 2.5) continue;
-
-        row[key] = replacement;
-        changed = true;
-        break;
-      }
-
-      if (changed) continue;
-
-      // Then add a free employee who is explicitly allowed to work mornings.
-      const free = candidateIndexes(di, false);
-      for (const i of free) {
-        const emp = emps[i];
-        const cfg = runtimeConfig(emp);
-        if (!cfg.services.morning) continue;
-
-        const replacement = chooseOpeningShift(emp, allowedShifts, before10, '');
-        if (!replacement) continue;
-
-        const row = planning[i];
-        const targetHours = contractTargetHours(emp);
-        const currentHours = currentPlannedHours(row);
-        const h = parseShiftHoursLabel(replacement) || 0;
-        if (targetHours !== null && currentHours + h > targetHours + 2.5) continue;
-
-        row[key] = replacement;
-        changed = true;
         break;
       }
 
@@ -1306,18 +1268,23 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
   dayKeys.forEach((key, di) => {
     const TARGET = serviceTargetsForDay(di, weekDate, externalEvents);
 
-    // 1) Build the fixed opening curve first.
-    ensureExactStart(di, 7, TARGET.openingAt7);
-    ensureExactStart(di, 8, TARGET.openingAt8);
-    ensureExactStart(di, 9, TARGET.openingAt9);
-    ensureExactStart(di, 10, TARGET.openingAt10);
+    function enforceHardEdges() {
+      // Exact opening curve
+      ensureExactStart(di, 7, TARGET.openingAt7);
+      ensureExactStart(di, 8, TARGET.openingAt8);
+      ensureExactStart(di, 9, TARGET.openingAt9);
+      ensureExactStart(di, 10, TARGET.openingAt10);
 
-    // 2) Protect the minimum number of closers.
-    ensureClosing(di);
+      // Closing is also a hard edge.
+      ensureClosing(di);
+    }
 
-    // 3) Repair lunch / afternoon / 18:30 bridge by converting surplus evening staff.
+    // First hard pass.
+    enforceHardEdges();
+
+    // Repair lunch / afternoon / 18:30 bridge.
     let guard = 0;
-    while (guard++ < 12) {
+    while (guard++ < 16) {
       const snap = coverageSnapshot(planning, emps, key);
 
       const needMidi = snap.midi < TARGET.midi;
@@ -1326,24 +1293,36 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
 
       if (!needMidi && !needAfternoon && !needBridge) break;
 
-      // The replacement shifts all cover lunch + afternoon.
-      // When the 18:30 bridge is short, force an end >=18:30.
       const changed =
         convertScheduledToDay(di, needBridge) ||
         addFreeDayWorker(di, needBridge);
 
       if (!changed) break;
 
-      // A conversion may reduce closers: restore them immediately if needed.
-      ensureClosing(di);
+      // Every repair may disturb the edges: restore them immediately.
+      enforceHardEdges();
     }
 
-    // 3) Final audit.
+    // FINAL stabilization. Do this after every other optimization.
+    // Run several passes because fixing 10h or lunch must never erase 7h/8h/9h or F.
+    for (let pass=0; pass<4; pass++) {
+      const before = JSON.stringify(coverageSnapshot(planning, emps, key));
+      enforceHardEdges();
+      const after = JSON.stringify(coverageSnapshot(planning, emps, key));
+      if (before === after) break;
+    }
+
     const final = coverageSnapshot(planning, emps, key);
 
     if (TARGET.strong) {
       notes.push(`${key}: niveau FORT — ${TARGET.reasons.join(' + ')} | cibles midi=${TARGET.midi}, après-midi=${TARGET.afternoon}, soir=${TARGET.evening}`);
     }
+
+    // Opening diagnostics
+    if (final.openingAt7 < TARGET.openingAt7) notes.push(`${key}: arrivée 07h ${final.openingAt7}/${TARGET.openingAt7} — impossible à combler avec les disponibilités/autorisations actuelles`);
+    if (final.openingAt8 < TARGET.openingAt8) notes.push(`${key}: arrivée 08h ${final.openingAt8}/${TARGET.openingAt8} — impossible à combler avec les disponibilités/autorisations actuelles`);
+    if (final.openingAt9 < TARGET.openingAt9) notes.push(`${key}: arrivée 09h ${final.openingAt9}/${TARGET.openingAt9} — impossible à combler avec les disponibilités/autorisations actuelles`);
+    if (final.openingAt10 < TARGET.openingAt10) notes.push(`${key}: arrivée 10h ${final.openingAt10}/${TARGET.openingAt10} — impossible à combler avec les disponibilités/autorisations actuelles`);
 
     if (final.midi < TARGET.midi) {
       notes.push(`${key}: midi ${final.midi}/${TARGET.midi} opérationnels hors accueil`);
@@ -1358,7 +1337,7 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
       notes.push(`${key}: soir ${final.evening}/${TARGET.evening} opérationnels`);
     }
     if (final.closing < TARGET.closing) {
-      notes.push(`${key}: fermeture ${final.closing}/${TARGET.closing} jusqu'à F`);
+      notes.push(`${key}: fermeture ${final.closing}/${TARGET.closing} jusqu'à F — impossible à combler avec les disponibilités/autorisations actuelles`);
     }
   });
 
