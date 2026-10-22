@@ -257,6 +257,9 @@ OPTIMISATION APRÈS-MIDI :
 PRIORITÉ COUVERTURE :
 - Un déficit midi/après-midi/J18 doit être réparé AVANT de conserver du sureffectif le soir.
 - MAIS ne transforme pas spontanément les salariés principaux SOIR en salariés de journée : Midi autorisé chez eux = renfort exceptionnel, coupure prioritaire.
+- Dès que la cible midi est atteinte, INTERDICTION d'ajouter un nouveau renfort midi.
+- Exemple : cible samedi = 7. Si le midi est à 6/7, une seule personne supplémentaire peut être ajoutée. À 7/7, tout ajout midi supplémentaire est interdit.
+- Le moteur doit recalculer après CHAQUE modification ; il ne peut pas empiler plusieurs coupures ou journées avant de recompter.
 - Il est interdit d'accepter par exemple 3/7 au midi alors que le soir est à 7/5 si des salariés compatibles peuvent être déplacés.
 - Les minimums midi sont des contraintes dures : 6 Lun/Mar/Jeu/Ven, 7 Mer/Sam/Dim.
 
@@ -1275,25 +1278,44 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
     const TARGET = serviceTargetsForDay(di, weekDate, externalEvents);
     let guard = 0;
 
-    while (guard++ < 24) {
+    while (guard++ < 20) {
       const snap = coverageSnapshot(planning, emps, key);
-      const needMidi = snap.midi < TARGET.midi;
-      const needAfternoon = snap.afternoon < TARGET.afternoon;
-      const needJ18 = snap.bridge1830 < TARGET.bridge1830;
 
-      if (!needMidi && !needAfternoon && !needJ18) return true;
+      const midiDeficit = Math.max(0, TARGET.midi - snap.midi);
+      const afternoonDeficit = Math.max(0, TARGET.afternoon - snap.afternoon);
+      const j18Deficit = Math.max(0, TARGET.bridge1830 - snap.bridge1830);
+
+      // Exact stop: once targets are reached, no more lunch/day reinforcement.
+      if (midiDeficit === 0 && afternoonDeficit === 0 && j18Deficit === 0) return true;
 
       let changed = false;
 
-      // LEVEL 1 — Normal day/lunch people first.
-      if (addFreeDayWorker(di, needJ18 || needBridge, false)) {
-        changed = true;
+      // LEVEL 1 — Normal morning/day/lunch staff only.
+      // Add ONE person, then fully recalculate deficits.
+      if (!changed) {
+        const candidates = candidateIndexes(di, false);
+
+        for (const i of candidates) {
+          const emp = emps[i];
+          if (!isPrimaryLunchOrDay(emp)) continue;
+
+          const replacement = chooseDayCoverageShift('', allowedShifts, j18Deficit > 0 || needBridge, emp);
+          if (!replacement) continue;
+
+          const h = parseShiftHoursLabel(replacement) || 0;
+          if (currentPlannedHours(planning[i]) + h > 48) continue;
+
+          planning[i][key] = replacement;
+          changed = true;
+          break;
+        }
       }
 
-      // LEVEL 2 — If lunch is still short, use an authorized split on an evening-primary employee.
-      // This preserves their real identity as evening staff.
-      if (!changed && needMidi) {
+      // LEVEL 2 — Evening-primary employee: split is preferred over full-day conversion,
+      // but ONLY when lunch is actually short.
+      if (!changed && midiDeficit > 0) {
         const candidates = candidateIndexes(di, false);
+
         for (const i of candidates) {
           const emp = emps[i];
           if (!canUseLunchAsReinforcement(emp)) continue;
@@ -1308,10 +1330,10 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
         }
       }
 
-      // LEVEL 3 — Existing evening shift may be converted to split if there is
-      // surplus in the evening/closing and lunch needs help.
-      if (!changed && needMidi) {
+      // LEVEL 3 — Convert an existing evening shift to split if lunch is still short.
+      if (!changed && midiDeficit > 0) {
         const candidates = candidateIndexes(di, true);
+
         for (const i of candidates) {
           const emp = emps[i];
           if (!canUseLunchAsReinforcement(emp)) continue;
@@ -1323,34 +1345,46 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
           const b = shiftBoundsMinutes(current);
           if (!b || b.start < 15*60) continue;
 
-          const currentSnap = coverageSnapshot(planning, emps, key);
-
-          // Split keeps evening+closing coverage. Safe even when current is a closer.
+          // One evening worker becomes one lunch reinforcement.
           planning[i][key] = 'Coupure 11h-15h/18h-01h';
           changed = true;
           break;
         }
       }
 
-      // LEVEL 4 — Exceptional continuous day for evening-primary staff.
-      // Only after normal day people and split solutions have failed.
-      if (!changed && (needMidi || needAfternoon || needJ18)) {
-        if (addFreeDayWorker(di, needJ18 || needBridge, true)) {
+      // LEVEL 4 — Full-day conversion of an evening-primary employee is LAST RESORT.
+      // It is allowed only if there is still a deficit after all normal-day and split options.
+      if (!changed && (midiDeficit > 0 || afternoonDeficit > 0 || j18Deficit > 0)) {
+        const candidates = candidateIndexes(di, false);
+
+        for (const i of candidates) {
+          const emp = emps[i];
+          if (!canUseLunchAsReinforcement(emp)) continue;
+
+          const replacement = chooseDayCoverageShift('', allowedShifts, j18Deficit > 0 || needBridge, emp);
+          if (!replacement) continue;
+
+          const h = parseShiftHoursLabel(replacement) || 0;
+          if (currentPlannedHours(planning[i]) + h > 48) continue;
+
+          planning[i][key] = replacement;
           changed = true;
+          break;
         }
       }
 
-      // LEVEL 5 — Convert an already-scheduled evening worker to day only if
-      // they are explicitly lunch-capable AND this does not break closing.
-      if (!changed) {
+      // LEVEL 5 — Convert an already scheduled evening worker to a full day only if
+      // absolutely necessary and without breaking closing.
+      if (!changed && (midiDeficit > 0 || afternoonDeficit > 0 || j18Deficit > 0)) {
         const candidates = candidateIndexes(di, true);
+
         for (const i of candidates) {
           const emp = emps[i];
           if (!canUseLunchAsReinforcement(emp)) continue;
           if (!canConvertEveningToDay(i, di)) continue;
 
           const current = planning[i][key];
-          const replacement = chooseDayCoverageShift(current, allowedShifts, needJ18 || needBridge, emp);
+          const replacement = chooseDayCoverageShift(current, allowedShifts, j18Deficit > 0 || needBridge, emp);
           if (!replacement) continue;
 
           planning[i][key] = replacement;
@@ -1361,6 +1395,7 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
 
       if (!changed) return false;
 
+      // Recalculate immediately after every single change.
       ensureClosing(di);
     }
 
@@ -1520,13 +1555,11 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
     const TARGET = serviceTargetsForDay(di, weekDate, externalEvents);
 
     let guard = 0;
-    while (guard++ < 8) {
+    while (guard++ < 6) {
       const snap = coverageSnapshot(planning, emps, key);
 
-      // Only intervene on real overstaffing.
-      // Keep a one-person safety margin only if needed for event/strong level.
-      const allowedAfternoon = TARGET.afternoon;
-      if (snap.afternoon <= allowedAfternoon) break;
+      // Only optimize true afternoon surplus.
+      if (snap.afternoon <= TARGET.afternoon) break;
 
       let bestIndex = -1;
       let bestScore = Infinity;
@@ -1540,49 +1573,35 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
         if (maxSplits <= 0) return;
         if (weeklySplitCount(planning[i]) >= maxSplits) return;
 
-        const current = planning[i] && planning[i][key];
+        const current = planning[i]?.[key];
         if (!current || isCoupureValue(current)) return;
 
         const b = shiftBoundsMinutes(current);
         if (!b) return;
 
-        // Candidate must currently cover lunch + afternoon
-        // and be useful again for evening/closing.
         if (!coversWholeWindow(current, 12*60, 15*60)) return;
         if (!coversWholeWindow(current, 15*60, 18*60)) return;
 
         const cfg = runtimeConfig(emp);
         if (!cfg.services.evening || !cfg.services.closing) return;
 
-        // Strict morning assignments are never touched.
+        // Never touch strict morning assignments.
         const strict = strictMorningShiftFor(emp, di, allowedShifts);
         if (strict && normalizeShiftLabel(strict) === normalizeShiftLabel(current)) return;
 
-        // Simulate replacing by a split:
-        const before = snap;
+        // Critical: split must not create lunch oversupply.
+        // Since current already counts at lunch and split also counts at lunch,
+        // lunch count remains unchanged. That's okay only if lunch isn't already above target by >1.
+        if (snap.midi > TARGET.midi + 1) return;
 
-        // Split contributes midi + evening + closing, but not afternoon/J18.
-        // Ensure removing this continuous day shift does not create a lunch deficit.
-        if (before.midi <= TARGET.midi) return;
+        // Afternoon must remain exactly at/above target.
+        if (snap.afternoon - 1 < TARGET.afternoon) return;
 
-        // Afternoon must remain at or above target after removing one.
-        if (before.afternoon - 1 < TARGET.afternoon) return;
+        // Don't break J18.
+        if (isDayBridgeShift(current) && snap.bridge1830 - 1 < TARGET.bridge1830) return;
 
-        // If current shift is part of J18, do not break J18 minimum.
-        if (isDayBridgeShift(current) && before.bridge1830 - 1 < TARGET.bridge1830) return;
-
-        // Evening/closing are helped by the split, so no risk there.
-
-        // Prefer converting the longest afternoon-presence shift first,
-        // and people who still have contract hours available.
         const h = parseShiftHoursLabel(current) || 0;
-        const targetHours = contractTargetHours(emp);
-        const planned = currentPlannedHours(planning[i]);
-        const gap = targetHours === null ? 0 : (targetHours - planned);
-
-        let score = 0;
-        score -= h * 1.2;
-        score -= Math.max(-4, Math.min(8, gap)) * 0.4;
+        let score = -h;
 
         if (score < bestScore) {
           bestScore = score;
@@ -1593,8 +1612,6 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
       if (bestIndex < 0) break;
 
       planning[bestIndex][key] = 'Coupure 11h-15h/18h-01h';
-
-      // Re-stabilize hard edges immediately.
       ensureClosing(di);
     }
   }
