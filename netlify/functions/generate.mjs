@@ -51,13 +51,104 @@ const SHIFT_PREFERENCES = {
 };
 
 
+
+function legacyConfigFor(emp) {
+  const comp = COMPETENCES[emp?.name] || { rangs: [], shifts: [], ghost: false };
+  const shifts = Array.isArray(comp.shifts) ? comp.shifts : [];
+  const hasMorning = shifts.some(s => /matin|10h30|11h/i.test(s));
+  const hasEvening = shifts.some(s => /soir/i.test(s));
+
+  return {
+    aiEnabled: !comp.ghost && emp?.name !== 'Guillaume',
+    countsForCoverage: !comp.ghost && emp?.name !== 'Salome',
+    preferredService: hasEvening && !hasMorning ? 'evening' : (hasMorning && !hasEvening ? 'lunch' : 'flexible'),
+    services: {
+      morning: hasMorning && emp?.name !== 'Salome',
+      lunch: hasMorning || emp?.name === 'Salome' || (hasEvening && ['Catherine','Pierre','Ismaël'].includes(emp?.name)),
+      evening: hasEvening,
+      closing: hasEvening,
+      split: false
+    },
+    ranks: Array.isArray(comp.rangs) ? comp.rangs.slice() : [],
+    maxSplits: 0,
+    earliestStart: emp?.name === 'Salome' ? '10:00' : '',
+    latestEnd: emp?.name === 'Salome' ? '17:30' : ''
+  };
+}
+
+function runtimeConfig(emp) {
+  const legacy = legacyConfigFor(emp);
+  const services = emp?.services && typeof emp.services === 'object' ? emp.services : legacy.services;
+  return {
+    aiEnabled: typeof emp?.aiEnabled === 'boolean' ? emp.aiEnabled : legacy.aiEnabled,
+    countsForCoverage: typeof emp?.countsForCoverage === 'boolean' ? emp.countsForCoverage : legacy.countsForCoverage,
+    preferredService: emp?.preferredService || legacy.preferredService || 'flexible',
+    services: {
+      morning: !!services.morning,
+      lunch: !!services.lunch,
+      evening: !!services.evening,
+      closing: !!services.closing,
+      split: !!services.split
+    },
+    ranks: Array.isArray(emp?.ranks) ? emp.ranks.slice() : legacy.ranks,
+    maxSplits: Math.max(0, Math.min(2, Number(emp?.maxSplits ?? legacy.maxSplits) || 0)),
+    earliestStart: emp?.earliestStart || legacy.earliestStart || '',
+    latestEnd: emp?.latestEnd || legacy.latestEnd || ''
+  };
+}
+
+function canAutoPlan(emp) { return runtimeConfig(emp).aiEnabled; }
+function countsInCoverage(emp) { return runtimeConfig(emp).countsForCoverage; }
+function employeeRanks(emp) { return runtimeConfig(emp).ranks; }
+
+function parseClockMinutes(value, asEnd=false) {
+  if (!value) return null;
+  const m = String(value).match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  let mins = parseInt(m[1],10)*60 + parseInt(m[2],10);
+  if (asEnd && mins <= 6*60) mins += 24*60;
+  return mins;
+}
+
+function shiftAllowedByEmployee(emp, label) {
+  const cfg = runtimeConfig(emp);
+
+  if (isCoupureValue(label)) {
+    return cfg.services.split && cfg.maxSplits > 0;
+  }
+
+  const b = shiftBoundsMinutes(label);
+  if (!b) return false;
+
+  if (b.start < 10*60) {
+    if (!cfg.services.morning) return false;
+  } else if (b.start < 15*60) {
+    if (!cfg.services.lunch) return false;
+  } else {
+    if (!cfg.services.evening) return false;
+  }
+
+  if (isClosingShift(label) && !cfg.services.closing) return false;
+
+  const earliest = parseClockMinutes(cfg.earliestStart, false);
+  const latest = parseClockMinutes(cfg.latestEnd, true);
+  if (earliest !== null && b.start < earliest) return false;
+  if (latest !== null && b.end > latest) return false;
+
+  return true;
+}
+
 const REGLES_SERVICE = `
 RÈGLES DE SERVICE L'OCÉAN — Vannes
 
-IMPORTANT — TERMINOLOGIE :
-- "Personnel réel" = tous les salariés SAUF Martin V et Louis.
-- Martin V et Louis sont des salariés FANTÔMES : ils peuvent être planifiés, mais ils ne comptent JAMAIS dans les minimums de couverture.
-- Salome arrive vers 10h30/11h pour tâches hors service (panneaux, réservations, préparation accueil). Avant midi elle ne compte dans aucun minimum opérationnel. À partir de midi : ACCUEIL UNIQUEMENT. Jamais rang, bar, terrasse, salle ou runner.
+IMPORTANT — CONFIGURATION ÉQUIPE :
+- Les autorisations de chaque salarié viennent de sa fiche Équipe transmise par l'application.
+- "IA planifie" = l'IA peut écrire dans ses cases libres.
+- "Compte dans les minimums" = ce salarié compte dans la couverture opérationnelle.
+- Matin / Midi / Soir / Fermeture / Coupure sont des autorisations dures.
+- Début au plus tôt / fin au plus tard sont des limites dures.
+- Les rangs cochés sont les seuls rangs connus.
+- Les règles de la fiche Équipe priment sur tout ancien profil historique.
 
 CAFÉ / MATIN — Mercredi, Samedi, Dimanche uniquement :
 - Jusqu'à 10h00 : minimum 2 personnels réels = 1 au bar + 1 en salle/plateau.
@@ -106,18 +197,15 @@ COUVERTURE OPÉRATIONNELLE HIVER À RESPECTER :
 - Si l'équipe du soir est surdimensionnée alors que le midi est trop faible, basculer un salarié soir compatible sur une journée continue plutôt que laisser 4 au midi et 8 le soir.
 
 RÈGLES INDIVIDUELLES DURES :
-- Virginie, Raphael, Seb et Anthony : équipe matin stricte. Aucun service du soir, aucune fermeture, aucune coupure avec tranche du soir.
-- Salome : arrivée possible 10h30/11h pour tâches hors service ; avant midi, zéro couverture opérationnelle. À partir de midi : accueil uniquement. Jamais rang, bar, terrasse, salle ou runner.
-- Guillaume : arrêt maladie longue durée, ne pas planifier.
-- Les jours déjà marqués RH, Vacances, Arrêt maladie ou CFA dans le planning de référence sont VERROUILLÉS et ne doivent jamais être remplacés.
-
-PRÉFÉRENCES FORTES :
-- Ismaël : privilégier les journées ; soir possible ; éviter les coupures sauf si la couverture est impossible autrement.
-- Pierre et Catherine : équipe soir par défaut ; matin seulement de façon exceptionnelle.
-- Martin V et Louis : conserver autant que possible les horaires déjà présents dans le planning de référence, mais ne jamais dépendre d'eux pour couvrir un minimum.
+- Respecter les autorisations de la fiche Équipe.
+- Les jours RH, Vacances, Arrêt maladie ou CFA déjà saisis sont VERROUILLÉS.
+- Si IA planifie = NON, ne jamais écrire dans une case libre.
+- Si Compte dans les minimums = NON, sa présence ne valide jamais un seuil de couverture.
+- Une fermeture exige Soir + Fermeture autorisés.
+- Une coupure exige Coupure autorisée et respecte le maximum hebdomadaire indiqué.
 
 HEURES ET ÉQUILIBRE :
-- Viser le contrat hebdomadaire de chaque salarié.
+- Le champ contrat saisi dans Équipe est la référence contractuelle de chaque salarié. Viser ce nombre d'heures hebdomadaires.
 - Zone cible : environ ±2h autour du contrat.
 - Ne dépasser cette zone que si une couverture obligatoire serait sinon impossible.
 - Maximum absolu : 48h/semaine.
@@ -212,41 +300,9 @@ function allowedContinuousMap(allowedShifts) {
   return map;
 }
 
-function shiftProfilePool(name, allowedShifts) {
-  const map = allowedContinuousMap(allowedShifts);
-  const take = labels => labels
-    .map(x => map.get(normalizeShiftLabel(x)))
-    .filter(Boolean);
-
-  const morning = take([
-    '07h > 16h','07h > 17h','08h > 17h','08h > 18h30',
-    '09h > 17h','09h > 17h30','09h > 18h','09h > 18h30',
-    '10h > 17h30','10h > 18h30','10h > 19h','11h > 18h30'
-  ]);
-
-  const day = take([
-    '08h > 18h30','09h > 17h30','09h > 18h','09h > 18h30',
-    '10h > 17h30','10h > 18h30','10h > 19h',
-    '11h > 18h30','11h > 20h','11h > 21h'
-  ]);
-
-  const evening = take([
-    '15h > 23h','15h > F','15h > F',
-    '16h > 23h','16h > F','16h > F',
-    '17h > F','17h > F','18h > F','18h > F'
-  ]);
-
-  if (name === 'Salome') return take(['10h > 17h30']);
-  if (['Virginie','Raphael','Seb','Anthony'].includes(name)) return morning;
-  if (name === 'Ismaël') return day;
-  if (['Pierre','Catherine'].includes(name)) return evening.concat(day);
-  if (['Maxence','Arthur-Paul','Yoann','Martin F','Antoine','Emile','Erwann'].includes(name)) return evening;
-
-  // Martin V et Louis sont gérés manuellement, jamais par l'IA.
-  if (['Martin V','Louis'].includes(name)) return [];
-
-  // DEFAULT: tout nouvel employé non configuré = SOIR STANDARD.
-  return evening;
+function shiftProfilePool(emp, allowedShifts) {
+  return [...allowedContinuousMap(allowedShifts).values()]
+    .filter(label => shiftAllowedByEmployee(emp, label));
 }
 
 function validatePlanningProposal(planningRows, emps, data) {
@@ -325,39 +381,35 @@ function shiftStartMinutes(label) {
   return parseInt(m[1], 10) * 60 + (m[2] ? parseInt(m[2], 10) : 0);
 }
 
-function chooseHabitualShift(name, allowedShifts, dayStartCounts, idealDailyHours, usedLabels) {
-  const allowed = allowedContinuousMap(allowedShifts);
-  const prefs = (SHIFT_PREFERENCES[name]?.preferred || [])
-    .map(x => allowed.get(normalizeShiftLabel(x)))
-    .filter(Boolean);
-
-  const fallback = shiftProfilePool(name, allowedShifts);
-  const pool = prefs.length ? prefs : fallback;
+function chooseHabitualShift(emp, allowedShifts, dayStartCounts, idealDailyHours, usedLabels) {
+  const pool = shiftProfilePool(emp, allowedShifts);
   if (!pool.length) return '';
 
+  const pref = runtimeConfig(emp).preferredService || 'flexible';
   let best = '';
   let bestScore = Infinity;
 
-  pool.forEach((label, rank) => {
+  pool.forEach(label => {
     const start = shiftStartMinutes(label);
     const sameStartCount = dayStartCounts.get(start) || 0;
     const shiftHours = parseShiftHoursLabel(label) || 0;
     const sameLabelCount = usedLabels.get(normalizeShiftLabel(label)) || 0;
+    const b = shiftBoundsMinutes(label);
 
-    let score = rank * 1.2;
-    score += sameStartCount * 3.0;
-    score += sameLabelCount * 2.0;
+    let score = sameStartCount * 3 + sameLabelCount * 2;
 
-    // IMPORTANT: aim at an average daily duration, not at all remaining weekly hours.
     if (idealDailyHours !== null && Number.isFinite(idealDailyHours)) {
-      score += Math.abs(idealDailyHours - shiftHours) * 5.0;
+      score += Math.abs(idealDailyHours - shiftHours) * 5;
       if (shiftHours > idealDailyHours + 2) score += 8;
     }
 
-    if (score < bestScore) {
-      bestScore = score;
-      best = label;
+    if (b) {
+      if (pref === 'morning') score += Math.max(0,(b.start-8*60)/60)*3;
+      if (pref === 'lunch') score += Math.abs(b.start-10*60)/60*1.5;
+      if (pref === 'evening') score += Math.abs(b.start-16*60)/60*1.5;
     }
+
+    if (score < bestScore) { bestScore = score; best = label; }
   });
 
   return best;
@@ -365,7 +417,8 @@ function chooseHabitualShift(name, allowedShifts, dayStartCounts, idealDailyHour
 
 function parseShiftHoursLabel(label) {
   const s = String(label || '').trim().toLowerCase();
-  if (!s || isCoupureValue(s)) return null;
+  if (!s) return null;
+  if (isCoupureValue(s)) return /10h\s*-\s*15h/.test(s) ? 12 : 11;
   const m = s.match(/^(\d{1,2})h(?:(\d{2}))?\s*>\s*(f|01h|23h|(\d{1,2})h(?:(\d{2}))?)$/i);
   if (!m) return null;
 
@@ -398,20 +451,8 @@ function currentPlannedHours(row) {
 
 function contractTargetHours(emp) {
   if (!emp) return null;
-
-  if (emp.name === 'Arthur-Paul') return 35;
-
-  // Martin V et Louis sont volontairement exclus de l'automatisation.
-  if (['Martin V','Louis'].includes(emp.name)) return null;
-
-  const knownSpecial = ['Virginie','Raphael','Seb','Anthony','Salome','Ismaël'];
-  if (knownSpecial.includes(emp.name)) {
-    const n = Number(emp.contract);
-    return Number.isFinite(n) && n > 0 ? n : null;
-  }
-
-  // DEFAULT: tout autre employé = profil soir standard 42h.
-  return 42;
+  const entered = Number(emp.contract);
+  return Number.isFinite(entered) && entered > 0 ? entered : null;
 }
 
 
@@ -421,7 +462,7 @@ function desiredWorkDays(emp, dataRow) {
   // Do not invent work on manager-locked absence/RH days.
   // If fewer than 5 days are actually available because of Vacances/CFA/Arrêt/RH,
   // use only the available days.
-  if (!emp || ['Martin V','Louis'].includes(emp.name)) return 0;
+  if (!emp || !canAutoPlan(emp)) return 0;
 
   let unavailable = 0;
   for (let di=0; di<7; di++) {
@@ -434,26 +475,27 @@ function desiredWorkDays(emp, dataRow) {
   return Math.min(5, Math.max(0, 7 - unavailable));
 }
 
-function isCoreEveningEmployee(name) {
-  if (['Martin V','Louis','Virginie','Raphael','Seb','Anthony','Salome','Ismaël'].includes(name)) return false;
-  return true;
+function isCoreEveningEmployee(emp) {
+  const cfg = runtimeConfig(emp);
+  return cfg.aiEnabled && cfg.services.evening &&
+    !cfg.services.morning && !cfg.services.lunch && !cfg.services.split;
 }
 
-function eveningShiftCandidates(allowedShifts) {
+function eveningShiftCandidates(allowedShifts, emp) {
   const allowed = allowedContinuousMap(allowedShifts);
   const wanted = ['15h > F','16h > F','17h > F','18h > F','15h > F','16h > F','17h > F','18h > F'];
   const seen = new Set(), out = [];
   wanted.forEach(x => {
     const v=allowed.get(normalizeShiftLabel(x));
-    if(v&&!seen.has(normalizeShiftLabel(v))){
+    if(v && (!emp || shiftAllowedByEmployee(emp,v)) && !seen.has(normalizeShiftLabel(v))){
       seen.add(normalizeShiftLabel(v));out.push(v);
     }
   });
   return out;
 }
 
-function chooseBalancedEveningShift(name, empIndex, dayIndex, allowedShifts, dayStartCounts, remainingHours, remainingFreeDays, usedLabels) {
-  const pool = eveningShiftCandidates(allowedShifts);
+function chooseBalancedEveningShift(emp, empIndex, dayIndex, allowedShifts, dayStartCounts, remainingHours, remainingFreeDays, usedLabels) {
+  const pool = eveningShiftCandidates(allowedShifts, emp);
   if (!pool.length) return '';
 
   // Rotating preferred start by employee/day prevents Pierre always 15h and Yoann always 18h.
@@ -509,8 +551,8 @@ function shiftBoundsMinutes(label) {
   return { start, end };
 }
 
-function isOperationalForCoverage(name) {
-  return !['Salome','Martin V','Louis'].includes(name);
+function isOperationalForCoverage(emp) {
+  return !!emp && countsInCoverage(emp);
 }
 
 function coversWholeWindow(label, startMinute, endMinute) {
@@ -539,11 +581,18 @@ function coverageSnapshot(planning, emps, dayKey) {
   let closing = 0;
 
   (emps || []).forEach((emp, i) => {
-    if (!isOperationalForCoverage(emp.name)) return;
+    if (!isOperationalForCoverage(emp)) return;
     const row = planning[i];
     if (!row) return;
     const label = row[dayKey];
-    if (!isWorkingValue(label) || isCoupureValue(label)) return;
+    if (!isWorkingValue(label)) return;
+
+    if (isCoupureValue(label)) {
+      midi++;
+      evening++;
+      closing++;
+      return;
+    }
 
     if (coversWholeWindow(label, 12*60, 15*60)) midi++;
     if (coversWholeWindow(label, 15*60, 18*60)) afternoon++;
@@ -579,8 +628,9 @@ function allowedDayCoverageShifts(allowedShifts) {
   return out;
 }
 
-function chooseDayCoverageShift(currentLabel, allowedShifts, needBridge) {
+function chooseDayCoverageShift(currentLabel, allowedShifts, needBridge, emp) {
   const pool = allowedDayCoverageShifts(allowedShifts)
+    .filter(label => (!emp || shiftAllowedByEmployee(emp,label)))
     .filter(label => {
       const b = shiftBoundsMinutes(label);
       if (!b) return false;
@@ -620,13 +670,13 @@ function chooseDayCoverageShift(currentLabel, allowedShifts, needBridge) {
   return best;
 }
 
-function closingShiftCandidates(allowedShifts) {
-  return eveningShiftCandidates(allowedShifts)
+function closingShiftCandidates(allowedShifts, emp) {
+  return eveningShiftCandidates(allowedShifts, emp)
     .filter(label => isClosingShift(label));
 }
 
-function chooseClosingShift(currentLabel, allowedShifts) {
-  const pool = closingShiftCandidates(allowedShifts);
+function chooseClosingShift(currentLabel, allowedShifts, emp) {
+  const pool = closingShiftCandidates(allowedShifts, emp);
   if (!pool.length) return '';
 
   const currentHours = parseShiftHoursLabel(currentLabel);
@@ -652,8 +702,7 @@ function chooseClosingShift(currentLabel, allowedShifts) {
 }
 
 function coverageCandidateScore(emp, currentLabel, targetHours, row) {
-  const comp = (typeof COMPETENCES !== 'undefined' && COMPETENCES[emp.name]) || {};
-  const versatility = Array.isArray(comp.rangs) ? comp.rangs.length : 0;
+  const versatility = employeeRanks(emp).length;
   const currentHours = currentPlannedHours(row);
   const gap = targetHours === null ? 0 : (targetHours - currentHours);
 
@@ -731,6 +780,7 @@ function isStrongLocalEvent(ev) {
   // Local major-event vocabulary.
   return (
     type === 'major_local_event' ||
+    type === 'manual_event' ||
     type === 'rcv_home' ||
     /marathon|vannetaise|rc vannes|festival|concert|salon|foire|braderie|regate|regate|carnaval|championnat|tournoi|noel|grande roue/.test(name)
   );
@@ -831,9 +881,8 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
     return (emps || [])
       .map((emp, i) => ({ emp, i }))
       .filter(({emp, i}) => {
-        if (!isOperationalForCoverage(emp.name)) return false;
-        if (['Virginie','Raphael','Seb','Anthony','Salome','Ismaël'].includes(emp.name)) return false;
-        if (['Martin V','Louis'].includes(emp.name)) return false;
+        if (!isOperationalForCoverage(emp)) return false;
+        if (!canAutoPlan(emp)) return false;
         if (isManagerFixed(i, di)) return false;
 
         const v = planning[i] && planning[i][dayKeys[di]];
@@ -877,7 +926,7 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
       if (bounds.start < 15*60) continue;
       if (!canLoseClosing(i, di)) continue;
 
-      const replacement = chooseDayCoverageShift(current, allowedShifts, needBridge);
+      const replacement = chooseDayCoverageShift(current, allowedShifts, needBridge, emps[i]);
       if (!replacement) continue;
 
       planning[i][key] = replacement;
@@ -899,7 +948,7 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
 
       if (target !== null && currentHours >= target + 1.5) continue;
 
-      const replacement = chooseDayCoverageShift('', allowedShifts, needBridge);
+      const replacement = chooseDayCoverageShift('', allowedShifts, needBridge, emp);
       if (!replacement) continue;
 
       const h = parseShiftHoursLabel(replacement) || 0;
@@ -926,7 +975,7 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
         const b = shiftBoundsMinutes(current);
         if (!b || b.start < 15*60 || isClosingShift(current)) continue;
 
-        const replacement = chooseClosingShift(current, allowedShifts);
+        const replacement = chooseClosingShift(current, allowedShifts, emps[i]);
         if (!replacement) continue;
 
         planning[i][key] = replacement;
@@ -943,7 +992,7 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
         const row = planning[i];
         const target = contractTargetHours(emp);
         const currentHours = currentPlannedHours(row);
-        const replacement = chooseClosingShift('', allowedShifts);
+        const replacement = chooseClosingShift('', allowedShifts, emp);
         if (!replacement) continue;
 
         const h = parseShiftHoursLabel(replacement) || 0;
@@ -1033,10 +1082,9 @@ function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts, w
       // Manager input is always preserved.
       if (fixed !== null) {
         row[k] = fixed;
-      } else if (['Martin V','Louis'].includes(emp.name)) {
-        // These two rows are 100% manual: AI never writes a free cell.
+      } else if (!canAutoPlan(emp)) {
         row[k] = '';
-      } else if (isCoreEveningEmployee(emp.name)) {
+      } else if (isCoreEveningEmployee(emp)) {
         // For the core evening team, discard Groq's free-cell choice.
         // The deterministic balancer will rebuild it to alternate arrivals + hit target hours.
         row[k] = '';
@@ -1060,7 +1108,7 @@ function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts, w
 
   // Core evening team first: balance 42h targets (Arthur-Paul 35h) and rotate starts.
   (emps || []).forEach((emp, i) => {
-    if(!isCoreEveningEmployee(emp.name))return;
+    if(!isCoreEveningEmployee(emp))return;
 
     const row=result[i];
     const target=contractTargetHours(emp);
@@ -1090,7 +1138,7 @@ function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts, w
 
       // Only the number of days still needed matters for hour distribution.
       const candidate=chooseBalancedEveningShift(
-        emp.name,i,dayKeys.indexOf(k),allowedShifts,dayStartCounts[dayKeys.indexOf(k)],
+        emp,i,dayKeys.indexOf(k),allowedShifts,dayStartCounts[dayKeys.indexOf(k)],
         remaining,daysNeeded,usedLabels
       );
       if(!candidate)return;
@@ -1132,7 +1180,7 @@ function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts, w
 
   order.forEach(item=>{
     const emp=item.emp,i=item.i,row=result[i];
-    const profilePool=new Set(shiftProfilePool(emp.name,allowedShifts).map(normalizeShiftLabel));
+    const profilePool=new Set(shiftProfilePool(emp,allowedShifts).map(normalizeShiftLabel));
     const usedLabels=new Map();
     dayKeys.forEach(k=>{
       if(isWorkingValue(row[k])){
@@ -1232,7 +1280,7 @@ function sanitizePlanningProposal(planningRows, emps, data, allowedShifts) {
     const row = { name: emp.name };
     const aiFilled = [];
     const profilePool = new Set(
-      shiftProfilePool(emp.name, allowedShifts).map(normalizeShiftLabel)
+      shiftProfilePool(emp, allowedShifts).map(normalizeShiftLabel)
     );
 
     dayKeys.forEach((k, di) => {
@@ -1245,8 +1293,7 @@ function sanitizePlanningProposal(planningRows, emps, data, allowedShifts) {
         return;
       }
 
-      // Martin V et Louis restent entièrement manuels.
-      if (['Martin V','Louis'].includes(emp.name)) {
+      if (!canAutoPlan(emp)) {
         row[k] = '';
         return;
       }
@@ -1261,11 +1308,19 @@ function sanitizePlanningProposal(planningRows, emps, data, allowedShifts) {
         return;
       }
 
-      // L'IA ne pose JAMAIS une coupure.
       if (isCoupureValue(proposed)) {
-        row[k] = '';
-        manualCoupureDays.add(dayKeys[di]);
-        warnings.push(`${emp.name} ${dayKeys[di]} : coupure refusée en automatique`);
+        const cfg = runtimeConfig(emp);
+        const already = dayKeys.filter(x => isCoupureValue(row[x])).length;
+        if (!cfg.services.split || cfg.maxSplits <= 0 || already >= cfg.maxSplits) {
+          row[k] = '';
+          manualCoupureDays.add(dayKeys[di]);
+          warnings.push(`${emp.name} ${dayKeys[di]} : coupure refusée par la fiche Équipe ou plafond atteint`);
+          return;
+        }
+        row[k] = /10h\s*-\s*15h/i.test(proposed)
+          ? 'Coupure 10h-15h/18h-01h'
+          : 'Coupure 11h-15h/18h-01h';
+        aiFilled.push({ key:k, di });
         return;
       }
 
@@ -1284,10 +1339,9 @@ function sanitizePlanningProposal(planningRows, emps, data, allowedShifts) {
         return;
       }
 
-      // Le shift doit appartenir à la famille habituelle du salarié.
-      if (!profilePool.has(norm)) {
+      if (!profilePool.has(norm) || !shiftAllowedByEmployee(emp, canonical)) {
         row[k] = '';
-        warnings.push(`${emp.name} ${dayKeys[di]} : shift ${canonical} incompatible avec son profil habituel`);
+        warnings.push(`${emp.name} ${dayKeys[di]} : shift ${canonical} interdit par la fiche Équipe`);
         return;
       }
 
@@ -1440,21 +1494,21 @@ export const handler = async function(event) {
     }
 
     const teamLines = emps.map((emp, i) => {
-      const comp = COMPETENCES[emp.name] || { rangs: [], shifts: [], ghost: false };
-      const pref = SHIFT_PREFERENCES[emp.name];
-      const currentAllowed = allowedContinuousMap(allowedShifts);
-      const prefs = pref && pref.preferred && pref.preferred.length
-        ? pref.preferred
-            .map(x => currentAllowed.get(normalizeShiftLabel(x)))
-            .filter(Boolean)
-            .join(',')
-        : '-';
+      const cfg = runtimeConfig(emp);
       const week = days.map((_, di) => compactDay(body.data?.[i]?.[di])).join('|');
-      // IMPORTANT : contrat repris uniquement de la base transmise par le HTML.
       const contract = (emp.contract === undefined || emp.contract === null || emp.contract === '')
         ? '?'
         : emp.contract;
-      return `${emp.name};h=${contract};p=${profileCode(emp.name, comp)};r=${roleCodes(comp)};pref=${prefs};w=${week}`;
+      const services = [
+        cfg.services.morning ? 'matin' : '',
+        cfg.services.lunch ? 'midi' : '',
+        cfg.services.evening ? 'soir' : '',
+        cfg.services.closing ? 'fermeture' : '',
+        cfg.services.split ? `coupure(max${cfg.maxSplits})` : ''
+      ].filter(Boolean).join(',');
+      const ranks = cfg.ranks.length ? cfg.ranks.join(',') : 'NON_RENSEIGNE';
+      const span = `${cfg.earliestStart||'?'}-${cfg.latestEnd||'?'}`;
+      return `${emp.name};h=${contract};IA=${cfg.aiEnabled?'OUI':'NON'};compte=${cfg.countsForCoverage?'OUI':'NON'};services=${services||'AUCUN'};pref=${cfg.preferredService};amplitude=${span};rangs=${ranks};w=${week}`;
     }).join('\n');
 
     const continuousShifts = [...allowedContinuousMap(allowedShifts).values()];
@@ -1482,8 +1536,8 @@ export const handler = async function(event) {
     const prompt = `PLAN L'OCEAN ${dateLabels[0]}-${dateLabels[6]}.
 Objectif: PRE-REMPLIR le maximum de "." avec les shifts habituels CONTINUS. Tout ce qui est déjà saisi sera imposé par le code et n'est pas une décision IA. Ne laisse vide que si aucune solution habituelle sûre n'existe.
 
-LEGENDE profils: M=matin strict; S=soir standard 42h; J=journée prioritaire/soir possible; ACC=Salome accueil; MAN=manuel uniquement.
-Rôles: B=bar,T=terrasse,I=intérieur,A=accueil,R=runner.
+Chaque ligne EQUIPE contient désormais les autorisations réelles : IA, compte, services, préférence, amplitude et rangs.
+Ne déduis aucune capacité à partir du prénom.
 Semaine w=Lun|Mar|Mer|Jeu|Ven|Sam|Dim. "."=case à compléter.
 RH/VAC/AM/CFA = VERROUILLES. ESC=Escale. C11/C10=coupures existantes.
 
@@ -1531,7 +1585,12 @@ IMPORTANT FORMAT HORAIRE SOIR :
 - Exemples valides : "15h > F", "16h > F", "17h > F", "18h > F".
 - N'écris jamais "15h > F", "16h > F", etc.
 
-COUPURES INTERDITES : n'écris jamais C10, C11, "Coupure", ni deux tranches. Si une coupure semble nécessaire, laisse la case "" et indique dans notes : "Coupure manuelle à envisager : [jour] — [raison]".
+COUPURES — DERNIER RECOURS :
+- Une coupure n'est autorisée que si la fiche contient coupure(maxN).
+- Maximum N par semaine, jamais plus de 2.
+- Tenter d'abord tous les shifts continus compatibles.
+- Une coupure doit corriger un déficit réel sans en créer un autre.
+- Formats admis : "Coupure 11h-15h/18h-01h" ou "Coupure 10h-15h/18h-01h".
 13) Répartis la charge entre les salariés disponibles. Ne surutilise pas Emile ou un autre pour combler tous les trous.
 14) N'invente jamais un contrat. Si le contrat vaut "?", n'utilise pas de cible d'heures inventée.
 15) Si aucune solution continue sûre n'existe, laisse la case vide. Un préplanning incomplet est préférable à une mauvaise affectation.
@@ -1548,7 +1607,7 @@ SORTIE JSON UNIQUEMENT:
 {"planning":[{"name":"Prénom","lundi":"...","mardi":"...","mercredi":"...","jeudi":"...","vendredi":"...","samedi":"...","dimanche":"..."}],"notes":"court"}
 
 Pour "." utilise uniquement un shift CONTINU exactement présent dans SHIFTS AUTORISES, sinon "".
-Ne génère JAMAIS une coupure. Une éventuelle coupure doit uniquement être signalée dans "notes" pour pose manuelle.
+Ne génère une coupure que si la fiche Équipe l'autorise et dans la limite indiquée.
 Dans la sortie écris les statuts verrouillés en toutes lettres: RH, Vacances, Arrêt maladie, CFA.`;
 
     async function callGroq(promptText) {
