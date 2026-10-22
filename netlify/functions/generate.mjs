@@ -290,6 +290,16 @@ OPTIMISATION APRÈS-MIDI :
 - Ne jamais convertir en coupure si cela fait tomber le midi, le J18 ou une autre contrainte dure sous son minimum.
 - Maximum de coupures par personne = valeur saisie dans Équipe, jamais plus de 2.
 
+REPOS QUOTIDIEN 11H :
+- Le repos J->J+1 est une contrainte dure à viser.
+- Si reprise à 10h : fin veille 23h maximum.
+- Si reprise à 11h : fin veille 00h maximum.
+- Si reprise à 12h ou plus : F=01h possible.
+- Ne moduler vers 00h que les shifts démarrant à 15h ou les coupures.
+- Ne jamais créer 17h>00h ou 18h>00h.
+- Une coupure reste normalement jusqu'à F ; elle n'est raccourcie à 00h/23h que si la reprise du lendemain l'exige.
+- Ne raccourcir la veille que si la couverture soir/fermeture reste au minimum ; sinon réaffecter un autre salarié.
+
 RÉÉQUILIBRAGE V7 :
 - Avant toute création de shift supplémentaire, chercher un shift existant en surplus le soir/fermeture qui peut être transformé.
 - Exemple : F 7/5 + midi 3/7 + 10h 0/2 => tester 17h>F vers 10h>18h30 si autorisé.
@@ -408,6 +418,13 @@ function allowedContinuousMap(allowedShifts) {
     if (!s || isCoupureValue(s)) return;
     map.set(normalizeShiftLabel(s), s);
   });
+
+  // Corrective rest shift only: never create 17h>00h or 18h>00h.
+  // 15h>00h exists solely to preserve 11h rest before an 11h start next day.
+  if (!map.has(normalizeShiftLabel('15h > 00h'))) {
+    map.set(normalizeShiftLabel('15h > 00h'), '15h > 00h');
+  }
+
   return map;
 }
 
@@ -555,10 +572,39 @@ function chooseHabitualShift(emp, allowedShifts, dayStartCounts, idealDailyHours
   return best;
 }
 
+function coupureEndMinutes(label) {
+  const s = String(label || '').trim().toLowerCase();
+  if (!isCoupureValue(s)) return null;
+
+  if (/18h\s*-\s*(f|01h)/i.test(s)) return 25 * 60;
+  if (/18h\s*-\s*00h/i.test(s)) return 24 * 60;
+  if (/18h\s*-\s*23h/i.test(s)) return 23 * 60;
+
+  // Legacy coupure without explicit variable end = F.
+  return 25 * 60;
+}
+
+function coupureStartMinutes(label) {
+  const s = String(label || '').trim().toLowerCase();
+  if (!isCoupureValue(s)) return null;
+  return /10h\s*-\s*15h/i.test(s) ? 10 * 60 : 11 * 60;
+}
+
 function parseShiftHoursLabel(label) {
   const s = String(label || '').trim().toLowerCase();
   if (!s) return null;
-  if (isCoupureValue(s)) return /10h\s*-\s*15h/.test(s) ? 12 : 11;
+
+  if (isCoupureValue(s)) {
+    const firstStart = coupureStartMinutes(s);
+    const secondEnd = coupureEndMinutes(s);
+    if (firstStart === null || secondEnd === null) return null;
+
+    // 10/11 -> 15 plus 18 -> end.
+    const firstPart = (15 * 60 - firstStart) / 60;
+    const secondPart = (secondEnd - 18 * 60) / 60;
+    return firstPart + secondPart;
+  }
+
   const m = s.match(/^(\d{1,2})h(?:(\d{2}))?\s*>\s*(f|01h|23h|(\d{1,2})h(?:(\d{2}))?)$/i);
   if (!m) return null;
 
@@ -683,7 +729,7 @@ function isCoreEveningEmployee(emp) {
 function eveningShiftCandidates(allowedShifts, emp) {
   const allowed = allowedContinuousMap(allowedShifts);
   const wanted = [
-    '15h > 23h','15h > F',
+    '15h > 23h','15h > 00h','15h > F',
     '16h > 23h','16h > F',
     '17h > F',
     '18h > F'
@@ -804,8 +850,11 @@ function coverageSnapshot(planning, emps, dayKey) {
 
     if (isCoupureValue(label)) {
       midi++;
-      evening++;
-      closing++;
+
+      const cEnd = coupureEndMinutes(label);
+      // Coupure always returns at 18h.
+      if (cEnd !== null && cEnd >= 23 * 60) evening++;
+      if (cEnd !== null && cEnd >= 25 * 60) closing++;
       return;
     }
 
@@ -1409,6 +1458,65 @@ function rebalanceDayByBestMove(planning, emps, di, allowedShifts, weekDate, ext
   return coverageSnapshot(planning, emps, key);
 }
 
+
+function startMinutesForRest(label) {
+  if (!label || !isWorkingValue(label)) return null;
+  if (isCoupureValue(label)) return coupureStartMinutes(label);
+  const b = shiftBoundsMinutes(label);
+  return b ? b.start : null;
+}
+
+function endMinutesForRest(label) {
+  if (!label || !isWorkingValue(label)) return null;
+  if (isCoupureValue(label)) return coupureEndMinutes(label);
+  const b = shiftBoundsMinutes(label);
+  return b ? b.end : null;
+}
+
+function restHoursBetween(prevLabel, nextLabel) {
+  const prevEnd = endMinutesForRest(prevLabel);
+  const nextStart = startMinutesForRest(nextLabel);
+  if (prevEnd === null || nextStart === null) return null;
+
+  const nextAbsolute = 24 * 60 + nextStart;
+  return (nextAbsolute - prevEnd) / 60;
+}
+
+function maxPreviousEndForElevenHourRest(nextLabel) {
+  const nextStart = startMinutesForRest(nextLabel);
+  if (nextStart === null) return null;
+  return 24 * 60 + nextStart - 11 * 60;
+}
+
+function correctivePreviousShiftForRest(prevLabel, nextLabel) {
+  const maxEnd = maxPreviousEndForElevenHourRest(nextLabel);
+  if (maxEnd === null) return '';
+
+  const prev = String(prevLabel || '').trim();
+
+  // Only the two families explicitly approved:
+  // 1) 15h evening shift
+  // 2) coupure
+  if (isCoupureValue(prev)) {
+    const first = /10h\s*-\s*15h/i.test(prev) ? '10h-15h' : '11h-15h';
+
+    if (maxEnd >= 25 * 60) return `Coupure ${first}/18h-01h`;
+    if (maxEnd >= 24 * 60) return `Coupure ${first}/18h-00h`;
+    if (maxEnd >= 23 * 60) return `Coupure ${first}/18h-23h`;
+
+    return '';
+  }
+
+  const b = shiftBoundsMinutes(prev);
+  if (!b || b.start !== 15 * 60) return '';
+
+  if (maxEnd >= 25 * 60) return '15h > F';
+  if (maxEnd >= 24 * 60) return '15h > 00h';
+  if (maxEnd >= 23 * 60) return '15h > 23h';
+
+  return '';
+}
+
 function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, externalEvents) {
   const dayKeys = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
   const notes = [];
@@ -1962,6 +2070,67 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
     if (final.closing < TARGET.closing) notes.push(`${key}: fermeture ${final.closing}/${TARGET.closing}`);
   });
 
+
+  // ------------------------------------------------------------
+  // 11H DAILY REST PASS
+  // Work backwards from next day's planned start.
+  // We only modulate 15h shifts and coupures, as agreed.
+  // ------------------------------------------------------------
+  (emps || []).forEach((emp, i) => {
+    for (let di = 0; di < 6; di++) {
+      const todayKey = dayKeys[di];
+      const nextKey = dayKeys[di + 1];
+
+      const today = planning[i]?.[todayKey];
+      const tomorrow = planning[i]?.[nextKey];
+
+      if (!isWorkingValue(today) || !isWorkingValue(tomorrow)) continue;
+
+      const rest = restHoursBetween(today, tomorrow);
+      if (rest === null || rest >= 11) continue;
+
+      // Never alter manager-fixed cells.
+      if (isManagerFixed(i, di)) {
+        notes.push(`${emp.name} ${todayKey}->${nextKey}: repos ${rest.toFixed(1)}h < 11h, mais la veille est verrouillée manager`);
+        continue;
+      }
+
+      const corrected = correctivePreviousShiftForRest(today, tomorrow);
+      if (!corrected || normalizeShiftLabel(corrected) === normalizeShiftLabel(today)) {
+        notes.push(`${emp.name} ${todayKey}->${nextKey}: repos ${rest.toFixed(1)}h < 11h, réaffectation nécessaire`);
+        continue;
+      }
+
+      const beforeSnap = coverageSnapshot(planning, emps, todayKey);
+      const target = serviceTargetsForDay(di, weekDate, externalEvents);
+      const old = planning[i][todayKey];
+
+      planning[i][todayKey] = corrected;
+      const afterSnap = coverageSnapshot(planning, emps, todayKey);
+
+      // Shortening the day before is allowed only if it does not create
+      // a new deficit in evening/closing.
+      const breaksEvening =
+        beforeSnap.evening >= target.evening &&
+        afterSnap.evening < target.evening;
+
+      const breaksClosing =
+        beforeSnap.closing >= target.closing &&
+        afterSnap.closing < target.closing;
+
+      if (breaksEvening || breaksClosing) {
+        planning[i][todayKey] = old;
+        notes.push(`${emp.name} ${todayKey}->${nextKey}: repos <11h, impossible de raccourcir sans casser la couverture — autre salarié à réaffecter`);
+        continue;
+      }
+
+      const newRest = restHoursBetween(planning[i][todayKey], tomorrow);
+      if (newRest !== null && newRest >= 11) {
+        notes.push(`${emp.name} ${todayKey}: ${old} ajusté en ${corrected} pour garantir 11h avant ${tomorrow} le ${nextKey}`);
+      }
+    }
+  });
+
   return { planning, notes };
 }
 
@@ -2242,9 +2411,12 @@ function sanitizePlanningProposal(planningRows, emps, data, allowedShifts) {
           warnings.push(`${emp.name} ${dayKeys[di]} : coupure refusée par la fiche Équipe ou plafond atteint`);
           return;
         }
-        row[k] = /10h\s*-\s*15h/i.test(proposed)
-          ? 'Coupure 10h-15h/18h-01h'
-          : 'Coupure 11h-15h/18h-01h';
+        const first = /10h\s*-\s*15h/i.test(proposed) ? '10h-15h' : '11h-15h';
+        const end = /18h\s*-\s*23h/i.test(proposed)
+          ? '23h'
+          : (/18h\s*-\s*00h/i.test(proposed) ? '00h' : '01h');
+
+        row[k] = `Coupure ${first}/18h-${end}`;
         aiFilled.push({ key:k, di });
         return;
       }
