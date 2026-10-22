@@ -110,11 +110,43 @@ function parseClockMinutes(value, asEnd=false) {
   return mins;
 }
 
+
+
+function isPrimaryEvening(emp) {
+  const cfg = runtimeConfig(emp);
+  return cfg.preferredService === 'evening' && cfg.services.evening;
+}
+
+function isPrimaryLunchOrDay(emp) {
+  const cfg = runtimeConfig(emp);
+  return ['lunch','morning','flexible'].includes(cfg.preferredService) && cfg.services.lunch;
+}
+
+function canUseLunchAsReinforcement(emp) {
+  const cfg = runtimeConfig(emp);
+  return cfg.services.lunch && isPrimaryEvening(emp);
+}
+
+function autoSplitCapacity(emp) {
+  const cfg = runtimeConfig(emp);
+  if (!cfg.aiEnabled) return 0;
+
+  // Split shifts remain opt-in through the employee data.
+  // A positive maxSplits is the actual authorization signal.
+  const max = Math.max(0, Math.min(2, Number(cfg.maxSplits) || 0));
+  return max;
+}
+
+function weeklySplitCount(row) {
+  const keys = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+  return keys.filter(k => isCoupureValue(row?.[k])).length;
+}
+
 function shiftAllowedByEmployee(emp, label) {
   const cfg = runtimeConfig(emp);
 
   if (isCoupureValue(label)) {
-    return cfg.services.split && cfg.maxSplits > 0;
+    return autoSplitCapacity(emp) > 0;
   }
 
   const b = shiftBoundsMinutes(label);
@@ -149,6 +181,9 @@ IMPORTANT — CONFIGURATION ÉQUIPE :
 - Début au plus tôt / fin au plus tard sont des limites dures.
 - Les rangs cochés sont les seuls rangs connus.
 - Les règles de la fiche Équipe priment sur tout ancien profil historique.
+- IMPORTANT : pour un salarié dont la préférence est SOIR, "Midi" signifie capacité de RENFORT, pas affectation de journée par défaut.
+- Un salarié principal SOIR + Midi autorisé reste au soir en priorité.
+- Si le midi est déficitaire : privilégier d'abord une coupure autorisée ; le passage en journée continue n'arrive qu'en dernier recours après épuisement des profils journée/midi et des coupures possibles.
 - Les préférences historiques d'horaires déjà connues pour les salariés existants restent des PRIORITÉS SOUPLES : les utiliser en premier lorsqu'elles respectent la fiche Équipe et la couverture.
 - Ne jamais réduire les horaires à un modèle unique d'ouverture / journée / fermeture si plusieurs shifts habituels sont possibles.
 
@@ -206,13 +241,32 @@ COUVERTURE OPÉRATIONNELLE HIVER À RESPECTER :
 - FERMETURE : 5 opérationnels réels jusqu'à F/01h.
 - Si l'équipe du soir est surdimensionnée alors que le midi est trop faible, basculer un salarié soir compatible sur une journée continue plutôt que laisser 4 au midi et 8 le soir.
 
+RÈGLES MATIN NOMINATIVES NON NÉGOCIABLES :
+- Virginie : lundi 07h>16h, mardi 07h>16h, mercredi 08h>17h, jeudi 08h>17h, vendredi 07h>16h.
+- Raphael : lundi 08h>17h, mardi 08h>17h, mercredi 07h>16h, jeudi 07h>16h, dimanche 07h>16h.
+- Seb : vendredi 08h>17h, samedi 07h>16h, dimanche 08h>17h. Lundi/jeudi priorité 09h>18h30 ou 10h>18h30.
+- Anthony : uniquement prises de poste <=10h. Samedi 08h>17h strict, dimanche 09h>17h strict. En semaine priorité 09h>18h30, 08h>17h, 10h>18h30.
+- Ces règles ne sont annulées que par un RH/Vacances/CFA/Arrêt saisi par le manager.
+
+OPTIMISATION APRÈS-MIDI :
+- Le minimum après-midi est une cible opérationnelle, pas un objectif de sureffectif.
+- Si l'après-midi est à 6/4 ou 5/4 alors que le midi et le soir ont besoin de la personne, privilégier une coupure autorisée pour ramener l'après-midi vers 4/4.
+- Ne jamais convertir en coupure si cela fait tomber le midi, le J18 ou une autre contrainte dure sous son minimum.
+- Maximum de coupures par personne = valeur saisie dans Équipe, jamais plus de 2.
+
+PRIORITÉ COUVERTURE :
+- Un déficit midi/après-midi/J18 doit être réparé AVANT de conserver du sureffectif le soir.
+- MAIS ne transforme pas spontanément les salariés principaux SOIR en salariés de journée : Midi autorisé chez eux = renfort exceptionnel, coupure prioritaire.
+- Il est interdit d'accepter par exemple 3/7 au midi alors que le soir est à 7/5 si des salariés compatibles peuvent être déplacés.
+- Les minimums midi sont des contraintes dures : 6 Lun/Mar/Jeu/Ven, 7 Mer/Sam/Dim.
+
 RÈGLES INDIVIDUELLES DURES :
 - Respecter les autorisations de la fiche Équipe.
 - Les jours RH, Vacances, Arrêt maladie ou CFA déjà saisis sont VERROUILLÉS.
 - Si IA planifie = NON, ne jamais écrire dans une case libre.
 - Si Compte dans les minimums = NON, sa présence ne valide jamais un seuil de couverture.
 - Une fermeture exige Soir + Fermeture autorisés.
-- Une coupure exige Coupure autorisée et respecte le maximum hebdomadaire indiqué.
+- Une coupure est autorisée si le maximum hebdomadaire de coupures de la fiche Équipe est > 0 ; elle respecte strictement ce plafond.
 
 HEURES ET ÉQUILIBRE :
 - Le champ contrat saisi dans Équipe est la référence contractuelle de chaque salarié. Viser ce nombre d'heures hebdomadaires.
@@ -391,7 +445,7 @@ function shiftStartMinutes(label) {
   return parseInt(m[1], 10) * 60 + (m[2] ? parseInt(m[2], 10) : 0);
 }
 
-function chooseHabitualShift(emp, allowedShifts, dayStartCounts, idealDailyHours, usedLabels) {
+function chooseHabitualShift(emp, allowedShifts, dayStartCounts, idealDailyHours, usedLabels, dayIndex=null) {
   const allowedPool = shiftProfilePool(emp, allowedShifts);
   if (!allowedPool.length) return '';
 
@@ -400,7 +454,15 @@ function chooseHabitualShift(emp, allowedShifts, dayStartCounts, idealDailyHours
     .map(label => allowedMap.get(normalizeShiftLabel(label)))
     .filter(Boolean);
 
-  const primaryPool = historicalPrefs.length ? historicalPrefs : allowedPool;
+  const dayPrefs = dayIndex === null
+    ? []
+    : daySpecificMorningPreferences(emp, dayIndex, allowedShifts)
+        .map(label => allowedMap.get(normalizeShiftLabel(label)) || label)
+        .filter(Boolean);
+
+  const primaryPool = dayPrefs.length
+    ? dayPrefs
+    : (historicalPrefs.length ? historicalPrefs : allowedPool);
   const pref = runtimeConfig(emp).preferredService || 'flexible';
 
   let best = '';
@@ -429,7 +491,10 @@ function chooseHabitualShift(emp, allowedShifts, dayStartCounts, idealDailyHours
       if (pref === 'evening') score += Math.abs(b.start - 16*60) / 60 * 0.7;
     }
 
-    if (historicalPrefs.length) {
+    if (dayPrefs.length) {
+      const dayIdx = dayPrefs.findIndex(x => normalizeShiftLabel(x) === normalizeShiftLabel(label));
+      if (dayIdx >= 0) score += dayIdx * 0.8;
+    } else if (historicalPrefs.length) {
       const prefIndex = historicalPrefs.findIndex(x => normalizeShiftLabel(x) === normalizeShiftLabel(label));
       if (prefIndex >= 0) score += prefIndex * 1.2;
     }
@@ -475,6 +540,65 @@ function currentPlannedHours(row) {
     const h = parseShiftHoursLabel(row[k]);
     return sum + (h || 0);
   }, 0);
+}
+
+
+const STRICT_MORNING_SCHEDULE = {
+  'Virginie': {
+    0: '07h > 16h', // lundi ouverture stricte
+    1: '07h > 16h', // mardi ouverture stricte
+    2: '08h > 17h', // mercredi strict
+    3: '08h > 17h', // jeudi strict
+    4: '07h > 16h'  // vendredi ouverture stricte
+  },
+  'Raphael': {
+    0: '08h > 17h', // lundi strict
+    1: '08h > 17h', // mardi strict
+    2: '07h > 16h', // mercredi ouverture stricte
+    3: '07h > 16h', // jeudi ouverture stricte
+    6: '07h > 16h'  // dimanche ouverture stricte
+  },
+  'Seb': {
+    4: '08h > 17h', // vendredi strict
+    5: '07h > 16h', // samedi ouverture stricte
+    6: '08h > 17h'  // dimanche strict
+  },
+  'Anthony': {
+    5: '08h > 17h', // samedi strict
+    6: '09h > 17h'  // dimanche strict
+  }
+};
+
+const SOFT_MORNING_PREFERENCES_BY_DAY = {
+  'Seb': {
+    0: ['09h > 18h30','10h > 18h30'],
+    3: ['09h > 18h30','10h > 18h30']
+  },
+  'Anthony': {
+    0: ['09h > 18h30','08h > 17h','10h > 18h30'],
+    1: ['09h > 18h30','08h > 17h','10h > 18h30'],
+    2: ['09h > 18h30','08h > 17h','10h > 18h30'],
+    3: ['09h > 18h30','08h > 17h','10h > 18h30'],
+    4: ['09h > 18h30','08h > 17h','10h > 18h30']
+  }
+};
+
+function strictMorningShiftFor(emp, di, allowedShifts) {
+  const wanted = STRICT_MORNING_SCHEDULE[emp?.name]?.[di];
+  if (!wanted) return '';
+  const allowed = allowedContinuousMap(allowedShifts);
+  const exact = allowed.get(normalizeShiftLabel(wanted));
+  if (!exact) return '';
+  return shiftAllowedByEmployee(emp, exact) ? exact : '';
+}
+
+function daySpecificMorningPreferences(emp, di, allowedShifts) {
+  const list = SOFT_MORNING_PREFERENCES_BY_DAY[emp?.name]?.[di] || [];
+  const allowed = allowedContinuousMap(allowedShifts);
+  return list
+    .map(x => allowed.get(normalizeShiftLabel(x)))
+    .filter(Boolean)
+    .filter(label => shiftAllowedByEmployee(emp,label));
 }
 
 function contractTargetHours(emp) {
@@ -1040,6 +1164,13 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
         if (!canAutoPlan(emp)) return false;
         if (isManagerFixed(i, di)) return false;
 
+        // Hard morning assignments are non-negotiable and cannot be moved later.
+        const strict = strictMorningShiftFor(emp, di, allowedShifts);
+        if (strict) {
+          const v0 = planning[i] && planning[i][dayKeys[di]];
+          if (v0 && normalizeShiftLabel(v0) === normalizeShiftLabel(strict)) return false;
+        }
+
         const v = planning[i] && planning[i][dayKeys[di]];
         if (onlyScheduled) {
           return isWorkingValue(v) && !isCoupureValue(v);
@@ -1091,23 +1222,26 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
     return false;
   }
 
-  function addFreeDayWorker(di, needBridge) {
+  function addFreeDayWorker(di, needBridge, allowEveningPrimary=false) {
     const key = dayKeys[di];
     const candidates = candidateIndexes(di, false);
 
     for (const i of candidates) {
       const emp = emps[i];
+      const cfg = runtimeConfig(emp);
+      if (!cfg.services.lunch) continue;
+
+      // "Midi" is a capability, not a default assignment.
+      // Evening-primary employees remain on evening unless this is the
+      // explicit emergency fallback pass.
+      if (isPrimaryEvening(emp) && !allowEveningPrimary) continue;
+
       const row = planning[i];
-      const target = contractTargetHours(emp);
-      const currentHours = currentPlannedHours(row);
-
-      if (target !== null && currentHours >= target + 1.5) continue;
-
       const replacement = chooseDayCoverageShift('', allowedShifts, needBridge, emp);
       if (!replacement) continue;
 
       const h = parseShiftHoursLabel(replacement) || 0;
-      if (target !== null && currentHours + h > target + 2) continue;
+      if (currentPlannedHours(row) + h > 48) continue;
 
       row[key] = replacement;
       return true;
@@ -1116,7 +1250,122 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
     return false;
   }
 
+  function canConvertEveningToDay(i, di) {
+    const key = dayKeys[di];
+    const current = planning[i] && planning[i][key];
+    const b = shiftBoundsMinutes(current);
+    if (!b || b.start < 15*60) return false;
 
+    const emp = emps[i];
+    const cfg = runtimeConfig(emp);
+    if (!cfg.services.lunch) return false;
+
+    // Never break the closing minimum.
+    if (isClosingShift(current)) {
+      const snap = coverageSnapshot(planning, emps, key);
+      const target = serviceTargetsForDay(di, weekDate, externalEvents);
+      if (snap.closing <= target.closing) return false;
+    }
+
+    return true;
+  }
+
+  function forceRepairLunch(di, needBridge) {
+    const key = dayKeys[di];
+    const TARGET = serviceTargetsForDay(di, weekDate, externalEvents);
+    let guard = 0;
+
+    while (guard++ < 24) {
+      const snap = coverageSnapshot(planning, emps, key);
+      const needMidi = snap.midi < TARGET.midi;
+      const needAfternoon = snap.afternoon < TARGET.afternoon;
+      const needJ18 = snap.bridge1830 < TARGET.bridge1830;
+
+      if (!needMidi && !needAfternoon && !needJ18) return true;
+
+      let changed = false;
+
+      // LEVEL 1 — Normal day/lunch people first.
+      if (addFreeDayWorker(di, needJ18 || needBridge, false)) {
+        changed = true;
+      }
+
+      // LEVEL 2 — If lunch is still short, use an authorized split on an evening-primary employee.
+      // This preserves their real identity as evening staff.
+      if (!changed && needMidi) {
+        const candidates = candidateIndexes(di, false);
+        for (const i of candidates) {
+          const emp = emps[i];
+          if (!canUseLunchAsReinforcement(emp)) continue;
+
+          const maxSplits = autoSplitCapacity(emp);
+          if (maxSplits <= 0) continue;
+          if (weeklySplitCount(planning[i]) >= maxSplits) continue;
+
+          planning[i][key] = 'Coupure 11h-15h/18h-01h';
+          changed = true;
+          break;
+        }
+      }
+
+      // LEVEL 3 — Existing evening shift may be converted to split if there is
+      // surplus in the evening/closing and lunch needs help.
+      if (!changed && needMidi) {
+        const candidates = candidateIndexes(di, true);
+        for (const i of candidates) {
+          const emp = emps[i];
+          if (!canUseLunchAsReinforcement(emp)) continue;
+
+          const maxSplits = autoSplitCapacity(emp);
+          if (maxSplits <= 0 || weeklySplitCount(planning[i]) >= maxSplits) continue;
+
+          const current = planning[i][key];
+          const b = shiftBoundsMinutes(current);
+          if (!b || b.start < 15*60) continue;
+
+          const currentSnap = coverageSnapshot(planning, emps, key);
+
+          // Split keeps evening+closing coverage. Safe even when current is a closer.
+          planning[i][key] = 'Coupure 11h-15h/18h-01h';
+          changed = true;
+          break;
+        }
+      }
+
+      // LEVEL 4 — Exceptional continuous day for evening-primary staff.
+      // Only after normal day people and split solutions have failed.
+      if (!changed && (needMidi || needAfternoon || needJ18)) {
+        if (addFreeDayWorker(di, needJ18 || needBridge, true)) {
+          changed = true;
+        }
+      }
+
+      // LEVEL 5 — Convert an already-scheduled evening worker to day only if
+      // they are explicitly lunch-capable AND this does not break closing.
+      if (!changed) {
+        const candidates = candidateIndexes(di, true);
+        for (const i of candidates) {
+          const emp = emps[i];
+          if (!canUseLunchAsReinforcement(emp)) continue;
+          if (!canConvertEveningToDay(i, di)) continue;
+
+          const current = planning[i][key];
+          const replacement = chooseDayCoverageShift(current, allowedShifts, needJ18 || needBridge, emp);
+          if (!replacement) continue;
+
+          planning[i][key] = replacement;
+          changed = true;
+          break;
+        }
+      }
+
+      if (!changed) return false;
+
+      ensureClosing(di);
+    }
+
+    return false;
+  }
 
   function openingTargetForHour(target, hour) {
     if (hour === 7) return target.openingAt7;
@@ -1265,49 +1514,126 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
     }
   }
 
+
+  function reduceAfternoonOverstaffWithSplit(di) {
+    const key = dayKeys[di];
+    const TARGET = serviceTargetsForDay(di, weekDate, externalEvents);
+
+    let guard = 0;
+    while (guard++ < 8) {
+      const snap = coverageSnapshot(planning, emps, key);
+
+      // Only intervene on real overstaffing.
+      // Keep a one-person safety margin only if needed for event/strong level.
+      const allowedAfternoon = TARGET.afternoon;
+      if (snap.afternoon <= allowedAfternoon) break;
+
+      let bestIndex = -1;
+      let bestScore = Infinity;
+
+      (emps || []).forEach((emp, i) => {
+        if (!canAutoPlan(emp)) return;
+        if (!isOperationalForCoverage(emp)) return;
+        if (isManagerFixed(i, di)) return;
+
+        const maxSplits = autoSplitCapacity(emp);
+        if (maxSplits <= 0) return;
+        if (weeklySplitCount(planning[i]) >= maxSplits) return;
+
+        const current = planning[i] && planning[i][key];
+        if (!current || isCoupureValue(current)) return;
+
+        const b = shiftBoundsMinutes(current);
+        if (!b) return;
+
+        // Candidate must currently cover lunch + afternoon
+        // and be useful again for evening/closing.
+        if (!coversWholeWindow(current, 12*60, 15*60)) return;
+        if (!coversWholeWindow(current, 15*60, 18*60)) return;
+
+        const cfg = runtimeConfig(emp);
+        if (!cfg.services.evening || !cfg.services.closing) return;
+
+        // Strict morning assignments are never touched.
+        const strict = strictMorningShiftFor(emp, di, allowedShifts);
+        if (strict && normalizeShiftLabel(strict) === normalizeShiftLabel(current)) return;
+
+        // Simulate replacing by a split:
+        const before = snap;
+
+        // Split contributes midi + evening + closing, but not afternoon/J18.
+        // Ensure removing this continuous day shift does not create a lunch deficit.
+        if (before.midi <= TARGET.midi) return;
+
+        // Afternoon must remain at or above target after removing one.
+        if (before.afternoon - 1 < TARGET.afternoon) return;
+
+        // If current shift is part of J18, do not break J18 minimum.
+        if (isDayBridgeShift(current) && before.bridge1830 - 1 < TARGET.bridge1830) return;
+
+        // Evening/closing are helped by the split, so no risk there.
+
+        // Prefer converting the longest afternoon-presence shift first,
+        // and people who still have contract hours available.
+        const h = parseShiftHoursLabel(current) || 0;
+        const targetHours = contractTargetHours(emp);
+        const planned = currentPlannedHours(planning[i]);
+        const gap = targetHours === null ? 0 : (targetHours - planned);
+
+        let score = 0;
+        score -= h * 1.2;
+        score -= Math.max(-4, Math.min(8, gap)) * 0.4;
+
+        if (score < bestScore) {
+          bestScore = score;
+          bestIndex = i;
+        }
+      });
+
+      if (bestIndex < 0) break;
+
+      planning[bestIndex][key] = 'Coupure 11h-15h/18h-01h';
+
+      // Re-stabilize hard edges immediately.
+      ensureClosing(di);
+    }
+  }
+
   dayKeys.forEach((key, di) => {
     const TARGET = serviceTargetsForDay(di, weekDate, externalEvents);
 
-    function enforceHardEdges() {
-      // Exact opening curve
+    function enforceOpeningCurve() {
       ensureExactStart(di, 7, TARGET.openingAt7);
       ensureExactStart(di, 8, TARGET.openingAt8);
       ensureExactStart(di, 9, TARGET.openingAt9);
       ensureExactStart(di, 10, TARGET.openingAt10);
-
-      // Closing is also a hard edge.
-      ensureClosing(di);
     }
 
-    // First hard pass.
-    enforceHardEdges();
+    // 1) Morning hard rules + opening curve.
+    enforceOpeningCurve();
 
-    // Repair lunch / afternoon / 18:30 bridge.
-    let guard = 0;
-    while (guard++ < 16) {
-      const snap = coverageSnapshot(planning, emps, key);
+    // 2) LUNCH / AFTERNOON / 18h30 ARE HARD BUSINESS NEEDS.
+    // Repair these BEFORE accepting surplus evening staff.
+    forceRepairLunch(di, false);
 
-      const needMidi = snap.midi < TARGET.midi;
-      const needAfternoon = snap.afternoon < TARGET.afternoon;
-      const needBridge = snap.bridge1830 < TARGET.bridge1830;
+    // 3) Then build the evening and closing minimum.
+    ensureClosing(di);
 
-      if (!needMidi && !needAfternoon && !needBridge) break;
+    // 4) Final lunch repair after closing, because closing choices may have moved people.
+    forceRepairLunch(di, false);
 
-      const changed =
-        convertScheduledToDay(di, needBridge) ||
-        addFreeDayWorker(di, needBridge);
+    // 5) If afternoon is overstaffed, convert one eligible continuous day
+    // shift into an authorized split rather than leaving 6/4 for no reason.
+    reduceAfternoonOverstaffWithSplit(di);
 
-      if (!changed) break;
-
-      // Every repair may disturb the edges: restore them immediately.
-      enforceHardEdges();
-    }
-
-    // FINAL stabilization. Do this after every other optimization.
-    // Run several passes because fixing 10h or lunch must never erase 7h/8h/9h or F.
-    for (let pass=0; pass<4; pass++) {
+    // 6) Re-stabilize hard edges several times.
+    for (let pass=0; pass<5; pass++) {
       const before = JSON.stringify(coverageSnapshot(planning, emps, key));
-      enforceHardEdges();
+
+      enforceOpeningCurve();
+      forceRepairLunch(di, false);
+      ensureClosing(di);
+
       const after = JSON.stringify(coverageSnapshot(planning, emps, key));
       if (before === after) break;
     }
@@ -1318,27 +1644,16 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
       notes.push(`${key}: niveau FORT — ${TARGET.reasons.join(' + ')} | cibles midi=${TARGET.midi}, après-midi=${TARGET.afternoon}, soir=${TARGET.evening}`);
     }
 
-    // Opening diagnostics
-    if (final.openingAt7 < TARGET.openingAt7) notes.push(`${key}: arrivée 07h ${final.openingAt7}/${TARGET.openingAt7} — impossible à combler avec les disponibilités/autorisations actuelles`);
-    if (final.openingAt8 < TARGET.openingAt8) notes.push(`${key}: arrivée 08h ${final.openingAt8}/${TARGET.openingAt8} — impossible à combler avec les disponibilités/autorisations actuelles`);
-    if (final.openingAt9 < TARGET.openingAt9) notes.push(`${key}: arrivée 09h ${final.openingAt9}/${TARGET.openingAt9} — impossible à combler avec les disponibilités/autorisations actuelles`);
-    if (final.openingAt10 < TARGET.openingAt10) notes.push(`${key}: arrivée 10h ${final.openingAt10}/${TARGET.openingAt10} — impossible à combler avec les disponibilités/autorisations actuelles`);
+    if (final.openingAt7 < TARGET.openingAt7) notes.push(`${key}: arrivée 07h ${final.openingAt7}/${TARGET.openingAt7}`);
+    if (final.openingAt8 < TARGET.openingAt8) notes.push(`${key}: arrivée 08h ${final.openingAt8}/${TARGET.openingAt8}`);
+    if (final.openingAt9 < TARGET.openingAt9) notes.push(`${key}: arrivée 09h ${final.openingAt9}/${TARGET.openingAt9}`);
+    if (final.openingAt10 < TARGET.openingAt10) notes.push(`${key}: arrivée 10h ${final.openingAt10}/${TARGET.openingAt10}`);
 
-    if (final.midi < TARGET.midi) {
-      notes.push(`${key}: midi ${final.midi}/${TARGET.midi} opérationnels hors accueil`);
-    }
-    if (final.afternoon < TARGET.afternoon) {
-      notes.push(`${key}: après-midi ${final.afternoon}/${TARGET.afternoon} opérationnels`);
-    }
-    if (final.bridge1830 < TARGET.bridge1830) {
-      notes.push(`${key}: seulement ${final.bridge1830}/${TARGET.bridge1830} shifts journée présents jusqu'à 18h30`);
-    }
-    if (final.evening < TARGET.evening) {
-      notes.push(`${key}: soir ${final.evening}/${TARGET.evening} opérationnels`);
-    }
-    if (final.closing < TARGET.closing) {
-      notes.push(`${key}: fermeture ${final.closing}/${TARGET.closing} jusqu'à F — impossible à combler avec les disponibilités/autorisations actuelles`);
-    }
+    if (final.midi < TARGET.midi) notes.push(`${key}: midi ${final.midi}/${TARGET.midi} opérationnels`);
+    if (final.afternoon < TARGET.afternoon) notes.push(`${key}: après-midi ${final.afternoon}/${TARGET.afternoon} opérationnels`);
+    if (final.bridge1830 < TARGET.bridge1830) notes.push(`${key}: J18 ${final.bridge1830}/${TARGET.bridge1830}`);
+    if (final.evening < TARGET.evening) notes.push(`${key}: soir ${final.evening}/${TARGET.evening}`);
+    if (final.closing < TARGET.closing) notes.push(`${key}: fermeture ${final.closing}/${TARGET.closing}`);
   });
 
   return { planning, notes };
@@ -1375,6 +1690,22 @@ function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts, w
     });
 
     result.push(row);
+  });
+
+
+  // HARD MORNING RULES.
+  // They apply only to manager-free cells. Manager RH/Vacances/CFA/Arrêt always wins.
+  (emps || []).forEach((emp, i) => {
+    const row = result[i];
+    dayKeys.forEach((k, di) => {
+      const ref = data && data[i] && data[i][di];
+      if (referenceOutputValue(ref) !== null) return;
+
+      const strict = strictMorningShiftFor(emp, di, allowedShifts);
+      if (!strict) return;
+
+      row[k] = strict;
+    });
   });
 
   // Count only preserved assignments before generating new ones.
@@ -1485,7 +1816,7 @@ function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts, w
       const idealDaily=remaining===null?null:(remaining/daysNeeded);
 
       const candidate=chooseHabitualShift(
-        emp,allowedShifts,dayStartCounts[di],idealDaily,usedLabels
+        emp,allowedShifts,dayStartCounts[di],idealDaily,usedLabels,di
       );
       if(!candidate||!profilePool.has(normalizeShiftLabel(candidate)))return;
 
@@ -1598,7 +1929,8 @@ function sanitizePlanningProposal(planningRows, emps, data, allowedShifts) {
       if (isCoupureValue(proposed)) {
         const cfg = runtimeConfig(emp);
         const already = dayKeys.filter(x => isCoupureValue(row[x])).length;
-        if (!cfg.services.split || cfg.maxSplits <= 0 || already >= cfg.maxSplits) {
+        const maxSplits = autoSplitCapacity(emp);
+        if (maxSplits <= 0 || already >= maxSplits) {
           row[k] = '';
           manualCoupureDays.add(dayKeys[di]);
           warnings.push(`${emp.name} ${dayKeys[di]} : coupure refusée par la fiche Équipe ou plafond atteint`);
