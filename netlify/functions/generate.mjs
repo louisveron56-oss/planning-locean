@@ -290,6 +290,14 @@ OPTIMISATION APRÈS-MIDI :
 - Ne jamais convertir en coupure si cela fait tomber le midi, le J18 ou une autre contrainte dure sous son minimum.
 - Maximum de coupures par personne = valeur saisie dans Équipe, jamais plus de 2.
 
+RÉÉQUILIBRAGE V7 :
+- Avant toute création de shift supplémentaire, chercher un shift existant en surplus le soir/fermeture qui peut être transformé.
+- Exemple : F 7/5 + midi 3/7 + 10h 0/2 => tester 17h>F vers 10h>18h30 si autorisé.
+- Exemple : soir 7/6 + midi 6/7 avec un 16h>23h non indispensable => tester 11h>21h si autorisé.
+- Ne garder une transformation que si le score global de couverture s'améliore.
+- Ne jamais casser une fermeture, un soir ou une ouverture déjà au minimum.
+- Une coupure n'arrive qu'après cette étape de réaffectation.
+
 PRIORITÉ COUVERTURE :
 - Un déficit midi/après-midi/J18 doit être réparé AVANT de conserver du sureffectif le soir.
 - MAIS ne transforme pas spontanément les salariés principaux SOIR en salariés de journée : Midi autorisé chez eux = renfort exceptionnel, coupure prioritaire.
@@ -1186,6 +1194,214 @@ function serviceTargetsForDay(dayIndex, weekDate, externalEvents) {
   return target;
 }
 
+
+// ================================================================
+// V7 — RÉÉQUILIBRAGE GLOBAL PAR SIMULATION
+// On ne rajoute plus aveuglément du personnel : on teste d'abord
+// si une transformation d'un shift existant améliore la courbe.
+// ================================================================
+
+function hardCoverageScore(snapshot, target) {
+  // Missing staff is far more expensive than surplus.
+  const deficit = (have, need) => Math.max(0, need - have);
+  const surplus = (have, need) => Math.max(0, have - need);
+
+  let score = 0;
+
+  // Exact opening slots = very hard constraints.
+  score += deficit(snapshot.openingAt7, target.openingAt7) * 1400;
+  score += deficit(snapshot.openingAt8, target.openingAt8) * 1400;
+  score += deficit(snapshot.openingAt9, target.openingAt9) * 1400;
+  score += deficit(snapshot.openingAt10, target.openingAt10) * 1400;
+
+  // Core business coverage.
+  score += deficit(snapshot.midi, target.midi) * 1200;
+  score += deficit(snapshot.afternoon, target.afternoon) * 1100;
+  score += deficit(snapshot.bridge1830, target.bridge1830) * 1000;
+  score += deficit(snapshot.evening, target.evening) * 1200;
+  score += deficit(snapshot.closing, target.closing) * 1300;
+
+  // Surplus is undesirable but much less severe than a deficit.
+  score += surplus(snapshot.midi, target.midi) * 45;
+  score += surplus(snapshot.afternoon, target.afternoon) * 55;
+  score += surplus(snapshot.bridge1830, target.bridge1830) * 25;
+  score += surplus(snapshot.evening, target.evening) * 70;
+  score += surplus(snapshot.closing, target.closing) * 85;
+
+  return score;
+}
+
+function totalDayPenalty(planning, emps, di, weekDate, externalEvents) {
+  const key = dayKeys[di];
+  const target = serviceTargetsForDay(di, weekDate, externalEvents);
+  const snap = coverageSnapshot(planning, emps, key);
+
+  let score = hardCoverageScore(snap, target);
+
+  // Weekly hour balance: only a soft tiebreaker.
+  (emps || []).forEach((emp, i) => {
+    const targetHours = contractTargetHours(emp);
+    if (targetHours === null) return;
+
+    const h = currentPlannedHours(planning[i]);
+    const diff = h - targetHours;
+
+    // Under-hours matter, but coverage remains dominant.
+    score += Math.abs(diff) * 2.5;
+
+    // Stronger penalty for overshoot.
+    if (diff > 2.5) score += (diff - 2.5) * 18;
+    if (h > 48) score += 5000 + (h - 48) * 1000;
+  });
+
+  return score;
+}
+
+function dayShiftCandidatesForEmployee(emp, allowedShifts) {
+  const cfg = runtimeConfig(emp);
+  const allowedMap = allowedContinuousMap(allowedShifts);
+
+  const preferred = [
+    '10h > 18h30',
+    '11h > 21h',
+    '11h > 20h',
+    '11h > 18h30',
+    '09h > 18h30',
+    '08h > 17h'
+  ];
+
+  return preferred
+    .map(x => allowedMap.get(normalizeShiftLabel(x)))
+    .filter(Boolean)
+    .filter(label => shiftAllowedByEmployee(emp, label))
+    .filter(label => {
+      const b = shiftBoundsMinutes(label);
+      if (!b) return false;
+
+      // Evening-primary employees may be moved to day only if lunch is allowed.
+      if (isPrimaryEvening(emp) && !cfg.services.lunch) return false;
+
+      return true;
+    });
+}
+
+function canReplaceShiftWithoutBreakingStrict(emp, di, current, replacement, allowedShifts) {
+  if (!replacement) return false;
+  if (!shiftAllowedByEmployee(emp, replacement)) return false;
+
+  const strict = strictMorningShiftFor(emp, di, allowedShifts);
+  if (strict && normalizeShiftLabel(strict) === normalizeShiftLabel(current)) {
+    return normalizeShiftLabel(strict) === normalizeShiftLabel(replacement);
+  }
+
+  // Anthony-type "start <= 10h" constraints are already enforced by shiftAllowedByEmployee.
+  return true;
+}
+
+function projectedWeeklyHoursAfterReplacement(row, current, replacement) {
+  const currentTotal = currentPlannedHours(row);
+  const oldH = parseShiftHoursLabel(current) || 0;
+  const newH = parseShiftHoursLabel(replacement) || 0;
+  return currentTotal - oldH + newH;
+}
+
+function isUsefulEveningSurplusCandidate(planning, emps, i, di, weekDate, externalEvents) {
+  const key = dayKeys[di];
+  const current = planning[i]?.[key];
+  const b = shiftBoundsMinutes(current);
+  if (!b || b.start < 15*60) return false;
+
+  const target = serviceTargetsForDay(di, weekDate, externalEvents);
+  const snap = coverageSnapshot(planning, emps, key);
+
+  // Only consider evening staff when evening or closing is genuinely above target.
+  return snap.evening > target.evening || snap.closing > target.closing;
+}
+
+function rebalanceDayByBestMove(planning, emps, di, allowedShifts, weekDate, externalEvents) {
+  const key = dayKeys[di];
+  const target = serviceTargetsForDay(di, weekDate, externalEvents);
+
+  let passes = 0;
+
+  while (passes++ < 16) {
+    const beforeSnap = coverageSnapshot(planning, emps, key);
+    const beforeScore = totalDayPenalty(planning, emps, di, weekDate, externalEvents);
+
+    let best = null;
+
+    // If no meaningful imbalance remains, stop.
+    const hasDeficit =
+      beforeSnap.openingAt7 < target.openingAt7 ||
+      beforeSnap.openingAt8 < target.openingAt8 ||
+      beforeSnap.openingAt9 < target.openingAt9 ||
+      beforeSnap.openingAt10 < target.openingAt10 ||
+      beforeSnap.midi < target.midi ||
+      beforeSnap.afternoon < target.afternoon ||
+      beforeSnap.bridge1830 < target.bridge1830 ||
+      beforeSnap.evening < target.evening ||
+      beforeSnap.closing < target.closing;
+
+    if (!hasDeficit) break;
+
+    (emps || []).forEach((emp, i) => {
+      if (!canAutoPlan(emp)) return;
+      if (isManagerFixed(i, di)) return;
+
+      const current = planning[i]?.[key];
+      if (!current || isCoupureValue(current)) return;
+      if (!isUsefulEveningSurplusCandidate(planning, emps, i, di, weekDate, externalEvents)) return;
+
+      const candidates = dayShiftCandidatesForEmployee(emp, allowedShifts);
+
+      for (const replacement of candidates) {
+        if (normalizeShiftLabel(replacement) === normalizeShiftLabel(current)) continue;
+        if (!canReplaceShiftWithoutBreakingStrict(emp, di, current, replacement, allowedShifts)) continue;
+
+        const projectedHours = projectedWeeklyHoursAfterReplacement(planning[i], current, replacement);
+        const contract = contractTargetHours(emp);
+
+        if (projectedHours > 48) continue;
+        if (contract !== null && projectedHours > contract + 2.5) continue;
+
+        // Simulate.
+        const old = planning[i][key];
+        planning[i][key] = replacement;
+
+        const afterSnap = coverageSnapshot(planning, emps, key);
+        const afterScore = totalDayPenalty(planning, emps, di, weekDate, externalEvents);
+
+        // Never accept a move that creates a new hard deficit in closing/evening
+        // if those were previously satisfied.
+        const breaksClosing = beforeSnap.closing >= target.closing && afterSnap.closing < target.closing;
+        const breaksEvening = beforeSnap.evening >= target.evening && afterSnap.evening < target.evening;
+        const breaksOpening =
+          (beforeSnap.openingAt7 >= target.openingAt7 && afterSnap.openingAt7 < target.openingAt7) ||
+          (beforeSnap.openingAt8 >= target.openingAt8 && afterSnap.openingAt8 < target.openingAt8) ||
+          (beforeSnap.openingAt9 >= target.openingAt9 && afterSnap.openingAt9 < target.openingAt9) ||
+          (beforeSnap.openingAt10 >= target.openingAt10 && afterSnap.openingAt10 < target.openingAt10);
+
+        planning[i][key] = old;
+
+        if (breaksClosing || breaksEvening || breaksOpening) continue;
+
+        const gain = beforeScore - afterScore;
+        if (gain <= 0) continue;
+
+        if (!best || gain > best.gain) {
+          best = { i, replacement, gain };
+        }
+      }
+    });
+
+    if (!best) break;
+
+    planning[best.i][key] = best.replacement;
+  }
+
+  return coverageSnapshot(planning, emps, key);
+}
+
 function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, externalEvents) {
   const dayKeys = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
   const notes = [];
@@ -1684,12 +1900,23 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
     // 1) Morning hard rules + opening curve.
     enforceOpeningCurve();
 
+    // 1B) V7: BEFORE adding anyone, try to move surplus evening/closing staff
+    // into more useful day shifts (10h-18h30, 11h-21h, etc.).
+    rebalanceDayByBestMove(planning, emps, di, allowedShifts, weekDate, externalEvents);
+
+    // Recheck the opening curve after the simulated reallocation.
+    enforceOpeningCurve();
+
     // 2) LUNCH / AFTERNOON / 18h30 ARE HARD BUSINESS NEEDS.
     // Repair these BEFORE accepting surplus evening staff.
     forceRepairLunch(di, false);
 
     // 3) Then build the evening and closing minimum.
     ensureClosing(di);
+
+    // 3B) V7 second pass: if evening/closing now has surplus while day is still short,
+    // convert the least useful evening shift into a day shift before creating splits.
+    rebalanceDayByBestMove(planning, emps, di, allowedShifts, weekDate, externalEvents);
 
     // 4) Final lunch repair after closing, because closing choices may have moved people.
     forceRepairLunch(di, false);
