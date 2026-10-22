@@ -189,11 +189,11 @@ Niveau FORT :
 Shifts habituels : 15h ou 16h → 23h ou F/01h, ou coupure si nécessaire.
 
 COUVERTURE OPÉRATIONNELLE HIVER À RESPECTER :
-- OUVERTURE TOUS LES JOURS :
-  - avant 10h : minimum 2 opérationnels réellement présents ;
-  - 10h–11h : minimum 3 opérationnels réellement présents ;
-  - ne jamais considérer un midi correctement couvert comme suffisant si l'ouverture est en déficit ;
-  - privilégier les salariés avec Matin autorisé et respecter leur début au plus tôt.
+- OUVERTURE — COURBE FIXE :
+  - Lundi, mardi, jeudi, vendredi : 1 arrivée à 07h, 1 à 08h, 1 à 09h, 1 à 10h.
+  - Mercredi, samedi, dimanche : 1 arrivée à 07h, 1 à 08h, 1 à 09h, 2 arrivées à 10h.
+  - Ces quotas d'arrivée sont des contraintes de couverture à respecter avant d'optimiser le reste de la journée.
+  - Respecter les autorisations Matin/Midi et les limites horaires de chaque fiche Équipe.
 - MIDI 12h–15h :
   - Lundi, mardi, jeudi, vendredi : 6 opérationnels minimum HORS Salome/Accueil, Martin V et Louis.
   - Mercredi, samedi, dimanche : 7 opérationnels minimum HORS Salome/Accueil, Martin V et Louis.
@@ -613,8 +613,10 @@ function isClosingShift(label) {
 }
 
 function coverageSnapshot(planning, emps, dayKey) {
-  let openingBefore10 = 0;
-  let opening10to11 = 0;
+  let openingAt7 = 0;
+  let openingAt8 = 0;
+  let openingAt9 = 0;
+  let openingAt10 = 0;
   let midi = 0;
   let afternoon = 0;
   let bridge1830 = 0;
@@ -637,8 +639,10 @@ function coverageSnapshot(planning, emps, dayKey) {
 
     const b = shiftBoundsMinutes(label);
     if (b) {
-      if (b.start <= 9*60 && b.end >= 10*60) openingBefore10++;
-      if (b.start <= 10*60 && b.end >= 11*60) opening10to11++;
+      if (b.start === 7*60) openingAt7++;
+      if (b.start === 8*60) openingAt8++;
+      if (b.start === 9*60) openingAt9++;
+      if (b.start === 10*60) openingAt10++;
     }
 
     if (coversWholeWindow(label, 12*60, 15*60)) midi++;
@@ -648,7 +652,7 @@ function coverageSnapshot(planning, emps, dayKey) {
     if (isClosingShift(label)) closing++;
   });
 
-  return { openingBefore10, opening10to11, midi, afternoon, bridge1830, evening, closing };
+  return { openingAt7, openingAt8, openingAt9, openingAt10, midi, afternoon, bridge1830, evening, closing };
 }
 
 function allowedDayCoverageShifts(allowedShifts) {
@@ -675,6 +679,43 @@ function allowedDayCoverageShifts(allowedShifts) {
   return out;
 }
 
+
+
+function allowedExactStartShifts(allowedShifts, emp, hour) {
+  const all = [...allowedContinuousMap(allowedShifts).values()];
+  return all.filter(label => {
+    if (!shiftAllowedByEmployee(emp,label)) return false;
+    const b = shiftBoundsMinutes(label);
+    return !!b && b.start === hour*60;
+  });
+}
+
+function chooseExactStartShift(emp, allowedShifts, hour, currentLabel='') {
+  const pool = allowedExactStartShifts(allowedShifts, emp, hour);
+  if (!pool.length) return '';
+
+  const prefLabels = (SHIFT_PREFERENCES[emp.name]?.preferred || []).map(normalizeShiftLabel);
+  const currentHours = parseShiftHoursLabel(currentLabel);
+
+  let best='', bestScore=Infinity;
+  pool.forEach(label => {
+    const h = parseShiftHoursLabel(label) || 0;
+    let score = 0;
+
+    const idx = prefLabels.indexOf(normalizeShiftLabel(label));
+    if (idx >= 0) score += idx * 1.0;
+    else if (prefLabels.length) score += 3.0;
+
+    if (currentHours !== null) score += Math.abs(h-currentHours)*1.5;
+
+    if (score < bestScore) {
+      bestScore=score;
+      best=label;
+    }
+  });
+
+  return best;
+}
 
 function allowedOpeningShifts(allowedShifts, emp, before10) {
   const all = [...allowedContinuousMap(allowedShifts).values()];
@@ -900,10 +941,11 @@ function serviceTargetsForDay(dayIndex, weekDate, externalEvents) {
   const isWeekend = dayIndex >= 5;
 
   const normal = {
-    // OUVERTURE / MATIN
-    // Minimum quotidien : 2 avant 10h, puis 3 de 10h à 11h.
-    openingBefore10: 2,
-    opening10to11: 3,
+    // OUVERTURE / MATIN — courbe fixe
+    openingAt7: 1,
+    openingAt8: 1,
+    openingAt9: 1,
+    openingAt10: (isWednesday || isWeekend) ? 2 : 1,
 
     // MIDI:
     // Lun/Mar/Jeu/Ven = 6 opérationnels hors Salome
@@ -1074,6 +1116,80 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
   }
 
 
+
+  function ensureExactStart(di, hour, needed) {
+    const key = dayKeys[di];
+    let guard=0;
+
+    function slotCount() {
+      const snap = coverageSnapshot(planning, emps, key);
+      if (hour === 7) return snap.openingAt7;
+      if (hour === 8) return snap.openingAt8;
+      if (hour === 9) return snap.openingAt9;
+      if (hour === 10) return snap.openingAt10;
+      return 0;
+    }
+
+    while (guard++ < 12 && slotCount() < needed) {
+      let changed=false;
+
+      // First, convert a compatible already-planned morning/day employee.
+      const scheduled = candidateIndexes(di, true);
+      for (const i of scheduled) {
+        const emp=emps[i];
+        const cfg=runtimeConfig(emp);
+        if (!cfg.services.morning && hour < 10) continue;
+        if (!cfg.services.lunch && hour === 10) continue;
+
+        const current=planning[i][key];
+        if (isCoupureValue(current)) continue;
+
+        const b=shiftBoundsMinutes(current);
+        if (!b || b.start>=15*60 || b.start===hour*60) continue;
+
+        const replacement=chooseExactStartShift(emp,allowedShifts,hour,current);
+        if (!replacement) continue;
+
+        const row=planning[i];
+        const beforeHours=currentPlannedHours(row);
+        const oldH=parseShiftHoursLabel(current)||0;
+        const newH=parseShiftHoursLabel(replacement)||0;
+
+        if (beforeHours-oldH+newH>48) continue;
+
+        row[key]=replacement;
+        changed=true;
+        break;
+      }
+
+      if (changed) continue;
+
+      // Then add a free compatible employee.
+      const free=candidateIndexes(di,false);
+      for (const i of free) {
+        const emp=emps[i];
+        const cfg=runtimeConfig(emp);
+
+        if (hour < 10 && !cfg.services.morning) continue;
+        if (hour === 10 && !(cfg.services.morning || cfg.services.lunch)) continue;
+
+        const replacement=chooseExactStartShift(emp,allowedShifts,hour,'');
+        if (!replacement) continue;
+
+        const row=planning[i];
+        const currentHours=currentPlannedHours(row);
+        const h=parseShiftHoursLabel(replacement)||0;
+        if (currentHours+h>48) continue;
+
+        row[key]=replacement;
+        changed=true;
+        break;
+      }
+
+      if (!changed) break;
+    }
+  }
+
   function ensureOpening(di, before10) {
     const key = dayKeys[di];
     const target = serviceTargetsForDay(di, weekDate, externalEvents);
@@ -1190,9 +1306,11 @@ function rebalanceCoverage(planning, emps, data, allowedShifts, weekDate, extern
   dayKeys.forEach((key, di) => {
     const TARGET = serviceTargetsForDay(di, weekDate, externalEvents);
 
-    // 1) Build the opening first. Do not accept a good lunch count with nobody early.
-    ensureOpening(di, true);
-    ensureOpening(di, false);
+    // 1) Build the fixed opening curve first.
+    ensureExactStart(di, 7, TARGET.openingAt7);
+    ensureExactStart(di, 8, TARGET.openingAt8);
+    ensureExactStart(di, 9, TARGET.openingAt9);
+    ensureExactStart(di, 10, TARGET.openingAt10);
 
     // 2) Protect the minimum number of closers.
     ensureClosing(di);
@@ -1330,9 +1448,8 @@ function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts, w
       const h=parseShiftHoursLabel(candidate);
       if(!h)return;
 
-      // Before the 5-day target is reached, prefer distribution over refusing the day.
-      // Still keep a hard protection against excessive weekly hours.
-      if(target!==null && worked+1>=wantedDays && planned+h>target+2.5)return;
+      // Five worked days is a HARD distribution rule when five days are available.
+      // Contract target guides shift length, but must not collapse the week into 4 long days.
       if(planned+h>48)return;
 
       row[k]=candidate;
@@ -1357,7 +1474,7 @@ function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts, w
 
   // Other employees: habitual prefill, respecting their real contract when known.
   const order=(emps||[]).map((emp,i)=>{
-    if(isCoreEveningEmployee(emp.name))return null;
+    if(isCoreEveningEmployee(emp))return null;
     const row=result[i],target=contractTargetHours(emp),current=currentPlannedHours(row);
     return {emp,i,target,current,gap:target===null?0:Math.max(0,target-current)};
   }).filter(Boolean).sort((a,b)=>b.gap-a.gap);
@@ -1389,7 +1506,7 @@ function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts, w
       const idealDaily=remaining===null?null:(remaining/daysNeeded);
 
       const candidate=chooseHabitualShift(
-        emp.name,allowedShifts,dayStartCounts[di],idealDaily,usedLabels
+        emp,allowedShifts,dayStartCounts[di],idealDaily,usedLabels
       );
       if(!candidate||!profilePool.has(normalizeShiftLabel(candidate)))return;
 
@@ -1399,25 +1516,32 @@ function deterministicHabitualPrefill(planningRows, emps, data, allowedShifts, w
       // Hard weekly ceiling remains protected.
       if(planned+h>48)return;
 
-      // On the final required day, avoid an excessive overshoot when another shorter
-      // compatible shift could have been selected.
+      // On the fifth required day, always prefer a compatible shorter shift,
+      // but DO NOT leave the employee on only 4 days just because the contract
+      // target has already been almost reached.
       if(target!==null && worked+1>=wantedDays && planned+h>target+2.5){
         const alternatives=[...profilePool]
           .map(n=>allowedContinuousMap(allowedShifts).get(n))
           .filter(Boolean)
           .map(label=>({label,h:parseShiftHoursLabel(label)||999}))
-          .filter(x=>planned+x.h<=target+2.5 && planned+x.h<=48)
-          .sort((a,b)=>Math.abs((target-planned)-a.h)-Math.abs((target-planned)-b.h));
+          .filter(x=>planned+x.h<=48)
+          .sort((a,b)=>{
+            const da=Math.abs((target-planned)-a.h);
+            const db=Math.abs((target-planned)-b.h);
+            return da-db || a.h-b.h;
+          });
+
         if(alternatives.length){
-          row[k]=alternatives[0].label;
-          planned+=alternatives[0].h;
+          const chosen=alternatives[0];
+          row[k]=chosen.label;
+          planned+=chosen.h;
           worked++;
-          const nk=normalizeShiftLabel(alternatives[0].label);
+          const nk=normalizeShiftLabel(chosen.label);
           usedLabels.set(nk,(usedLabels.get(nk)||0)+1);
-          const st=shiftStartMinutes(alternatives[0].label);
+          const st=shiftStartMinutes(chosen.label);
           if(st!==9999)dayStartCounts[di].set(st,(dayStartCounts[di].get(st)||0)+1);
+          return;
         }
-        return;
       }
 
       row[k]=candidate;planned+=h;worked++;
@@ -1571,8 +1695,10 @@ function buildCoverageAudit(planning, emps, weekDate, externalEvents) {
     const targets = serviceTargetsForDay(di, weekDate, externalEvents);
 
     const deficits = [];
-    if (counts.openingBefore10 < targets.openingBefore10) deficits.push(`Ouverture <10h ${counts.openingBefore10}/${targets.openingBefore10}`);
-    if (counts.opening10to11 < targets.opening10to11) deficits.push(`10–11h ${counts.opening10to11}/${targets.opening10to11}`);
+    if (counts.openingAt7 < targets.openingAt7) deficits.push(`07h ${counts.openingAt7}/${targets.openingAt7}`);
+    if (counts.openingAt8 < targets.openingAt8) deficits.push(`08h ${counts.openingAt8}/${targets.openingAt8}`);
+    if (counts.openingAt9 < targets.openingAt9) deficits.push(`09h ${counts.openingAt9}/${targets.openingAt9}`);
+    if (counts.openingAt10 < targets.openingAt10) deficits.push(`10h ${counts.openingAt10}/${targets.openingAt10}`);
     if (counts.midi < targets.midi) deficits.push(`Midi ${counts.midi}/${targets.midi}`);
     if (counts.afternoon < targets.afternoon) deficits.push(`Après-midi ${counts.afternoon}/${targets.afternoon}`);
     if (counts.bridge1830 < targets.bridge1830) deficits.push(`18h30 ${counts.bridge1830}/${targets.bridge1830}`);
@@ -1584,8 +1710,10 @@ function buildCoverageAudit(planning, emps, weekDate, externalEvents) {
       level: targets.strong ? 'FORT' : 'NORMAL',
       reasons: targets.reasons || [],
       counts: {
-        openingBefore10: counts.openingBefore10,
-        opening10to11: counts.opening10to11,
+        openingAt7: counts.openingAt7,
+        openingAt8: counts.openingAt8,
+        openingAt9: counts.openingAt9,
+        openingAt10: counts.openingAt10,
         midi: counts.midi,
         afternoon: counts.afternoon,
         bridge1830: counts.bridge1830,
@@ -1593,8 +1721,10 @@ function buildCoverageAudit(planning, emps, weekDate, externalEvents) {
         closing: counts.closing
       },
       targets: {
-        openingBefore10: targets.openingBefore10,
-        opening10to11: targets.opening10to11,
+        openingAt7: targets.openingAt7,
+        openingAt8: targets.openingAt8,
+        openingAt9: targets.openingAt9,
+        openingAt10: targets.openingAt10,
         midi: targets.midi,
         afternoon: targets.afternoon,
         bridge1830: targets.bridge1830,
@@ -1740,7 +1870,7 @@ ${allowedCompact}
 REGLES DURES:
 1) Sur "." : propose UNIQUEMENT un shift CONTINU présent dans SHIFTS AUTORISES, ou laisse "". JAMAIS RH/VAC/AM/CFA/Absent.
 2) Une case déjà avec un horaire/statut est une forte référence: conserve-la sauf impossibilité de couverture/légalité.
-3) SEMAINE STANDARD TEMPS PLEIN : viser 5 jours travaillés lorsque les RH/Vacances/CFA/Arrêts verrouillés le permettent. Ne concentre jamais volontairement le contrat sur seulement 4 grosses journées. Maximum 5 jours travaillés dans une semaine standard, max 48h, repos entre journées >=11h. Si des indisponibilités verrouillées réduisent les jours disponibles, adapte le nombre de jours sans inventer de RH.
+3) SEMAINE STANDARD TEMPS PLEIN : 5 jours travaillés est une contrainte dure lorsque 5 jours sont disponibles après RH/Vacances/CFA/Arrêts verrouillés. Ne jamais laisser 4 jours uniquement parce que le quota horaire est presque atteint ; choisir un shift plus court le 5e jour si nécessaire. Maximum 5 jours travaillés dans une semaine standard, max 48h, repos entre journées >=11h. Si des indisponibilités verrouillées réduisent les jours disponibles, adapte le nombre de jours sans inventer de RH.
 4) M: aucun soir/fermeture/coupure soir. Guillaume non planifié.
 5) Salome: avant 12h ne compte pas; dès 12h = accueil seulement.
 6) Martin V et Louis = MANUEL UNIQUEMENT : ne leur propose aucun shift sur une case libre et ne les compte jamais dans les minimums.
