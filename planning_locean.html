@@ -101,6 +101,41 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
 .chk-chip input{width:13px;height:13px;accent-color:var(--navy);margin:0}
 .config-label{font-size:8px;color:var(--g400);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
 @media(max-width:900px){.emp-config-top{grid-template-columns:34px 1fr 90px 105px}.emp-config-top .config-secondary{grid-column:auto}.emp-config-grid{grid-template-columns:1fr}.modal{width:96vw}}
+.team-page{display:none;min-height:calc(100vh - 54px);background:#f4f3ef;padding:18px 22px 32px}
+.team-page.open{display:block}
+.team-shell{max-width:1500px;margin:0 auto}
+.team-topbar{position:sticky;top:0;z-index:40;background:rgba(244,243,239,.96);backdrop-filter:blur(10px);padding:4px 0 12px;margin-bottom:12px;border-bottom:1px solid var(--g200)}
+.team-title-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.team-title{font-size:22px;font-weight:700;color:var(--navy);letter-spacing:-.02em}
+.team-subtitle{font-size:11px;color:var(--g500);margin-top:2px}
+.team-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.team-legend{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.team-legend span{font-size:9px;color:var(--g600);background:white;border:1px solid var(--g200);border-radius:999px;padding:4px 7px}
+.team-grid{display:grid;grid-template-columns:1fr;gap:12px}
+.team-page .emp-edit-row{background:white;border:1px solid #dedbd3;border-radius:10px;padding:12px 14px;margin:0;box-shadow:0 1px 2px rgba(20,30,45,.03)}
+.team-page .emp-edit-row:hover{border-color:#c9c5bb}
+.team-page .emp-config-box{background:#faf9f6;border:1px solid #e4e1d9}
+.team-page .emp-config-title{color:var(--navy)}
+.team-page .repos-toggle-grid{gap:7px}
+.team-page .repos-toggle-day{background:white;border:1px solid var(--g200);border-radius:7px;padding:5px 2px}
+.team-page .config-label{font-weight:700}
+.team-page .field-inp{background:white}
+.team-page .chk-chip{transition:.12s ease}
+.team-page .chk-chip:has(input:checked){border-color:#9ca9b9;background:#f1f5f9;color:var(--navy);font-weight:600}
+.team-section-number{font-size:9px;color:var(--g400);font-weight:700;margin-left:6px}
+@media(max-width:1100px){
+  .team-page{padding:14px}
+  .team-page .emp-config-top{grid-template-columns:34px minmax(150px,1fr) 90px 105px 1fr 100px}
+  .team-page .emp-config-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:760px){
+  .team-page{padding:10px}
+  .team-page .emp-config-top{grid-template-columns:34px 1fr 90px}
+  .team-page .emp-config-grid{grid-template-columns:1fr}
+  .team-actions{width:100%}
+  .team-actions .btn,.team-actions .add-emp-btn{flex:1}
+}
+
 
 .emp-edit-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700}
 .field-inp{font-family:'Inter',sans-serif;font-size:12px;border:.5px solid var(--g200);border-radius:5px;padding:4px 8px;background:var(--g100);color:var(--g900);width:100%}
@@ -144,7 +179,7 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
   @page{size:A4 landscape;margin:10mm 12mm}
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
   html,body{background:white!important}
-  .header,.foot,.no-print,.modal-overlay,.table-card,.evt-card{display:none!important}
+  .header,.foot,.no-print,.modal-overlay,.team-page,.table-card,.evt-card{display:none!important}
   .main{padding:0}
 
   /* PDF plus propre : bloc centré, légèrement moins large que la page */
@@ -324,7 +359,7 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
   </div>
 </header>
 
-<main class="main">
+<main class="main" id="planningPage">
   <div class="table-card">
     <div class="table-scroll">
       <table>
@@ -371,22 +406,32 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
   </div>
 </main>
 
-<div class="modal-overlay" id="rhModal" onclick="if(event.target===this)closeRH()">
-  <div class="modal">
-    <div class="modal-header">
-      <span class="modal-title">Gestion de l'équipe</span>
-      <button class="modal-close" onclick="closeRH()">&#x2715;</button>
-    </div>
-    <div class="modal-body" id="rhBody"></div>
-    <div class="modal-footer">
-      <button class="add-emp-btn" onclick="addEmp()">+ Ajouter un·e employé·e</button>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-outline" onclick="closeRH()">Annuler</button>
-        <button class="btn btn-gold" onclick="saveRH()">Appliquer</button>
+
+<section class="team-page no-print" id="teamPage">
+  <div class="team-shell">
+    <div class="team-topbar">
+      <div class="team-title-row">
+        <div>
+          <div class="team-title">Équipe</div>
+          <div class="team-subtitle">Contrats, disponibilités, services autorisés, rangs maîtrisés et repos habituels.</div>
+        </div>
+        <div class="team-actions">
+          <button class="add-emp-btn" onclick="addEmp()">＋ Ajouter un salarié</button>
+          <button class="btn btn-outline" onclick="closeRH()">← Retour planning</button>
+          <button class="btn btn-gold" onclick="saveRH()">✓ Enregistrer et revenir</button>
+        </div>
+      </div>
+      <div class="team-legend">
+        <span>IA planifie = autorise l’automatisation</span>
+        <span>Compte = pris en compte dans les minimums</span>
+        <span>Services cochés = autorisations dures</span>
+        <span>Préférence = priorité souple</span>
+        <span>Rangs = compétences connues</span>
       </div>
     </div>
+    <div id="rhBody" class="team-grid"></div>
   </div>
-</div>
+</section>
 
 <script>
 var DAYS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -1275,11 +1320,16 @@ function teamCheckbox(id,label,checked){
 
 /* RH MODAL */
 function openRH(){
+  var page=document.getElementById('teamPage');
+  var planning=document.getElementById('planningPage');
+  if(planning)planning.style.display='none';
+  if(page)page.classList.add('open');
+  document.body.scrollTop=0;
+  document.documentElement.scrollTop=0;
+  var sub=document.querySelector('.brand-sub');
+  if(sub)sub.textContent='— Configuration équipe';
+
   var body=document.getElementById('rhBody'),html='';
-  html+='<div style="font-size:10px;color:var(--g600);background:var(--g100);border-radius:8px;padding:9px 11px;margin-bottom:12px;line-height:1.45">'
-      +'<strong>Configuration équipe.</strong> Les règles cochées ici deviennent les autorisations utilisées par le planning IA. '
-      +'Tu peux donc ajouter un salarié, ses horaires, ses rangs et ses contraintes sans modifier le code.'
-      +'</div>';
 
   EMPS.forEach(function(emp,ei){
     ensureEmpConfig(emp);
@@ -1291,7 +1341,7 @@ function openRH(){
 
     html+='<div class="emp-config-top">';
     html+='<div class="emp-edit-av" style="background:'+col.bg+';color:'+col.fg+';align-self:center">'+emp.name.slice(0,2).toUpperCase()+'</div>';
-    html+='<div><div class="config-label">Employé</div><input class="field-inp" id="rh_name_'+ei+'" value="'+emp.name+'"></div>';
+    html+='<div><div class="config-label">Employé <span class="team-section-number">#'+(ei+1)+'</span></div><input class="field-inp" id="rh_name_'+ei+'" value="'+emp.name+'"></div>';
     html+='<div><div class="config-label">Contrat h/sem</div><input class="field-inp" type="number" min="0" step="0.5" id="rh_contract_'+ei+'" value="'+(emp.contract||'')+'" placeholder="42"></div>';
     html+='<div><div class="config-label">Taux brut €/h</div><input class="field-inp" type="number" min="0" step="0.01" id="rh_gross_'+ei+'" value="'+(emp.grossHourlyRate||'')+'" placeholder="12.00"></div>';
     html+='<div class="config-secondary"><div class="config-label">Fonction / note courte</div><input class="field-inp" id="rh_role_'+ei+'" value="'+(emp.role||'')+'" placeholder="Chef de rang..."></div>';
@@ -1343,7 +1393,6 @@ function openRH(){
   });
 
   document.getElementById('rhBody').innerHTML=html;
-  document.getElementById('rhModal').classList.add('open');
 }
 
 function syncRHModalToData(){
@@ -1432,7 +1481,16 @@ function toggleHidden(ei){
   openRH();
 }
 
-function closeRH(){document.getElementById('rhModal').classList.remove('open');}
+function closeRH(){
+  var page=document.getElementById('teamPage');
+  var planning=document.getElementById('planningPage');
+  if(page)page.classList.remove('open');
+  if(planning)planning.style.display='';
+  var sub=document.querySelector('.brand-sub');
+  if(sub)sub.textContent='— Planning équipe';
+  document.body.scrollTop=0;
+  document.documentElement.scrollTop=0;
+}
 function delEmp(ei){var r=document.getElementById('emprow'+ei);if(r)r.style.opacity='.3';document.getElementById('rh_name_'+ei).value='__DEL__';}
 
 function moveEmp(ei,dir){
@@ -1518,7 +1576,7 @@ function exportCSV(){
 }
 
 /* SAUVEGARDE LOCALE + SERVEUR NETLIFY BLOBS */
-var STORAGE_KEY='locean_v20';
+var STORAGE_KEY='locean_v21';
 var CURRENT_WEEK=null;
 var SERVER_SAVE_TIMER=null;
 var SERVER_LOADING=false;
