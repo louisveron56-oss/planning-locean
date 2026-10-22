@@ -1195,6 +1195,8 @@ function serviceTargetsForDay(dayIndex, weekDate, externalEvents) {
 }
 
 
+const V7_DAY_KEYS = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+
 // ================================================================
 // V7 — RÉÉQUILIBRAGE GLOBAL PAR SIMULATION
 // On ne rajoute plus aveuglément du personnel : on teste d'abord
@@ -1232,7 +1234,7 @@ function hardCoverageScore(snapshot, target) {
 }
 
 function totalDayPenalty(planning, emps, di, weekDate, externalEvents) {
-  const key = dayKeys[di];
+  const key = V7_DAY_KEYS[di];
   const target = serviceTargetsForDay(di, weekDate, externalEvents);
   const snap = coverageSnapshot(planning, emps, key);
 
@@ -1306,7 +1308,7 @@ function projectedWeeklyHoursAfterReplacement(row, current, replacement) {
 }
 
 function isUsefulEveningSurplusCandidate(planning, emps, i, di, weekDate, externalEvents) {
-  const key = dayKeys[di];
+  const key = V7_DAY_KEYS[di];
   const current = planning[i]?.[key];
   const b = shiftBoundsMinutes(current);
   if (!b || b.start < 15*60) return false;
@@ -1319,7 +1321,7 @@ function isUsefulEveningSurplusCandidate(planning, emps, i, di, weekDate, extern
 }
 
 function rebalanceDayByBestMove(planning, emps, di, allowedShifts, weekDate, externalEvents) {
-  const key = dayKeys[di];
+  const key = V7_DAY_KEYS[di];
   const target = serviceTargetsForDay(di, weekDate, externalEvents);
 
   let passes = 0;
