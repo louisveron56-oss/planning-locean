@@ -84,7 +84,7 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
 .foot-r{display:flex;gap:6px}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center}
 .modal-overlay.open{display:flex}
-.modal{background:white;border-radius:var(--rl);width:580px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal{background:white;border-radius:var(--rl);width:1120px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
 .modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:.5px solid var(--g200);position:sticky;top:0;background:white;z-index:1}
 .modal-title{font-size:14px;font-weight:600;color:var(--navy)}
 .modal-close{background:none;border:none;cursor:pointer;color:var(--g400);font-size:18px;padding:2px 6px;border-radius:4px}
@@ -92,6 +92,16 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
 .modal-body{padding:18px}
 .emp-edit-row{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:.5px solid var(--g200);border-radius:var(--r);margin-bottom:10px;transition:opacity .2s}
 .emp-edit-row.hidden-emp{opacity:.4}
+.emp-config-top{display:grid;grid-template-columns:34px minmax(150px,1.4fr) 86px 105px minmax(110px,1fr) 92px 110px 120px;gap:8px;align-items:end;width:100%}
+.emp-config-grid{display:grid;grid-template-columns:1fr 1.35fr 1.15fr;gap:12px;width:100%;margin-top:4px}
+.emp-config-box{border:.5px solid var(--g200);border-radius:8px;padding:9px;background:#FCFCFB}
+.emp-config-title{font-size:9px;color:var(--g400);text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px;font-weight:700}
+.chk-chips{display:flex;gap:5px;flex-wrap:wrap}
+.chk-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 7px;border:.5px solid var(--g200);border-radius:999px;background:white;font-size:10px;color:var(--g700);cursor:pointer;white-space:nowrap}
+.chk-chip input{width:13px;height:13px;accent-color:var(--navy);margin:0}
+.config-label{font-size:8px;color:var(--g400);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+@media(max-width:900px){.emp-config-top{grid-template-columns:34px 1fr 90px 105px}.emp-config-top .config-secondary{grid-column:auto}.emp-config-grid{grid-template-columns:1fr}.modal{width:96vw}}
+
 .emp-edit-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700}
 .field-inp{font-family:'Inter',sans-serif;font-size:12px;border:.5px solid var(--g200);border-radius:5px;padding:4px 8px;background:var(--g100);color:var(--g900);width:100%}
 .field-inp:focus{outline:none;border-color:var(--navy);background:white}
@@ -720,7 +730,7 @@ function buildBody(){
     tb.appendChild(tr);
   });
 
-  var FLABELS=['Midi (12–15h)','Ap.-midi (15–18h)','Soir (21h+)','H. total'];
+  var FLABELS=['Midi (12–15h)','Ap.-midi (15–18h)','Soir (service)','H. total'];
   var FIDS=['fmidi','fapm','fsoir','ftoth'];
   FLABELS.forEach(function(lbl,fi){
     var fr=document.createElement('tr');fr.className='foot-row';
@@ -848,7 +858,22 @@ function toMinN(s){if(!s||s==='—')return null;var p=s.split(':').map(Number);r
 function presentAt(sh,t){var sm=toMinN(sh.s),em=toMinN(sh.e);if(sm===null)return false;if(em===null)return sm<=t;if(em<=sm)em+=1440;return sm<=t&&em>=t;}
 function minCovApm(di){var slots=[15*60,15*60+30,16*60,16*60+30,17*60,17*60+30,18*60],mn=999;slots.forEach(function(t){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;d.shifts.forEach(function(sh){if(presentAt(sh,t))c++;});});if(c<mn)mn=c;});return mn===999?0:mn;}
 function cntMidi(di){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<15*60&&em>12*60)f=true;}});if(f)c++;});return c;}
-function cntSoir(di){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<21*60&&em>=21*60)f=true;}});if(f)c++;});return c;}
+function cntSoir(di){var c=0;EMPS.forEach(function(emp,ei){
+  if(emp.hidden)return;
+  var d=DATA[ei][di];
+  if(!d||d.x||!d.shifts)return;
+  if(d.status&&d.status!=='Coupure')return;
+  var f=false;
+  d.shifts.forEach(function(sh){
+    if(f||!sh.s||!sh.e||sh.s==='—'||sh.e==='—')return;
+    var sm=toMinN(sh.s),em=toMinN(sh.e);
+    if(em<=sm)em+=1440;
+    // "Soir" = présent sur le service jusqu'à au moins 23h.
+    // Un 11h>21h ou 11h>20h ne compte donc plus comme effectif du soir.
+    if(sm<=18*60+30&&em>=23*60)f=true;
+  });
+  if(f)c++;
+});return c;}
 function totHDay(di){var t=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;t+=calcDayH(d.shifts);});return t;}
 
 function updateRowTotal(ei){
@@ -1043,7 +1068,7 @@ function buildPrintDoc(){
     var tr=document.createElement('tr');
     if(emp.hidden)tr.style.cssText='color:#999;background:#f5f5f5;';
 
-    var nameCell='<td class="en">'+emp.name+(emp.hidden?'<div style="font-size:7px;color:#999">Hors planning</div>':'')+'</td>';
+    var nameCell='<td class="en">'+String(emp.name||'').toUpperCase()+(emp.hidden?'<div style="font-size:7px;color:#999">Hors planning</div>':'')+'</td>';
 
     var fullStatus='';
     var first=safeDay(ei,0);
@@ -1173,39 +1198,197 @@ function doPrint(){
   }
 }
 
+
+/* CONFIGURATION ÉQUIPE — migration des anciennes règles vers des données éditables */
+var EMP_RANKS=['Bar','Salle bas','Salle 400','Grand côté','Petit côté','Fond','Accueil','Runner'];
+
+var LEGACY_TEAM_CONFIG={
+  'Virginie':{ranks:['Bar','Salle bas','Salle 400','Grand côté','Petit côté','Runner'],services:{morning:true,lunch:true,evening:false,closing:false,split:false},preferredService:'lunch',aiEnabled:true,countsForCoverage:true},
+  'Raphael':{ranks:['Bar','Salle bas','Grand côté','Petit côté'],services:{morning:true,lunch:true,evening:false,closing:false,split:false},preferredService:'lunch',aiEnabled:true,countsForCoverage:true},
+  'Seb':{ranks:['Bar','Salle bas','Grand côté','Petit côté','Fond'],services:{morning:true,lunch:true,evening:false,closing:false,split:false},preferredService:'lunch',aiEnabled:true,countsForCoverage:true},
+  'Anthony':{ranks:['Fond'],services:{morning:true,lunch:true,evening:false,closing:false,split:false},preferredService:'lunch',aiEnabled:true,countsForCoverage:true},
+  'Catherine':{ranks:['Salle bas','Salle 400','Petit côté'],services:{morning:false,lunch:true,evening:true,closing:true,split:false},preferredService:'evening',aiEnabled:true,countsForCoverage:true},
+  'Ismaël':{ranks:['Bar','Salle bas','Salle 400','Grand côté','Petit côté','Fond','Runner'],services:{morning:false,lunch:true,evening:true,closing:true,split:false},preferredService:'lunch',aiEnabled:true,countsForCoverage:true},
+  'Pierre':{ranks:['Bar','Accueil','Runner'],services:{morning:false,lunch:true,evening:true,closing:true,split:false},preferredService:'evening',aiEnabled:true,countsForCoverage:true},
+  'Maxence':{ranks:['Salle bas','Salle 400','Grand côté','Petit côté','Fond','Runner'],services:{morning:false,lunch:false,evening:true,closing:true,split:false},preferredService:'evening',aiEnabled:true,countsForCoverage:true},
+  'Arthur-Paul':{ranks:['Bar','Salle bas','Salle 400','Grand côté','Petit côté','Fond','Runner'],services:{morning:false,lunch:false,evening:true,closing:true,split:false},preferredService:'evening',aiEnabled:true,countsForCoverage:true},
+  'Yoann':{ranks:['Salle bas','Salle 400','Grand côté','Petit côté','Fond'],services:{morning:false,lunch:false,evening:true,closing:true,split:false},preferredService:'evening',aiEnabled:true,countsForCoverage:true},
+  'Martin F':{ranks:['Salle bas','Salle 400','Grand côté','Petit côté','Fond','Runner'],services:{morning:false,lunch:false,evening:true,closing:true,split:false},preferredService:'evening',aiEnabled:true,countsForCoverage:true},
+  'Antoine':{ranks:['Bar','Salle bas','Salle 400','Grand côté','Petit côté','Fond','Runner'],services:{morning:false,lunch:false,evening:true,closing:true,split:false},preferredService:'evening',aiEnabled:true,countsForCoverage:true},
+  'Emile':{ranks:['Salle bas','Runner'],services:{morning:false,lunch:false,evening:true,closing:true,split:false},preferredService:'evening',aiEnabled:true,countsForCoverage:true},
+  'Salome':{ranks:['Accueil'],services:{morning:false,lunch:true,evening:false,closing:false,split:false},preferredService:'lunch',aiEnabled:true,countsForCoverage:false,earliestStart:'10:00',latestEnd:'17:30'},
+  'Guillaume':{ranks:['Bar'],services:{morning:false,lunch:false,evening:false,closing:false,split:false},preferredService:'flexible',aiEnabled:false,countsForCoverage:true},
+  'Erwann':{ranks:['Bar','Salle bas','Salle 400','Grand côté','Petit côté','Accueil'],services:{morning:false,lunch:false,evening:true,closing:true,split:false},preferredService:'evening',aiEnabled:true,countsForCoverage:true},
+  'Martin V':{ranks:['Bar','Salle bas','Salle 400','Grand côté','Petit côté','Fond','Accueil','Runner'],services:{morning:true,lunch:true,evening:true,closing:true,split:false},preferredService:'flexible',aiEnabled:false,countsForCoverage:false},
+  'Louis':{ranks:['Bar','Salle bas','Salle 400','Grand côté','Petit côté','Fond','Accueil','Runner'],services:{morning:true,lunch:true,evening:true,closing:true,split:false},preferredService:'flexible',aiEnabled:false,countsForCoverage:false}
+};
+
+function ensureEmpConfig(emp){
+  if(!emp)return emp;
+  var legacy=LEGACY_TEAM_CONFIG[emp.name]||null;
+
+  if(typeof emp.aiEnabled!=='boolean')emp.aiEnabled=legacy?legacy.aiEnabled:false;
+  if(typeof emp.countsForCoverage!=='boolean')emp.countsForCoverage=legacy?legacy.countsForCoverage:true;
+  if(!emp.preferredService)emp.preferredService=legacy?legacy.preferredService:'flexible';
+
+  var baseServices={morning:false,lunch:false,evening:false,closing:false,split:false};
+  var srcServices=emp.services||(legacy&&legacy.services)||{};
+  emp.services={
+    morning:!!srcServices.morning,
+    lunch:!!srcServices.lunch,
+    evening:!!srcServices.evening,
+    closing:!!srcServices.closing,
+    split:!!srcServices.split
+  };
+
+  if(!Array.isArray(emp.ranks)){
+    emp.ranks=legacy&&Array.isArray(legacy.ranks)?legacy.ranks.slice():[];
+  }else{
+    emp.ranks=emp.ranks.filter(function(r){return EMP_RANKS.indexOf(r)>=0;});
+  }
+
+  if(!emp.earliestStart){
+    if(legacy&&legacy.earliestStart)emp.earliestStart=legacy.earliestStart;
+    else if(emp.services.morning)emp.earliestStart='07:00';
+    else if(emp.services.lunch)emp.earliestStart='10:00';
+    else if(emp.services.evening)emp.earliestStart='15:00';
+    else emp.earliestStart='';
+  }
+  if(!emp.latestEnd){
+    if(legacy&&legacy.latestEnd)emp.latestEnd=legacy.latestEnd;
+    else if(emp.services.closing)emp.latestEnd='01:00';
+    else if(emp.services.evening)emp.latestEnd='23:00';
+    else if(emp.services.lunch)emp.latestEnd='21:00';
+    else emp.latestEnd='';
+  }
+
+  if(!Number.isFinite(Number(emp.maxSplits)))emp.maxSplits=2;
+  emp.maxSplits=Math.max(0,Math.min(2,parseInt(emp.maxSplits,10)||0));
+
+  if(emp.role===undefined||emp.role===null)emp.role='';
+  return emp;
+}
+
+function teamCheckbox(id,label,checked){
+  return '<label class="chk-chip"><input type="checkbox" id="'+id+'" '+(checked?'checked':'')+'><span>'+label+'</span></label>';
+}
+
 /* RH MODAL */
 function openRH(){
   var body=document.getElementById('rhBody'),html='';
+  html+='<div style="font-size:10px;color:var(--g600);background:var(--g100);border-radius:8px;padding:9px 11px;margin-bottom:12px;line-height:1.45">'
+      +'<strong>Configuration équipe.</strong> Les règles cochées ici deviennent les autorisations utilisées par le planning IA. '
+      +'Tu peux donc ajouter un salarié, ses horaires, ses rangs et ses contraintes sans modifier le code.'
+      +'</div>';
+
   EMPS.forEach(function(emp,ei){
+    ensureEmpConfig(emp);
     var col=getColor(ei);
     var reposDays=ensureEmpRhDays(emp,ei).slice();
     var isHidden=!!emp.hidden;
+
     html+='<div class="emp-edit-row'+(isHidden?' hidden-emp':'')+'" id="emprow'+ei+'">';
-    html+='<div style="display:grid;grid-template-columns:28px 1fr 80px auto auto auto auto;gap:8px;align-items:center;width:100%">';
-    html+='<div class="emp-edit-av" style="background:'+col.bg+';color:'+col.fg+'">'+emp.name.slice(0,2).toUpperCase()+'</div>';
-    html+='<input class="field-inp" id="rh_name_'+ei+'" value="'+emp.name+'">';
-    html+='<input class="field-inp" type="number" id="rh_contract_'+ei+'" value="'+(emp.contract||'')+'" placeholder="h/sem">';
-    html+='<button class="vis-btn'+(isHidden?'':' active')+'" id="vis_btn_'+ei+'" onclick="toggleHidden('+ei+')" title="'+(isHidden?'Afficher':'Masquer')+'">'+(isHidden?'🙈':'👁')+'</button>';
-    html+='<button class="del-emp" onclick="moveEmp('+ei+',-1)" title="Monter" style="font-size:13px">&#8679;</button>';
-    html+='<button class="del-emp" onclick="moveEmp('+ei+',1)" title="Descendre" style="font-size:13px">&#8681;</button>';
-    html+='<button class="del-emp" onclick="delEmp('+ei+')" title="Supprimer">✕</button></div>';
-    html+='<div style="width:100%"><div style="font-size:9px;color:var(--g400);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Jours non planifié·e</div>';
-    html+='<div class="repos-toggle-grid">';
-    DAYS.forEach(function(d,di){html+='<div class="repos-toggle-day"><span>'+d+'</span><input type="checkbox" id="rh_repos_'+ei+'_'+di+'" '+(reposDays.indexOf(di)>=0?'checked':'')+' ></div>';});
-    html+='</div></div></div>';
+
+    html+='<div class="emp-config-top">';
+    html+='<div class="emp-edit-av" style="background:'+col.bg+';color:'+col.fg+';align-self:center">'+emp.name.slice(0,2).toUpperCase()+'</div>';
+    html+='<div><div class="config-label">Employé</div><input class="field-inp" id="rh_name_'+ei+'" value="'+emp.name+'"></div>';
+    html+='<div><div class="config-label">Contrat h/sem</div><input class="field-inp" type="number" min="0" step="0.5" id="rh_contract_'+ei+'" value="'+(emp.contract||'')+'" placeholder="42"></div>';
+    html+='<div><div class="config-label">Taux brut €/h</div><input class="field-inp" type="number" min="0" step="0.01" id="rh_gross_'+ei+'" value="'+(emp.grossHourlyRate||'')+'" placeholder="12.00"></div>';
+    html+='<div class="config-secondary"><div class="config-label">Fonction / note courte</div><input class="field-inp" id="rh_role_'+ei+'" value="'+(emp.role||'')+'" placeholder="Chef de rang..."></div>';
+    html+='<div class="config-secondary"><div class="config-label">Préférence</div><select class="field-inp" id="rh_pref_'+ei+'">'
+      +'<option value="flexible" '+(emp.preferredService==='flexible'?'selected':'')+'>Flexible</option>'
+      +'<option value="morning" '+(emp.preferredService==='morning'?'selected':'')+'>Matin</option>'
+      +'<option value="lunch" '+(emp.preferredService==='lunch'?'selected':'')+'>Midi / journée</option>'
+      +'<option value="evening" '+(emp.preferredService==='evening'?'selected':'')+'>Soir</option>'
+      +'</select></div>';
+    html+='<div class="config-secondary"><div class="config-label">Automatisation</div>'+teamCheckbox('rh_ai_'+ei,'IA planifie',emp.aiEnabled)+'</div>';
+    html+='<div class="config-secondary"><div class="config-label">Effectifs minimum</div>'+teamCheckbox('rh_count_'+ei,'Compte',emp.countsForCoverage)+'</div>';
+    html+='</div>';
+
+    html+='<div class="emp-config-grid">';
+
+    html+='<div class="emp-config-box"><div class="emp-config-title">Services autorisés</div><div class="chk-chips">';
+    html+=teamCheckbox('rh_srv_morning_'+ei,'Matin / café',emp.services.morning);
+    html+=teamCheckbox('rh_srv_lunch_'+ei,'Midi',emp.services.lunch);
+    html+=teamCheckbox('rh_srv_evening_'+ei,'Soir',emp.services.evening);
+    html+=teamCheckbox('rh_srv_closing_'+ei,'Fermeture',emp.services.closing);
+    html+=teamCheckbox('rh_srv_split_'+ei,'Coupure',emp.services.split);
+    html+='</div>';
+    html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px"><div><div class="config-label">Début au plus tôt</div><input class="field-inp" type="time" id="rh_earliest_'+ei+'" value="'+(emp.earliestStart||'')+'"></div><div><div class="config-label">Fin au plus tard</div><input class="field-inp" type="time" id="rh_latest_'+ei+'" value="'+(emp.latestEnd||'')+'"></div></div>';
+    html+='<div style="display:flex;align-items:center;gap:6px;margin-top:7px;font-size:9px;color:var(--g500)">Max coupures / sem. <select class="field-inp" id="rh_maxsplit_'+ei+'" style="width:58px;padding:2px 5px"><option value="0" '+(emp.maxSplits===0?'selected':'')+'>0</option><option value="1" '+(emp.maxSplits===1?'selected':'')+'>1</option><option value="2" '+(emp.maxSplits===2?'selected':'')+'>2</option></select></div>';
+    html+='</div>';
+
+    html+='<div class="emp-config-box"><div class="emp-config-title">Rangs maîtrisés</div><div class="chk-chips">';
+    EMP_RANKS.forEach(function(r,ri){
+      html+=teamCheckbox('rh_rank_'+ei+'_'+ri,r,emp.ranks.indexOf(r)>=0);
+    });
+    html+='</div><div style="font-size:8px;color:var(--g400);margin-top:6px">Aucun rang coché = compétences non renseignées ; l’IA ne doit pas en inventer.</div></div>';
+
+    html+='<div class="emp-config-box"><div class="emp-config-title">Jours off habituels</div><div class="repos-toggle-grid">';
+    DAYS.forEach(function(d,di){
+      html+='<div class="repos-toggle-day"><span>'+d+'</span><input type="checkbox" id="rh_repos_'+ei+'_'+di+'" '+(reposDays.indexOf(di)>=0?'checked':'')+'></div>';
+    });
+    html+='</div></div>';
+
+    html+='</div>';
+
+    html+='<div style="display:flex;justify-content:flex-end;gap:6px;margin-top:2px">';
+    html+='<button class="vis-btn'+(isHidden?'':' active')+'" id="vis_btn_'+ei+'" onclick="toggleHidden('+ei+')" title="'+(isHidden?'Afficher':'Masquer')+'">'+(isHidden?'🙈 Masqué':'👁 Visible')+'</button>';
+    html+='<button class="del-emp" onclick="moveEmp('+ei+',-1)" title="Monter" style="font-size:12px">↑ Monter</button>';
+    html+='<button class="del-emp" onclick="moveEmp('+ei+',1)" title="Descendre" style="font-size:12px">↓ Descendre</button>';
+    html+='<button class="del-emp" onclick="delEmp('+ei+')" title="Supprimer">✕ Supprimer</button>';
+    html+='</div>';
+
+    html+='</div>';
   });
+
   document.getElementById('rhBody').innerHTML=html;
   document.getElementById('rhModal').classList.add('open');
 }
 
-
 function syncRHModalToData(){
   EMPS.forEach(function(emp,ei){
+    ensureEmpConfig(emp);
+
     var n=document.getElementById('rh_name_'+ei);
     var c=document.getElementById('rh_contract_'+ei);
+    var g=document.getElementById('rh_gross_'+ei);
+    var role=document.getElementById('rh_role_'+ei);
+    var pref=document.getElementById('rh_pref_'+ei);
 
     if(n&&n.value&&n.value!=='__DEL__')emp.name=n.value.trim()||emp.name;
-    if(c&&c.value!=='')emp.contract=parseFloat(c.value)||0;
+    if(c)emp.contract=c.value===''?0:(parseFloat(c.value)||0);
+    if(g)emp.grossHourlyRate=g.value===''?0:(parseFloat(g.value)||0);
+    if(role)emp.role=role.value.trim();
+    if(pref)emp.preferredService=pref.value||'flexible';
+
+    var ai=document.getElementById('rh_ai_'+ei);
+    var count=document.getElementById('rh_count_'+ei);
+    if(ai)emp.aiEnabled=!!ai.checked;
+    if(count)emp.countsForCoverage=!!count.checked;
+
+    function ck(id){var el=document.getElementById(id);return !!(el&&el.checked);}
+    emp.services={
+      morning:ck('rh_srv_morning_'+ei),
+      lunch:ck('rh_srv_lunch_'+ei),
+      evening:ck('rh_srv_evening_'+ei),
+      closing:ck('rh_srv_closing_'+ei),
+      split:ck('rh_srv_split_'+ei)
+    };
+
+    var earliest=document.getElementById('rh_earliest_'+ei);
+    var latest=document.getElementById('rh_latest_'+ei);
+    emp.earliestStart=earliest?earliest.value:'';
+    emp.latestEnd=latest?latest.value:'';
+
+    var ms=document.getElementById('rh_maxsplit_'+ei);
+    emp.maxSplits=ms?Math.max(0,Math.min(2,parseInt(ms.value,10)||0)):2;
+    if(!emp.services.split)emp.maxSplits=0;
+
+    emp.ranks=[];
+    EMP_RANKS.forEach(function(r,ri){
+      if(ck('rh_rank_'+ei+'_'+ri))emp.ranks.push(r);
+    });
 
     var newRhDays=[];
     DAYS.forEach(function(_,di){
@@ -1217,12 +1400,9 @@ function syncRHModalToData(){
     DAYS.forEach(function(_,di){
       var cb=document.getElementById('rh_repos_'+ei+'_'+di);
       if(!cb)return;
-
       if(!DATA[ei])DATA[ei]={};
       if(!DATA[ei][di])DATA[ei][di]={shifts:null,x:false,status:''};
 
-      // If the employee is currently on a full-week absence, keep the status visible.
-      // rhDays is stored underneath and will be restored with CLEAR_WEEK.
       if(isWeekAbsenceStatus(DATA[ei][di].status)){
         DATA[ei][di].x=false;
         DATA[ei][di].shifts=null;
@@ -1269,6 +1449,16 @@ function addEmp(){
   EMPS.push({
     name:'Nouveau·elle',
     contract:42,
+    grossHourlyRate:0,
+    role:'',
+    aiEnabled:false,
+    countsForCoverage:true,
+    preferredService:'flexible',
+    services:{morning:false,lunch:false,evening:false,closing:false,split:false},
+    ranks:[],
+    earliestStart:'',
+    latestEnd:'',
+    maxSplits:0,
     hidden:false,
     rhDays:[],
     days:DAYS.map(function(){return{x:false};})
@@ -1328,7 +1518,7 @@ function exportCSV(){
 }
 
 /* SAUVEGARDE LOCALE + SERVEUR NETLIFY BLOBS */
-var STORAGE_KEY='locean_v17';
+var STORAGE_KEY='locean_v20';
 var CURRENT_WEEK=null;
 var SERVER_SAVE_TIMER=null;
 var SERVER_LOADING=false;
@@ -1347,12 +1537,22 @@ function localWeekKey(weekDate){
 
 function serializeTeam(){
   return EMPS.map(function(e,ei){
+    ensureEmpConfig(e);
     return{
       name:e.name,
-      contract:e.contract||0,
+      contract:Number(e.contract)||0,
+      grossHourlyRate:Number(e.grossHourlyRate)||0,
       role:e.role||'',
       hidden:!!e.hidden,
-      rhDays:ensureEmpRhDays(e,ei).slice()
+      rhDays:ensureEmpRhDays(e,ei).slice(),
+      aiEnabled:!!e.aiEnabled,
+      countsForCoverage:!!e.countsForCoverage,
+      preferredService:e.preferredService||'flexible',
+      services:Object.assign({},e.services),
+      ranks:Array.isArray(e.ranks)?e.ranks.slice():[],
+      earliestStart:e.earliestStart||'',
+      latestEnd:e.latestEnd||'',
+      maxSplits:Number(e.maxSplits)||0
     };
   });
 }
@@ -1362,14 +1562,24 @@ function applySavedTeam(team){
 
   EMPS=team.map(function(e){
     var rh=Array.isArray(e.rhDays)?e.rhDays.map(function(v){return parseInt(v,10);}):[];
-    return{
+    var emp={
       name:e.name||'Employé',
       contract:Number(e.contract)||0,
+      grossHourlyRate:Number(e.grossHourlyRate)||0,
       role:e.role||'',
       hidden:!!e.hidden,
       rhDays:rh,
+      aiEnabled:(typeof e.aiEnabled==='boolean'?e.aiEnabled:undefined),
+      countsForCoverage:(typeof e.countsForCoverage==='boolean'?e.countsForCoverage:undefined),
+      preferredService:e.preferredService||'',
+      services:e.services||null,
+      ranks:Array.isArray(e.ranks)?e.ranks.slice():null,
+      earliestStart:e.earliestStart||'',
+      latestEnd:e.latestEnd||'',
+      maxSplits:e.maxSplits,
       days:DAYS.map(function(_,di){return{x:rh.indexOf(di)>=0};})
     };
+    return ensureEmpConfig(emp);
   });
   return true;
 }
@@ -1918,7 +2128,22 @@ function generatePlanning() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         weekDate: aiWeekDate,
-        emps: EMPS.map(function(e,i){ return {name:e.name, contract:e.contract||0, hidden:!!e.hidden}; }),
+        emps: EMPS.map(function(e,i){
+          ensureEmpConfig(e);
+          return {
+            name:e.name,
+            contract:e.contract||0,
+            hidden:!!e.hidden,
+            aiEnabled:!!e.aiEnabled,
+            countsForCoverage:!!e.countsForCoverage,
+            preferredService:e.preferredService||'flexible',
+            services:Object.assign({},e.services),
+            ranks:Array.isArray(e.ranks)?e.ranks.slice():[],
+            earliestStart:e.earliestStart||'',
+            latestEnd:e.latestEnd||'',
+            maxSplits:Number(e.maxSplits)||0
+          };
+        }),
         data: DATA,
         context: context,
         allowedShifts: Object.keys(AI_PRESET_MAP)
