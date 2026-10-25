@@ -548,7 +548,8 @@ body.app-nav-ready > .module-page{
 }
 .pointage-date{
   height:34px;border:1px solid var(--g200);border-radius:8px;background:#fff;
-  color:var(--navy);font-family:inherit;font-size:11px;padding:0 10px;
+  color:#1f2d3a;font-family:inherit;font-size:11px;padding:0 10px;
+  -webkit-text-fill-color:#1f2d3a;color-scheme:light;
 }
 .pointage-state{
   height:34px;display:flex;align-items:center;gap:7px;padding:0 10px;
@@ -623,6 +624,126 @@ body.app-nav-ready > .module-page{
   .pointage-toolbar{align-items:stretch}
   .pointage-toolbar-spacer{display:none}
   .pointage-validate{width:100%}
+}
+
+
+/* ==========================================================
+   POINTAGE V2 — AUDIT / ROLES / VOICE
+   ========================================================== */
+.pt-role-switch{
+  display:flex;gap:4px;padding:3px;border:1px solid var(--g200);
+  background:#f7f6f2;border-radius:9px
+}
+.pt-role-btn{
+  height:28px;border:0;background:transparent;border-radius:6px;
+  padding:0 9px;font:inherit;font-size:8.5px;font-weight:700;color:var(--g500);cursor:pointer
+}
+.pt-role-btn.active{background:#fff;color:var(--navy);box-shadow:0 1px 3px rgba(20,30,45,.08)}
+.pt-lock-banner{
+  display:none;margin-top:10px;padding:10px 12px;border-radius:9px;
+  border:1px solid #e7d8ac;background:#fffaf0;font-size:9px;color:#715822;line-height:1.45
+}
+.pt-lock-banner.show{display:block}
+.pt-manager-reason{
+  display:none;margin-top:10px;background:#fff;border:1px solid var(--g200);
+  border-radius:10px;padding:11px 12px
+}
+.pt-manager-reason.show{display:block}
+.pt-manager-reason label{display:block;font-size:8px;font-weight:750;text-transform:uppercase;letter-spacing:.06em;color:var(--g500);margin-bottom:5px}
+.pt-manager-reason textarea{
+  width:100%;min-height:62px;resize:vertical;border:1px solid var(--g200);
+  border-radius:8px;padding:8px;font:inherit;font-size:9px;box-sizing:border-box
+}
+.pt-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pt-mic-btn{
+  height:34px;border:1px solid var(--g200);background:#fff;border-radius:8px;
+  padding:0 11px;font:inherit;font-size:9px;font-weight:700;color:var(--navy);cursor:pointer
+}
+.pt-mic-btn.listening{background:#fff4f1;border-color:#e6b6aa;color:#a8462d}
+.pt-voice-panel{
+  display:none;margin-top:12px;background:#fff;border:1px solid var(--g200);
+  border-radius:12px;padding:13px
+}
+.pt-voice-panel.show{display:block}
+.pt-voice-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.pt-voice-head strong{font-size:10px;color:var(--navy)}
+.pt-voice-status{font-size:8px;color:var(--g500)}
+.pt-voice-transcript{
+  margin-top:8px;width:100%;min-height:70px;resize:vertical;
+  border:1px solid var(--g200);border-radius:8px;padding:8px;
+  font:inherit;font-size:9px;color:var(--navy);box-sizing:border-box
+}
+.pt-voice-preview{margin-top:10px;display:grid;gap:6px}
+.pt-voice-change{
+  border:1px solid var(--g200);background:#faf9f6;border-radius:8px;
+  padding:8px 9px;font-size:8.5px;color:var(--g600)
+}
+.pt-voice-change strong{color:var(--navy)}
+.pt-voice-actions{display:flex;gap:8px;margin-top:10px}
+.pt-weekly{
+  margin-top:12px;background:#fff;border:1px solid var(--g200);border-radius:12px;overflow:auto
+}
+.pt-weekly-head{padding:12px 13px;border-bottom:1px solid var(--g200)}
+.pt-weekly-head strong{display:block;font-size:11px;color:var(--navy)}
+.pt-weekly-head span{font-size:8px;color:var(--g500)}
+.pt-weekly table{width:100%;border-collapse:collapse;min-width:650px}
+.pt-weekly th,.pt-weekly td{padding:8px 10px;border-bottom:1px solid var(--g100);text-align:left}
+.pt-weekly th{font-size:7.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--g500);background:#faf9f6}
+.pt-weekly td{font-size:9px;color:var(--g700)}
+.pt-audit{
+  margin-top:12px;background:#fff;border:1px solid var(--g200);border-radius:12px;overflow:hidden
+}
+.pt-audit summary{cursor:pointer;padding:11px 13px;font-size:9px;font-weight:700;color:var(--navy);background:#faf9f6}
+.pt-audit-list{max-height:260px;overflow:auto}
+.pt-audit-item{padding:9px 13px;border-top:1px solid var(--g100);font-size:8px;color:var(--g500);line-height:1.45}
+.pt-audit-item strong{color:var(--navy)}
+.pt-locked-input[disabled]{background:#f4f3ef;color:#9a9a96;cursor:not-allowed}
+
+
+.pt-history{
+  margin-top:12px;background:#fff;border:1px solid var(--g200);
+  border-radius:12px;overflow:hidden;
+}
+.pt-history-head{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:12px 13px;border-bottom:1px solid var(--g200);background:#faf9f6;
+}
+.pt-history-head strong{font-size:11px;color:var(--navy)}
+.pt-history-head span{font-size:8px;color:var(--g500)}
+.pt-history-spacer{flex:1}
+.pt-history-toggle{
+  display:flex;gap:4px;padding:3px;border:1px solid var(--g200);border-radius:8px;background:#fff
+}
+.pt-history-toggle button{
+  border:0;background:transparent;padding:5px 8px;border-radius:6px;
+  font:inherit;font-size:8px;font-weight:700;color:var(--g500);cursor:pointer
+}
+.pt-history-toggle button.active{background:#f0efe9;color:var(--navy)}
+.pt-history-list{display:grid}
+.pt-history-row{
+  display:grid;grid-template-columns:110px 110px 1fr 1fr 1fr 92px;
+  gap:8px;align-items:center;padding:10px 13px;border-top:1px solid var(--g100)
+}
+.pt-history-row:first-child{border-top:0}
+.pt-history-date{font-size:9px;font-weight:700;color:var(--navy)}
+.pt-history-status{
+  display:inline-flex;align-items:center;gap:6px;font-size:8px;font-weight:700;
+  padding:4px 7px;border-radius:999px;width:max-content
+}
+.pt-history-status.valid{background:#eef9f3;color:#177149}
+.pt-history-status.pending{background:#fff7e8;color:#996d1f}
+.pt-history-status.empty{background:#f2f2ef;color:#777}
+.pt-history-metric{font-size:8px;color:var(--g500)}
+.pt-history-metric strong{display:block;color:var(--navy);font-size:9px;margin-top:2px}
+.pt-history-open{
+  height:28px;border:1px solid var(--g200);background:#fff;border-radius:7px;
+  font:inherit;font-size:8px;font-weight:700;color:var(--navy);cursor:pointer
+}
+@media(max-width:900px){
+  .pt-history-row{
+    grid-template-columns:1fr 1fr;
+  }
+  .pt-history-open{width:100%}
 }
 
 </style>
@@ -822,6 +943,13 @@ body.app-nav-ready > .module-page{
 
       <div class="pointage-toolbar-spacer"></div>
 
+      <div class="pt-role-switch" title="Mode de démonstration — à remplacer plus tard par une vraie authentification">
+        <button class="pt-role-btn active" id="ptRoleAdmin" type="button" onclick="setPointageRole('admin')">Admin</button>
+        <button class="pt-role-btn" id="ptRoleManager" type="button" onclick="setPointageRole('manager')">Manager</button>
+      </div>
+
+      <button class="pt-mic-btn" id="ptMicBtn" type="button" onclick="togglePointageVoice()">🎙 Dictée</button>
+
       <div class="pointage-state" id="pointageState">
         <span class="pointage-state-dot"></span>
         <span>Non validé</span>
@@ -830,6 +958,26 @@ body.app-nav-ready > .module-page{
       <button class="btn btn-primary pointage-validate" type="button" onclick="validatePointageDay()">
         ✓ Valider la journée
       </button>
+    </div>
+
+    <div class="pt-lock-banner" id="ptLockBanner"></div>
+
+    <div class="pt-manager-reason" id="ptManagerReasonBox">
+      <label for="ptManagerReason">Motif obligatoire de correction</label>
+      <textarea id="ptManagerReason" placeholder="Ex. oubli de sortie, correction après vérification avec le salarié…"></textarea>
+    </div>
+
+    <div class="pt-voice-panel" id="ptVoicePanel">
+      <div class="pt-voice-head">
+        <strong>Dictée des heures réelles</strong>
+        <span class="pt-voice-status" id="ptVoiceStatus">Prêt</span>
+      </div>
+      <textarea class="pt-voice-transcript" id="ptVoiceTranscript" placeholder="Ex. Pierre arrivé à 14h55 parti à 00h20. Catherine arrivée à 15h10 partie à 1h. Hugo absent."></textarea>
+      <div class="pt-voice-preview" id="ptVoicePreview"></div>
+      <div class="pt-voice-actions">
+        <button class="btn btn-secondary" type="button" onclick="previewVoiceChanges()">Analyser la dictée</button>
+        <button class="btn btn-primary" type="button" id="ptApplyVoiceBtn" onclick="applyVoiceChanges()" disabled>Appliquer les propositions</button>
+      </div>
     </div>
 
     <div class="pointage-summary" id="pointageSummary">
@@ -868,9 +1016,41 @@ body.app-nav-ready > .module-page{
     </div>
 
     <div class="pointage-footnote">
-      <strong>V1 :</strong> le planning reste la référence du prévu. Modifier une heure ici ne modifie jamais le planning.
-      La saisie vocale viendra ensuite, une fois cette base validée.
+      Le planning reste la référence du prévu. Modifier une heure ici ne modifie jamais le planning.
+      Une journée validée est verrouillée : les corrections ultérieures sont journalisées.
     </div>
+
+    
+    <div class="pt-history">
+      <div class="pt-history-head">
+        <div>
+          <strong>Historique des pointages</strong>
+          <span>Accès rapide aux journées enregistrées et validées.</span>
+        </div>
+        <div class="pt-history-spacer"></div>
+        <div class="pt-history-toggle">
+          <button type="button" id="ptHistWeekBtn" class="active" onclick="setPointageHistoryMode('week')">Semaine</button>
+          <button type="button" id="ptHistMonthBtn" onclick="setPointageHistoryMode('month')">Mois</button>
+        </div>
+      </div>
+      <div class="pt-history-list" id="ptHistoryList"></div>
+    </div>
+
+<div class="pt-weekly">
+      <div class="pt-weekly-head">
+        <strong>Récapitulatif hebdomadaire</strong>
+        <span>Heures prévues et réelles par salarié pour la semaine chargée.</span>
+      </div>
+      <table>
+        <thead><tr><th>Salarié</th><th>Pôle</th><th>Prévu</th><th>Réel</th><th>Écart</th><th>Jours renseignés</th></tr></thead>
+        <tbody id="ptWeeklyBody"></tbody>
+      </table>
+    </div>
+
+    <details class="pt-audit">
+      <summary>Journal des modifications</summary>
+      <div class="pt-audit-list" id="ptAuditList"></div>
+    </details>
   </div>
 </section>
 
@@ -1240,6 +1420,113 @@ function setTeamDept(dept){
 
 
 
+
+function pointageActorLabel(){
+  return CURRENT_POINTAGE_ROLE==='admin'?'Admin':'Manager';
+}
+
+function setPointageRole(role){
+  CURRENT_POINTAGE_ROLE=role==='manager'?'manager':'admin';
+  var a=document.getElementById('ptRoleAdmin'),m=document.getElementById('ptRoleManager');
+  if(a)a.classList.toggle('active',CURRENT_POINTAGE_ROLE==='admin');
+  if(m)m.classList.toggle('active',CURRENT_POINTAGE_ROLE==='manager');
+  POINTAGE_EDITING_VALIDATED=false;
+  var reason=document.getElementById('ptManagerReason');
+  if(reason)reason.value='';
+  renderPointage();
+}
+
+function addPointageAudit(dateStr,entry){
+  var day=getPointageDay(dateStr,true);
+  day.audit.push(Object.assign({
+    at:new Date().toISOString(),
+    actorRole:CURRENT_POINTAGE_ROLE,
+    actor:pointageActorLabel()
+  },entry||{}));
+}
+
+function pointageDayLocked(){
+  var day=getPointageDay(pointageDateKey(),false);
+  return !!(day&&day.validated&&!POINTAGE_EDITING_VALIDATED);
+}
+
+function beginValidatedEdit(){
+  var day=getPointageDay(pointageDateKey(),false);
+  if(!day||!day.validated)return;
+  day._editBaseline=JSON.parse(JSON.stringify(day.rows||{}));
+  POINTAGE_EDITING_VALIDATED=true;
+  renderPointage();
+}
+
+function pointageInputsDisabled(){
+  return pointageDayLocked();
+}
+
+
+function pointageForStorage(){
+  var clone=JSON.parse(JSON.stringify(POINTAGE||{}));
+  Object.keys(clone).forEach(function(k){delete clone[k]._editBaseline;});
+  return clone;
+}
+
+function capturePointageSnapshot(dateStr){
+  var day=getPointageDay(dateStr,false);
+  return day?JSON.parse(JSON.stringify(day.rows||{})):{};
+}
+
+function diffPointageSnapshots(before,after){
+  var diffs=[];
+  var names=new Set(Object.keys(before||{}).concat(Object.keys(after||{})));
+  names.forEach(function(name){
+    var b=before&&before[name]?before[name]:{};
+    var a=after&&after[name]?after[name]:{};
+    ['arrival','departure','pause','status','note'].forEach(function(field){
+      var bv=b[field]===undefined?'':b[field];
+      var av=a[field]===undefined?'':a[field];
+      if(String(bv)!==String(av))diffs.push({employee:name,field:field,before:bv,after:av});
+    });
+  });
+  return diffs;
+}
+
+function renderPointageAudit(){
+  var el=document.getElementById('ptAuditList');
+  if(!el)return;
+  var day=getPointageDay(pointageDateKey(),false);
+  var entries=(day&&Array.isArray(day.audit))?day.audit.slice().reverse():[];
+  if(!entries.length){el.innerHTML='<div class="pt-audit-item">Aucune modification journalisée pour cette journée.</div>';return;}
+  el.innerHTML=entries.map(function(e){
+    var when=e.at?new Date(e.at).toLocaleString('fr-FR'):'';
+    var detail='';
+    if(Array.isArray(e.changes)&&e.changes.length){
+      detail='<br>'+e.changes.map(function(c){
+        return '<strong>'+c.employee+'</strong> · '+c.field+' : '+String(c.before||'—')+' → '+String(c.after||'—');
+      }).join('<br>');
+    }
+    if(e.reason)detail+='<br>Motif : '+String(e.reason).replace(/</g,'&lt;');
+    return '<div class="pt-audit-item"><strong>'+String(e.actor||e.actorRole||'Utilisateur')+'</strong> · '+when+' · '+String(e.type||'modification')+detail+'</div>';
+  }).join('');
+}
+
+function updatePointageLockUI(){
+  var banner=document.getElementById('ptLockBanner');
+  var reasonBox=document.getElementById('ptManagerReasonBox');
+  var day=getPointageDay(pointageDateKey(),false);
+  var locked=!!(day&&day.validated&&!POINTAGE_EDITING_VALIDATED);
+  var editing=!!(day&&day.validated&&POINTAGE_EDITING_VALIDATED);
+
+  if(banner){
+    banner.classList.toggle('show',!!(day&&day.validated));
+    if(day&&day.validated){
+      var by=day.validatedBy?(' par '+day.validatedBy):'';
+      banner.innerHTML=locked
+        ? '🔒 Journée validée'+by+'. <button class="btn btn-secondary" type="button" style="margin-left:8px;height:28px" onclick="beginValidatedEdit()">Corriger cette journée</button>'
+        : '✎ Correction d’une journée validée en cours. '+(CURRENT_POINTAGE_ROLE==='manager'?'Un motif sera obligatoire avant enregistrement.':'La correction admin sera journalisée même sans motif.');
+    }
+  }
+  if(reasonBox)reasonBox.classList.toggle('show',editing&&CURRENT_POINTAGE_ROLE==='manager');
+}
+
 function pointageStatusOptions(value){
   var opts=['Présent','Non prévu','RH','Vacances','CFA','Arrêt maladie','Absence'];
   return opts.map(function(o){
@@ -1251,6 +1538,7 @@ function pointageRowChanged(ei){
   var dateStr=pointageDateKey();
   var di=dayIndexFromDate(dateStr);
   if(di<0||!EMPS[ei])return;
+  if(pointageDayLocked())return;
 
   var emp=EMPS[ei];
   var row=getOrCreatePointageRow(dateStr,emp,ei,di);
@@ -1267,13 +1555,12 @@ function pointageRowChanged(ei){
   row.status=st?st.value:'Présent';
   row.note=n?n.value:'';
 
-  var day=getPointageDay(dateStr,true);
-  day.validated=false;
-  day.validatedAt='';
-
   renderPointageTotalsOnly();
-  updatePointageState();
-  saveToStorage();
+
+  var day=getPointageDay(dateStr,true);
+  if(!day.validated){
+    saveToStorage();
+  }
 }
 
 function renderPointage(){
@@ -1291,6 +1578,7 @@ function renderPointage(){
   if(di<0)return;
 
   body.innerHTML='';
+  var locked=pointageInputsDisabled();
 
   EMPS.forEach(function(emp,ei){
     ensureEmpConfig(emp);
@@ -1318,19 +1606,23 @@ function renderPointage(){
       '<td><div class="pointage-plan '+((planned&&((planned.status)||planned.x))?'status':'')+'">'+plannedText+'</div>'+
         (plannedMins?'<div class="pointage-role">'+minutesToHHMM(plannedMins,false)+'</div>':'')+
       '</td>'+
-      '<td><input class="pointage-input" type="time" id="pt_arr_'+ei+'" value="'+(row.arrival||'')+'" onchange="pointageRowChanged('+ei+')"></td>'+
-      '<td><input class="pointage-input" type="time" id="pt_dep_'+ei+'" value="'+(row.departure||'')+'" onchange="pointageRowChanged('+ei+')"></td>'+
-      '<td><input class="pointage-input pointage-pause" type="number" min="0" step="5" id="pt_pause_'+ei+'" value="'+(Number(row.pause)||0)+'" onchange="pointageRowChanged('+ei+')"> min</td>'+
+      '<td><input class="pointage-input pt-locked-input" type="time" id="pt_arr_'+ei+'" value="'+(row.arrival||'')+'" '+(locked?'disabled':'')+' onchange="pointageRowChanged('+ei+')"></td>'+
+      '<td><input class="pointage-input pt-locked-input" type="time" id="pt_dep_'+ei+'" value="'+(row.departure||'')+'" '+(locked?'disabled':'')+' onchange="pointageRowChanged('+ei+')"></td>'+
+      '<td><input class="pointage-input pointage-pause pt-locked-input" type="number" min="0" step="5" id="pt_pause_'+ei+'" value="'+(Number(row.pause)||0)+'" '+(locked?'disabled':'')+' onchange="pointageRowChanged('+ei+')"> min</td>'+
       '<td><span class="pointage-total" id="pt_total_'+ei+'">'+minutesToHHMM(actualMins,false)+'</span></td>'+
       '<td><span class="pointage-diff '+diffClass+'" id="pt_diff_'+ei+'">'+minutesToHHMM(diff,true)+'</span></td>'+
-      '<td><select class="pointage-select" id="pt_status_'+ei+'" onchange="pointageRowChanged('+ei+')">'+pointageStatusOptions(row.status)+'</select></td>'+
-      '<td><input class="pointage-note" id="pt_note_'+ei+'" value="'+String(row.note||'').replace(/"/g,'&quot;')+'" placeholder="Optionnel" onchange="pointageRowChanged('+ei+')"></td>';
+      '<td><select class="pointage-select pt-locked-input" id="pt_status_'+ei+'" '+(locked?'disabled':'')+' onchange="pointageRowChanged('+ei+')">'+pointageStatusOptions(row.status)+'</select></td>'+
+      '<td><input class="pointage-note pt-locked-input" id="pt_note_'+ei+'" value="'+String(row.note||'').replace(/"/g,'&quot;')+'" placeholder="Optionnel" '+(locked?'disabled':'')+' onchange="pointageRowChanged('+ei+')"></td>';
 
     body.appendChild(tr);
   });
 
   updatePointageState();
   renderPointageTotalsOnly();
+  updatePointageLockUI();
+  renderPointageHistory();
+  renderPointageWeekly();
+  renderPointageAudit();
 }
 
 function renderPointageTotalsOnly(){
@@ -1380,7 +1672,7 @@ function updatePointageState(){
   var validated=!!(day&&day.validated);
   el.classList.toggle('validated',validated);
   el.innerHTML='<span class="pointage-state-dot"></span><span>'+
-    (validated?'Validé'+(day.validatedAt?' · '+new Date(day.validatedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):''):'Non validé')+
+    (validated?'Validé'+(day.validatedBy?' · '+day.validatedBy:'')+(day.validatedAt?' · '+new Date(day.validatedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):''):'Non validé')+
     '</span>';
 }
 
@@ -1389,12 +1681,330 @@ async function validatePointageDay(){
   if(!dateStr)return;
 
   var day=getPointageDay(dateStr,true);
-  day.validated=true;
-  day.validatedAt=new Date().toISOString();
+  var wasValidated=!!day.validated;
 
-  updatePointageState();
+  if(wasValidated&&POINTAGE_EDITING_VALIDATED){
+    var reasonEl=document.getElementById('ptManagerReason');
+    var reason=reasonEl?reasonEl.value.trim():'';
+
+    if(CURRENT_POINTAGE_ROLE==='manager'&&!reason){
+      alert('Un motif est obligatoire pour qu’un manager modifie une journée déjà validée.');
+      return;
+    }
+
+    var before=day._editBaseline||{};
+    var after=JSON.parse(JSON.stringify(day.rows||{}));
+    var changes=diffPointageSnapshots(before,after);
+
+    if(!changes.length){
+      POINTAGE_EDITING_VALIDATED=false;
+      renderPointage();
+      return;
+    }
+
+    addPointageAudit(dateStr,{
+      type:'Correction après validation',
+      reason:reason,
+      changes:changes
+    });
+
+    day.validated=true;
+    day.validatedAt=new Date().toISOString();
+    day.validatedBy=pointageActorLabel();
+    delete day._editBaseline;
+    POINTAGE_EDITING_VALIDATED=false;
+    if(reasonEl)reasonEl.value='';
+  }else if(!wasValidated){
+    addPointageAudit(dateStr,{
+      type:'Validation initiale',
+      changes:[]
+    });
+    day.validated=true;
+    day.validatedAt=new Date().toISOString();
+    day.validatedBy=pointageActorLabel();
+  }
+
   saveLocalSnapshot(CURRENT_WEEK);
   await flushServerSave(CURRENT_WEEK);
+  renderPointage();
+}
+
+
+
+function togglePointageVoice(){
+  var panel=document.getElementById('ptVoicePanel');
+  if(panel)panel.classList.add('show');
+
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){
+    var st=document.getElementById('ptVoiceStatus');
+    if(st)st.textContent='Reconnaissance vocale non disponible sur ce navigateur. Tu peux coller ou saisir la dictée manuellement.';
+    return;
+  }
+
+  if(POINTAGE_RECOGNITION){
+    try{POINTAGE_RECOGNITION.stop();}catch(e){}
+    return;
+  }
+
+  var rec=new SR();
+  POINTAGE_RECOGNITION=rec;
+  rec.lang='fr-FR';
+  rec.continuous=true;
+  rec.interimResults=true;
+
+  var finalText='';
+  var btn=document.getElementById('ptMicBtn');
+  var status=document.getElementById('ptVoiceStatus');
+  var ta=document.getElementById('ptVoiceTranscript');
+  if(btn)btn.classList.add('listening');
+  if(status)status.textContent='Écoute en cours…';
+
+  rec.onresult=function(ev){
+    var interim='';
+    for(var i=ev.resultIndex;i<ev.results.length;i++){
+      var t=ev.results[i][0].transcript;
+      if(ev.results[i].isFinal)finalText+=t+' ';
+      else interim+=t;
+    }
+    if(ta)ta.value=(finalText+interim).trim();
+  };
+  rec.onerror=function(ev){
+    if(status)status.textContent='Erreur micro : '+(ev.error||'inconnue');
+  };
+  rec.onend=function(){
+    POINTAGE_RECOGNITION=null;
+    if(btn)btn.classList.remove('listening');
+    if(status)status.textContent='Dictée terminée — vérifie puis analyse.';
+  };
+  rec.start();
+}
+
+function normalizeVoiceText(txt){
+  return String(txt||'')
+    .replace(/[’']/g,"'")
+    .replace(/\bune heure\b/gi,'1h')
+    .replace(/\bminuit\b/gi,'00h00')
+    .replace(/\bmidi\b/gi,'12h00');
+}
+
+function voiceTimeToHHMM(raw){
+  var s=String(raw||'').toLowerCase().replace(/\s+/g,'');
+  var m=s.match(/(\d{1,2})h(?:(\d{1,2}))?/);
+  if(!m)return '';
+  var h=Number(m[1]),mi=Number(m[2]||0);
+  if(h===24)h=0;
+  if(h<0||h>23||mi<0||mi>59)return '';
+  return pad(h)+':'+pad(mi);
+}
+
+function parseVoiceChanges(){
+  var ta=document.getElementById('ptVoiceTranscript');
+  var txt=normalizeVoiceText(ta?ta.value:'');
+  var changes=[];
+
+  EMPS.forEach(function(emp,ei){
+    if(emp.hidden)return;
+    var name=emp.name;
+    var escaped=name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    var nameRe=new RegExp('(?:^|[.!?;]\\s*)'+escaped+'\\b([^.!?;]*)','i');
+    var m=txt.match(nameRe);
+    if(!m)return;
+
+    var seg=m[1]||'';
+    var ch={ei:ei,name:name};
+
+    if(/\babsent\b/i.test(seg)){ch.status='Absence';}
+    if(/\barr[ivée]{1,3}\b|\barrive\b/i.test(seg)){
+      var am=seg.match(/arr(?:ivé|ivée|ive|ivee)[^0-9]{0,18}(\d{1,2}h(?:\d{1,2})?)/i);
+      if(am)ch.arrival=voiceTimeToHHMM(am[1]);
+    }
+    if(/\bparti\b|\bpartie\b|\bdépart\b|\bfini\b|\bfin\b/i.test(seg)){
+      var dm=seg.match(/(?:parti|partie|départ|fini|fin)[^0-9]{0,18}(\d{1,2}h(?:\d{1,2})?)/i);
+      if(dm)ch.departure=voiceTimeToHHMM(dm[1]);
+    }
+    var pm=seg.match(/pause[^0-9]{0,10}(\d{1,3})\s*(?:min|minutes?)/i);
+    if(pm)ch.pause=Number(pm[1]);
+
+    if(ch.status||ch.arrival||ch.departure||ch.pause!==undefined)changes.push(ch);
+  });
+
+  return changes;
+}
+
+function previewVoiceChanges(){
+  POINTAGE_VOICE_CHANGES=parseVoiceChanges();
+  var preview=document.getElementById('ptVoicePreview');
+  var btn=document.getElementById('ptApplyVoiceBtn');
+  if(!preview||!btn)return;
+
+  if(!POINTAGE_VOICE_CHANGES.length){
+    preview.innerHTML='<div class="pt-voice-change">Aucune modification reconnue automatiquement. Tu peux corriger la transcription puis relancer l’analyse.</div>';
+    btn.disabled=true;
+    return;
+  }
+
+  preview.innerHTML=POINTAGE_VOICE_CHANGES.map(function(c){
+    var parts=[];
+    if(c.status)parts.push('statut → '+c.status);
+    if(c.arrival)parts.push('arrivée → '+c.arrival);
+    if(c.departure)parts.push('départ → '+c.departure);
+    if(c.pause!==undefined)parts.push('pause → '+c.pause+' min');
+    return '<div class="pt-voice-change"><strong>'+c.name+'</strong> · '+parts.join(' · ')+'</div>';
+  }).join('');
+  btn.disabled=false;
+}
+
+function applyVoiceChanges(){
+  if(!POINTAGE_VOICE_CHANGES.length)return;
+  if(pointageDayLocked()){
+    alert('La journée est validée. Clique d’abord sur “Corriger cette journée”.');
+    return;
+  }
+
+  var dateStr=pointageDateKey(),di=dayIndexFromDate(dateStr);
+  POINTAGE_VOICE_CHANGES.forEach(function(c){
+    var emp=EMPS[c.ei];
+    if(!emp)return;
+    var row=getOrCreatePointageRow(dateStr,emp,c.ei,di);
+    if(c.status)row.status=c.status;
+    if(c.arrival)row.arrival=c.arrival;
+    if(c.departure)row.departure=c.departure;
+    if(c.pause!==undefined)row.pause=c.pause;
+  });
+
+  POINTAGE_VOICE_CHANGES=[];
+  var btn=document.getElementById('ptApplyVoiceBtn');if(btn)btn.disabled=true;
+  renderPointage();
+
+  var day=getPointageDay(dateStr,true);
+  if(!day.validated)saveToStorage();
+}
+
+
+function setPointageHistoryMode(mode){
+  POINTAGE_HISTORY_MODE=mode==='month'?'month':'week';
+  var wb=document.getElementById('ptHistWeekBtn');
+  var mb=document.getElementById('ptHistMonthBtn');
+  if(wb)wb.classList.toggle('active',POINTAGE_HISTORY_MODE==='week');
+  if(mb)mb.classList.toggle('active',POINTAGE_HISTORY_MODE==='month');
+  renderPointageHistory();
+}
+
+function pointageTotalsForDate(dateStr){
+  var di=dayIndexFromDate(dateStr);
+  var totalPlanned=0,totalActual=0,people=0;
+  if(di<0)return {planned:0,actual:0,people:0};
+
+  EMPS.forEach(function(emp,ei){
+    ensureEmpConfig(emp);
+    if(emp.hidden)return;
+    var d=DATA[ei]&&DATA[ei][di]?DATA[ei][di]:null;
+    var pm=plannedMinutesForDay(d);
+    if(pm>0)people++;
+    totalPlanned+=pm;
+
+    var day=getPointageDay(dateStr,false);
+    var row=day&&day.rows?day.rows[empPointageKey(emp)]:null;
+    if(row)totalActual+=actualMinutesFromRow(row);
+  });
+
+  return {planned:totalPlanned,actual:totalActual,people:people};
+}
+
+function historyDates(){
+  var dates=[];
+  if(POINTAGE_HISTORY_MODE==='month'){
+    var base=pointageDateKey()?new Date(pointageDateKey()+'T12:00:00'):new Date();
+    var y=base.getFullYear(),m=base.getMonth();
+    var first=new Date(y,m,1,12,0,0);
+    var last=new Date(y,m+1,0,12,0,0);
+    for(var d=new Date(first);d<=last;d.setDate(d.getDate()+1)){
+      dates.push(new Date(d).toISOString().slice(0,10));
+    }
+  }else{
+    var monday=new Date(CURRENT_WEEK+'T12:00:00');
+    for(var i=0;i<7;i++){
+      var d=new Date(monday);d.setDate(monday.getDate()+i);
+      dates.push(d.toISOString().slice(0,10));
+    }
+  }
+  return dates;
+}
+
+function renderPointageHistory(){
+  var el=document.getElementById('ptHistoryList');
+  if(!el)return;
+
+  var dates=historyDates();
+  el.innerHTML=dates.map(function(dateStr){
+    var day=getPointageDay(dateStr,false);
+    var totals=pointageTotalsForDate(dateStr);
+    var diff=totals.actual-totals.planned;
+
+    var statusClass='empty',statusLabel='Aucun pointage';
+    if(day){
+      if(day.validated){statusClass='valid';statusLabel='Validé';}
+      else{statusClass='pending';statusLabel='En cours';}
+    }
+
+    var dt=new Date(dateStr+'T12:00:00');
+    var label=dt.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'});
+
+    return '<div class="pt-history-row">'+
+      '<div class="pt-history-date">'+label+'</div>'+
+      '<div><span class="pt-history-status '+statusClass+'">'+statusLabel+'</span></div>'+
+      '<div class="pt-history-metric">Prévu<strong>'+minutesToHHMM(totals.planned,false)+'</strong></div>'+
+      '<div class="pt-history-metric">Réel<strong>'+minutesToHHMM(totals.actual,false)+'</strong></div>'+
+      '<div class="pt-history-metric">Écart<strong>'+minutesToHHMM(diff,true)+'</strong></div>'+
+      '<div><button class="pt-history-open" type="button" onclick="openPointageDate(\''+dateStr+'\')">Ouvrir</button></div>'+
+    '</div>';
+  }).join('');
+}
+
+async function openPointageDate(dateStr){
+  var el=document.getElementById('pointageDate');
+  if(el)el.value=dateStr;
+  await changePointageDate();
+}
+
+function renderPointageWeekly(){
+  var body=document.getElementById('ptWeeklyBody');
+  if(!body)return;
+
+  var weekStart=CURRENT_WEEK;
+  if(!weekStart){body.innerHTML='';return;}
+  var monday=new Date(weekStart+'T12:00:00');
+
+  var rows=[];
+  EMPS.forEach(function(emp,ei){
+    ensureEmpConfig(emp);
+    if(emp.hidden||!empInDept(emp,CURRENT_POINTAGE_DEPT))return;
+
+    var planned=0,actual=0,daysFilled=0;
+    for(var di=0;di<7;di++){
+      var d=new Date(monday);d.setDate(monday.getDate()+di);
+      var dateStr=d.toISOString().slice(0,10);
+      planned+=plannedMinutesForDay(DATA[ei]&&DATA[ei][di]?DATA[ei][di]:null);
+
+      var day=getPointageDay(dateStr,false);
+      if(day&&day.rows&&day.rows[empPointageKey(emp)]){
+        actual+=actualMinutesFromRow(day.rows[empPointageKey(emp)]);
+        daysFilled++;
+      }
+    }
+    rows.push({emp:emp,planned:planned,actual:actual,daysFilled:daysFilled});
+  });
+
+  body.innerHTML=rows.map(function(r){
+    var diff=r.actual-r.planned;
+    return '<tr><td><strong>'+r.emp.name+'</strong></td>'+
+      '<td>'+(normalizeDept(r.emp.department)==='cuisine'?'Cuisine':'Salle')+'</td>'+
+      '<td>'+minutesToHHMM(r.planned,false)+'</td>'+
+      '<td>'+minutesToHHMM(r.actual,false)+'</td>'+
+      '<td class="pointage-diff '+(diff>0?'pos':(diff<0?'neg':'zero'))+'">'+minutesToHHMM(diff,true)+'</td>'+
+      '<td>'+r.daysFilled+'/7</td></tr>';
+  }).join('');
 }
 
 async function changePointageDate(){
@@ -1689,6 +2299,11 @@ var DATA={};
 
 var POINTAGE={};
 var CURRENT_POINTAGE_DEPT='all';
+var CURRENT_POINTAGE_ROLE='admin'; // démonstration locale ; future authentification remplacera ce sélecteur
+var POINTAGE_VOICE_CHANGES=[];
+var POINTAGE_RECOGNITION=null;
+var POINTAGE_EDITING_VALIDATED=false;
+var POINTAGE_HISTORY_MODE='week';
 
 function pointageWeekKey(weekDate){
   return STORAGE_KEY+'_pointage_'+weekDate;
@@ -1718,7 +2333,11 @@ function pointageDateKey(){
 function getPointageDay(dateStr,create){
   if(!dateStr)return null;
   if(!POINTAGE[dateStr]&&create){
-    POINTAGE[dateStr]={validated:false,validatedAt:'',rows:{}};
+    POINTAGE[dateStr]={validated:false,validatedAt:'',validatedBy:'',rows:{},audit:[]};
+  }
+  if(POINTAGE[dateStr]){
+    if(!Array.isArray(POINTAGE[dateStr].audit))POINTAGE[dateStr].audit=[];
+    if(!POINTAGE[dateStr].rows)POINTAGE[dateStr].rows={};
   }
   return POINTAGE[dateStr]||null;
 }
@@ -2888,7 +3507,7 @@ function saveLocalSnapshot(weekDate){
     localStorage.setItem(STORAGE_KEY+'_team',JSON.stringify(serializeTeam()));
     localStorage.setItem(localWeekKey(weekDate),JSON.stringify({
       data:DATA,
-      pointage:POINTAGE,
+      pointage:pointageForStorage(),
       manualEvents:getManualEvents(weekDate),
       savedAt:new Date().toISOString()
     }));
@@ -2994,7 +3613,7 @@ async function flushServerSave(weekDate){
         weekDate:weekDate,
         team:serializeTeam(),
         data:DATA,
-        pointage:POINTAGE,
+        pointage:pointageForStorage(),
         manualEvents:getManualEvents(weekDate)
       })
     });
