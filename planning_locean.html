@@ -324,9 +324,272 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
   #printDoc[data-print-ready="1"]{display:block!important}
 }
 
+
+/* ==========================================================
+   COQUE APPLICATION — SIDEBAR MODULAIRE
+   Non destructive : aucun ID métier existant n'est renommé.
+   ========================================================== */
+:root{
+  --app-sidebar-w:248px;
+  --app-sidebar-bg:#20211f;
+  --app-sidebar-border:rgba(255,255,255,.08);
+  --app-sidebar-text:#c9cbc6;
+  --app-sidebar-muted:#7f837c;
+  --app-sidebar-active:#ffffff;
+  --app-sidebar-active-bg:rgba(255,255,255,.08);
+}
+body{overflow-x:hidden}
+.app-sidebar{
+  position:fixed;inset:0 auto 0 0;width:var(--app-sidebar-w);
+  background:var(--app-sidebar-bg);color:var(--app-sidebar-text);
+  z-index:1000;display:flex;flex-direction:column;
+  border-right:1px solid var(--app-sidebar-border);
+  transition:transform .2s ease;
+}
+.app-sidebar-head{
+  height:70px;display:flex;align-items:center;gap:11px;
+  padding:0 18px;border-bottom:1px solid var(--app-sidebar-border);
+}
+.app-sidebar-logo{
+  width:36px;height:36px;border-radius:9px;background:var(--gold);
+  color:white;display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:800;letter-spacing:.02em;flex:0 0 auto;
+}
+.app-sidebar-brand{min-width:0}
+.app-sidebar-brand strong{display:block;color:#fff;font-size:14px;letter-spacing:.03em}
+.app-sidebar-brand span{display:block;color:var(--app-sidebar-muted);font-size:9px;margin-top:2px}
+.app-sidebar-close{
+  display:none;margin-left:auto;width:34px;height:34px;border-radius:50%;
+  border:1px solid var(--app-sidebar-border);background:transparent;
+  color:#ddd;font-size:18px;cursor:pointer;
+}
+.app-sidebar-scroll{flex:1;overflow:auto;padding:16px 12px 18px}
+.app-nav-group{margin-bottom:18px}
+.app-nav-label{
+  color:var(--app-sidebar-muted);font-size:9px;font-weight:700;
+  letter-spacing:.12em;text-transform:uppercase;padding:0 10px 6px;
+}
+.app-nav-item{
+  width:100%;border:0;background:transparent;color:var(--app-sidebar-text);
+  padding:9px 10px;border-radius:8px;display:flex;align-items:center;
+  gap:10px;font-family:inherit;font-size:12px;text-align:left;cursor:pointer;
+  transition:.15s ease;margin:1px 0;
+}
+.app-nav-item:hover{background:rgba(255,255,255,.05);color:#fff}
+.app-nav-item.active{background:var(--app-sidebar-active-bg);color:var(--app-sidebar-active);font-weight:650}
+.app-nav-icon{width:18px;text-align:center;opacity:.9;font-size:14px}
+.app-nav-badge{
+  margin-left:auto;font-size:8px;color:#aaa;border:1px solid rgba(255,255,255,.12);
+  padding:2px 5px;border-radius:999px;text-transform:uppercase;
+}
+.app-sidebar-foot{padding:12px;border-top:1px solid var(--app-sidebar-border)}
+.app-sidebar-foot .app-nav-item{margin:0}
+.app-sidebar-backdrop{
+  display:none;position:fixed;inset:0;background:rgba(7,14,22,.48);
+  backdrop-filter:blur(2px);z-index:999;
+}
+.app-menu-btn{
+  display:none;width:34px;height:34px;border:1px solid rgba(255,255,255,.15);
+  border-radius:7px;background:rgba(255,255,255,.08);color:white;
+  align-items:center;justify-content:center;font-size:17px;cursor:pointer;margin-right:2px;
+}
+
+/* Décale uniquement l'interface écran, jamais l'impression */
+body.app-nav-ready > .header,
+body.app-nav-ready > #planningPage,
+body.app-nav-ready > #teamPage,
+body.app-nav-ready > .module-page{
+  margin-left:var(--app-sidebar-w);
+}
+body.app-nav-ready > .header{
+  width:calc(100% - var(--app-sidebar-w));
+  box-sizing:border-box;
+}
+body.app-nav-ready > #planningPage,
+body.app-nav-ready > #teamPage,
+body.app-nav-ready > .module-page{
+  width:calc(100% - var(--app-sidebar-w));
+  box-sizing:border-box;
+}
+
+/* Pages futures */
+.module-page{
+  display:none;min-height:calc(100vh - 54px);background:#f4f3ef;
+  padding:28px 30px 50px;
+}
+.module-page.open{display:block}
+.module-shell{max-width:1280px;margin:0 auto}
+.module-kicker{
+  font-size:9px;font-weight:750;color:var(--gold);text-transform:uppercase;
+  letter-spacing:.13em;margin-bottom:7px;
+}
+.module-title{font-size:27px;font-weight:750;color:var(--navy);letter-spacing:-.025em}
+.module-lead{margin-top:6px;color:var(--g500);font-size:12px;max-width:720px;line-height:1.55}
+.module-placeholder{
+  margin-top:22px;background:#fff;border:1px solid var(--g200);border-radius:14px;
+  min-height:260px;padding:28px;display:flex;flex-direction:column;justify-content:center;
+  align-items:center;text-align:center;box-shadow:0 1px 3px rgba(20,30,45,.03);
+}
+.module-placeholder-icon{font-size:30px;margin-bottom:12px}
+.module-placeholder strong{font-size:15px;color:var(--navy)}
+.module-placeholder p{font-size:11px;color:var(--g500);max-width:560px;line-height:1.55;margin:8px 0 0}
+.module-chips{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:16px}
+.module-chip{
+  font-size:9px;padding:5px 8px;border:1px solid var(--g200);
+  border-radius:999px;background:#faf9f6;color:var(--g600)
+}
+
+/* Pointage reçoit une petite prévisualisation fonctionnelle visuelle */
+.pointage-preview{
+  width:100%;max-width:850px;text-align:left;margin-top:24px;
+  display:grid;grid-template-columns:1fr 1fr;gap:12px;
+}
+.pointage-card{border:1px solid var(--g200);background:#faf9f6;border-radius:10px;padding:14px}
+.pointage-card-title{font-size:10px;font-weight:700;color:var(--navy);margin-bottom:6px}
+.pointage-card-text{font-size:9px;color:var(--g500);line-height:1.5}
+.pointage-mic{
+  width:38px;height:38px;border-radius:50%;background:var(--navy);color:white;
+  display:flex;align-items:center;justify-content:center;font-size:17px;margin-top:10px
+}
+
+@media(max-width:900px){
+  .app-sidebar{transform:translateX(-100%);width:min(82vw,310px)}
+  body.app-sidebar-open .app-sidebar{transform:translateX(0)}
+  body.app-sidebar-open .app-sidebar-backdrop{display:block}
+  .app-sidebar-close{display:block}
+  .app-menu-btn{display:inline-flex}
+  body.app-nav-ready > .header,
+  body.app-nav-ready > #planningPage,
+  body.app-nav-ready > #teamPage,
+  body.app-nav-ready > .module-page{
+    margin-left:0;width:100%;
+  }
+  .header{padding-left:10px;padding-right:10px}
+  .brand-name{font-size:12px}
+  .brand-sub{display:none}
+  .module-page{padding:18px 12px 36px}
+  .module-title{font-size:22px}
+  .pointage-preview{grid-template-columns:1fr}
+}
+@media print{
+  .app-sidebar,.app-sidebar-backdrop,.app-menu-btn,.module-page{display:none!important}
+  body.app-nav-ready > .header,
+  body.app-nav-ready > #planningPage,
+  body.app-nav-ready > #teamPage{
+    margin-left:0!important;width:100%!important;
+  }
+}
+
+
+/* Menu Engineering */
+.me-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:14px;width:100%;margin-top:22px;text-align:left}
+.me-card{background:#fff;border:1px solid var(--g200);border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(20,30,45,.03)}
+.me-card h3{font-size:12px;color:var(--navy);margin:0 0 4px}
+.me-card p{font-size:9px;color:var(--g500);line-height:1.45;margin:0}
+.me-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+.me-kpi{background:#faf9f6;border:1px solid var(--g200);border-radius:10px;padding:12px}
+.me-kpi-label{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:var(--g500)}
+.me-kpi-value{font-size:18px;font-weight:750;color:var(--navy);margin-top:5px}
+.me-kpi-sub{font-size:8px;color:var(--g500);margin-top:2px}
+.me-matrix{position:relative;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;height:320px;margin-top:14px}
+.me-quadrant{border:1px solid var(--g200);border-radius:10px;padding:12px;position:relative;overflow:hidden}
+.me-quadrant strong{font-size:10px;color:var(--navy)}
+.me-quadrant span{display:block;font-size:8px;color:var(--g500);margin-top:2px}
+.me-dot{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 3px rgba(196,154,77,.14)}
+.me-actions{display:grid;grid-template-columns:1fr;gap:9px;margin-top:14px}
+.me-action{border:1px solid var(--g200);border-radius:10px;padding:11px;background:#faf9f6}
+.me-action-title{font-size:9px;font-weight:700;color:var(--navy)}
+.me-action-text{font-size:8px;color:var(--g500);margin-top:3px;line-height:1.45}
+.me-table{margin-top:14px;width:100%;border-collapse:collapse}
+.me-table th{font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:var(--g500);text-align:left;padding:8px;border-bottom:1px solid var(--g200)}
+.me-table td{font-size:9px;color:var(--g700);padding:9px 8px;border-bottom:1px solid var(--g100)}
+.me-badge{display:inline-block;font-size:8px;padding:3px 6px;border-radius:999px;background:#f1efe8;color:var(--g600)}
+@media(max-width:1000px){
+  .me-grid{grid-template-columns:1fr}
+  .me-kpis{grid-template-columns:1fr 1fr}
+}
+
+
+/* Pôles RH : Salle / Cuisine */
+.dept-tabs{
+  display:flex;align-items:center;gap:4px;width:max-content;
+  background:#ecebe6;border:1px solid var(--g200);border-radius:10px;
+  padding:3px;margin:0 0 14px;
+}
+.dept-tab{
+  border:0;background:transparent;color:var(--g500);
+  font-family:inherit;font-size:10px;font-weight:650;
+  padding:7px 12px;border-radius:7px;cursor:pointer;
+}
+.dept-tab.active{background:#fff;color:var(--navy);box-shadow:0 1px 3px rgba(20,30,45,.08)}
+.dept-tab small{font-size:8px;color:var(--g400);margin-left:4px}
+.emp-dept-badge{
+  display:inline-block;font-size:8px;font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;padding:3px 6px;border-radius:999px;margin-left:5px;
+  background:#eef2f4;color:#53636d;
+}
+.kitchen-note{
+  font-size:8px;color:var(--g400);margin-top:6px;line-height:1.4
+}
+
 </style>
 </head>
-<body>
+<body class="app-nav-ready">
+
+<div class="app-sidebar-backdrop no-print" id="appSidebarBackdrop" onclick="closeAppSidebar()"></div>
+<aside class="app-sidebar no-print" id="appSidebar" aria-label="Navigation principale">
+  <div class="app-sidebar-head">
+    <div class="app-sidebar-logo">LO</div>
+    <div class="app-sidebar-brand">
+      <strong>L'OCÉAN</strong>
+      <span>Outil interne</span>
+    </div>
+    <button class="app-sidebar-close" type="button" onclick="closeAppSidebar()" aria-label="Fermer le menu">×</button>
+  </div>
+
+  <div class="app-sidebar-scroll">
+    <div class="app-nav-group">
+      <div class="app-nav-label">RH</div>
+      <button class="app-nav-item" data-page="team" onclick="navigateApp('team')"><span class="app-nav-icon">◉</span>Équipe</button>
+      <button class="app-nav-item active" data-page="planning" onclick="navigateApp('planning')"><span class="app-nav-icon">▦</span>Planning</button>
+      <button class="app-nav-item" data-page="pointage" onclick="navigateApp('pointage')"><span class="app-nav-icon">◷</span>Pointage</button>
+    </div>
+
+    <div class="app-nav-group">
+      <div class="app-nav-label">Opérationnel</div>
+      <button class="app-nav-item" data-page="stocks" onclick="navigateApp('stocks')"><span class="app-nav-icon">⬡</span>Stocks <span class="app-nav-badge">bientôt</span></button>
+      <button class="app-nav-item" data-page="inventory" onclick="navigateApp('inventory')"><span class="app-nav-icon">☷</span>Inventaire</button>
+      <button class="app-nav-item" data-page="suppliers" onclick="navigateApp('suppliers')"><span class="app-nav-icon">▣</span>Fournisseurs</button>
+    </div>
+
+    <div class="app-nav-group">
+      <div class="app-nav-label">Menu & Food Cost</div>
+      <button class="app-nav-item" data-page="menu" onclick="navigateApp('menu')"><span class="app-nav-icon">⌘</span>Menu & Recettes</button>
+      <button class="app-nav-item" data-page="costs" onclick="navigateApp('costs')"><span class="app-nav-icon">≋</span>Coûts matière</button>
+      <button class="app-nav-item" data-page="menuengineering" onclick="navigateApp('menuengineering')"><span class="app-nav-icon">◫</span>Menu Engineering</button>
+      <button class="app-nav-item" data-page="foodcost" onclick="navigateApp('foodcost')"><span class="app-nav-icon">⌁</span>Analyse food cost</button>
+    </div>
+
+    <div class="app-nav-group">
+      <div class="app-nav-label">Ventes</div>
+      <button class="app-nav-item" data-page="posimport" onclick="navigateApp('posimport')"><span class="app-nav-icon">⇩</span>Import caisse</button>
+      <button class="app-nav-item" data-page="sales" onclick="navigateApp('sales')"><span class="app-nav-icon">↗</span>Analyse des ventes</button>
+      <button class="app-nav-item" data-page="teamperf" onclick="navigateApp('teamperf')"><span class="app-nav-icon">◎</span>Performance équipe</button>
+    </div>
+
+    <div class="app-nav-group">
+      <div class="app-nav-label">Pilotage</div>
+      <button class="app-nav-item" data-page="dashboard" onclick="navigateApp('dashboard')"><span class="app-nav-icon">▤</span>Tableau de bord</button>
+      <button class="app-nav-item" data-page="reports" onclick="navigateApp('reports')"><span class="app-nav-icon">⇧</span>Rapports & exports</button>
+      <button class="app-nav-item" data-page="alltools" onclick="navigateApp('alltools')"><span class="app-nav-icon">▦</span>Tous les outils</button>
+    </div>
+  </div>
+
+  <div class="app-sidebar-foot">
+    <button class="app-nav-item" data-page="settings" onclick="navigateApp('settings')"><span class="app-nav-icon">⚙</span>Paramètres</button>
+  </div>
+</aside>
+
 
 <div class="print-doc" style="display:none" id="printDoc">
   <div class="p1h"><div class="p1h-logo">L'OCÉAN</div><div class="p1h-meta" id="ph-info-p1"></div></div>
@@ -338,6 +601,7 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
 </div>
 
 <header class="header">
+  <button class="app-menu-btn no-print" type="button" onclick="openAppSidebar()" aria-label="Ouvrir le menu">☰</button>
   <div class="brand">
     <div class="logo">LO</div>
     <span class="brand-name">L'OCÉAN</span>
@@ -360,6 +624,11 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
 </header>
 
 <main class="main" id="planningPage">
+  <div class="dept-tabs no-print" id="planningDeptTabs">
+    <button class="dept-tab active" data-dept="salle" onclick="setPlanningDept('salle')">Salle</button>
+    <button class="dept-tab" data-dept="cuisine" onclick="setPlanningDept('cuisine')">Cuisine</button>
+    <button class="dept-tab" data-dept="all" onclick="setPlanningDept('all')">Tous</button>
+  </div>
   <div class="table-card">
     <div class="table-scroll">
       <table>
@@ -421,6 +690,11 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
           <button class="btn btn-gold" onclick="saveRH()">✓ Enregistrer et revenir</button>
         </div>
       </div>
+      <div class="dept-tabs" id="teamDeptTabs" style="margin-top:12px;margin-bottom:10px">
+        <button class="dept-tab active" data-dept="salle" onclick="setTeamDept('salle')">Salle</button>
+        <button class="dept-tab" data-dept="cuisine" onclick="setTeamDept('cuisine')">Cuisine</button>
+        <button class="dept-tab" data-dept="all" onclick="setTeamDept('all')">Tous</button>
+      </div>
       <div class="team-legend">
         <span>IA planifie = autorise l’automatisation</span>
         <span>Compte = pris en compte dans les minimums</span>
@@ -433,7 +707,486 @@ select.tsel:focus{outline:none;border-color:var(--navy)}
   </div>
 </section>
 
+
+<section class="module-page no-print" id="module-pointage" data-module="pointage">
+  <div class="module-shell">
+    <div class="module-kicker">RH</div>
+    <div class="module-title">Pointage</div>
+    <div class="module-lead">Heures réellement effectuées, écarts avec le planning et validation quotidienne par le manager.</div>
+    <div class="module-placeholder">
+      <div class="module-placeholder-icon">◷</div>
+      <strong>Module prêt à être construit</strong>
+      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
+      <div class="module-chips"><span class="module-chip">Prérempli depuis Planning</span><span class="module-chip">Salle + Cuisine</span><span class="module-chip">Heures réelles</span><span class="module-chip">Écarts</span><span class="module-chip">Validation manager</span><span class="module-chip">Dictée vocale</span></div>
+      
+<div class="pointage-preview">
+  <div class="pointage-card">
+    <div class="pointage-card-title">Prévu → Réel</div>
+    <div class="pointage-card-text">Les salariés et horaires seront préremplis depuis le planning. Le manager ne corrigera que les écarts du jour.</div>
+  </div>
+  <div class="pointage-card">
+    <div class="pointage-card-title">Saisie vocale</div>
+    <div class="pointage-card-text">Dictée libre → aperçu des changements → validation humaine avant sauvegarde.</div>
+    <div class="pointage-mic">🎙</div>
+  </div>
+</div>
+
+    </div>
+  </div>
+</section>
+
+
+<section class="module-page no-print" id="module-stocks" data-module="stocks">
+  <div class="module-shell">
+    <div class="module-kicker">Opérationnel</div>
+    <div class="module-title">Stocks</div>
+    <div class="module-lead">Suivi du stock théorique, mouvements, valorisation et alertes.</div>
+    <div class="module-placeholder">
+      <div class="module-placeholder-icon">⬡</div>
+      <strong>Module prêt à être construit</strong>
+      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
+      <div class="module-chips"><span class="module-chip">Stock théorique</span><span class="module-chip">Mouvements</span><span class="module-chip">Valorisation</span><span class="module-chip">Alertes</span></div>
+      
+    </div>
+  </div>
+</section>
+
+
+<section class="module-page no-print" id="module-inventory" data-module="inventory">
+  <div class="module-shell">
+    <div class="module-kicker">Opérationnel</div>
+    <div class="module-title">Inventaire</div>
+    <div class="module-lead">Comptages réels, écarts avec le théorique et historique d'inventaire.</div>
+    <div class="module-placeholder">
+      <div class="module-placeholder-icon">☷</div>
+      <strong>Module prêt à être construit</strong>
+      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
+      <div class="module-chips"><span class="module-chip">Comptage</span><span class="module-chip">Écarts</span><span class="module-chip">Historique</span><span class="module-chip">Valorisation</span></div>
+      
+    </div>
+  </div>
+</section>
+
+
+<section class="module-page no-print" id="module-suppliers" data-module="suppliers">
+  <div class="module-shell">
+    <div class="module-kicker">Opérationnel</div>
+    <div class="module-title">Fournisseurs</div>
+    <div class="module-lead">Fournisseurs, achats et futurs scans de bons de livraison.</div>
+    <div class="module-placeholder">
+      <div class="module-placeholder-icon">▣</div>
+      <strong>Module prêt à être construit</strong>
+      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
+      <div class="module-chips"><span class="module-chip">Fournisseurs</span><span class="module-chip">Bons de livraison</span><span class="module-chip">Scan BL</span><span class="module-chip">Prix d'achat</span></div>
+      
+    </div>
+  </div>
+</section>
+
+
+<section class="module-page no-print" id="module-menu" data-module="menu">
+  <div class="module-shell">
+    <div class="module-kicker">Menu & Food Cost</div>
+    <div class="module-title">Menu & Recettes</div>
+    <div class="module-lead">Référentiel des produits vendus, recettes et fiches techniques.</div>
+    <div class="module-placeholder">
+      <div class="module-placeholder-icon">⌘</div>
+      <strong>Module prêt à être construit</strong>
+      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
+      <div class="module-chips"><span class="module-chip">Recettes</span><span class="module-chip">Ingrédients</span><span class="module-chip">Quantités</span><span class="module-chip">Fiches techniques</span></div>
+      
+    </div>
+  </div>
+</section>
+
+
+<section class="module-page no-print" id="module-costs" data-module="costs">
+  <div class="module-shell">
+    <div class="module-kicker">Menu & Food Cost</div>
+    <div class="module-title">Coûts matière</div>
+    <div class="module-lead">Mercuriale ingrédients et imports de coûts matière.</div>
+    <div class="module-placeholder">
+      <div class="module-placeholder-icon">≋</div>
+      <strong>Module prêt à être construit</strong>
+      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
+      <div class="module-chips"><span class="module-chip">Import Excel</span><span class="module-chip">Prix d'achat</span><span class="module-chip">Historique prix</span><span class="module-chip">Mercuriale</span></div>
+      
+    </div>
+  </div>
+</section>
+
+
+
+<section class="module-page no-print" id="module-menuengineering" data-module="menuengineering">
+  <div class="module-shell">
+    <div class="module-kicker">Menu & Food Cost</div>
+    <div class="module-title">Menu Engineering</div>
+    <div class="module-lead">
+      Analyse de la performance du menu actuel pour décider quoi conserver, pousser, repositionner, retravailler ou supprimer lors du prochain changement de carte.
+    </div>
+
+    <div class="me-kpis">
+      <div class="me-kpi">
+        <div class="me-kpi-label">Marge moyenne</div>
+        <div class="me-kpi-value">—</div>
+        <div class="me-kpi-sub">À alimenter via coûts matière</div>
+      </div>
+      <div class="me-kpi">
+        <div class="me-kpi-label">Food cost moyen</div>
+        <div class="me-kpi-value">—</div>
+        <div class="me-kpi-sub">Recettes + prix fournisseurs</div>
+      </div>
+      <div class="me-kpi">
+        <div class="me-kpi-label">Plats à pousser</div>
+        <div class="me-kpi-value">—</div>
+        <div class="me-kpi-sub">Bonne marge / faible volume</div>
+      </div>
+      <div class="me-kpi">
+        <div class="me-kpi-label">Plats à revoir</div>
+        <div class="me-kpi-value">—</div>
+        <div class="me-kpi-sub">Marge ou popularité faibles</div>
+      </div>
+    </div>
+
+    <div class="me-grid">
+      <div class="me-card">
+        <h3>Matrice popularité × marge</h3>
+        <p>La future vue centrale du module : chaque plat sera positionné automatiquement selon ses ventes et sa contribution à la marge.</p>
+        <div class="me-matrix">
+          <div class="me-quadrant">
+            <strong>Stars</strong>
+            <span>Forte popularité · Forte marge</span>
+            <i class="me-dot" style="left:62%;top:32%"></i>
+            <i class="me-dot" style="left:34%;top:56%"></i>
+          </div>
+          <div class="me-quadrant">
+            <strong>Puzzles</strong>
+            <span>Faible popularité · Forte marge</span>
+            <i class="me-dot" style="left:58%;top:46%"></i>
+          </div>
+          <div class="me-quadrant">
+            <strong>Workhorses</strong>
+            <span>Forte popularité · Marge faible</span>
+            <i class="me-dot" style="left:45%;top:42%"></i>
+            <i class="me-dot" style="left:68%;top:63%"></i>
+          </div>
+          <div class="me-quadrant">
+            <strong>À revoir</strong>
+            <span>Faible popularité · Marge faible</span>
+            <i class="me-dot" style="left:52%;top:58%"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="me-card">
+        <h3>Aide à la décision</h3>
+        <p>Les recommandations seront générées à partir des données réelles, jamais seulement sur le food cost.</p>
+        <div class="me-actions">
+          <div class="me-action">
+            <div class="me-action-title">À pousser</div>
+            <div class="me-action-text">Plat rentable mais sous-vendu : mise en avant, emplacement, wording, suggestion serveur.</div>
+          </div>
+          <div class="me-action">
+            <div class="me-action-title">Prix à revoir</div>
+            <div class="me-action-text">Volume fort mais marge qui s'érode : augmentation tarifaire ou retravail de la recette.</div>
+          </div>
+          <div class="me-action">
+            <div class="me-action-title">À repositionner</div>
+            <div class="me-action-text">Tester une autre place sur la carte ou dans la catégorie avant suppression.</div>
+          </div>
+          <div class="me-action">
+            <div class="me-action-title">À supprimer ?</div>
+            <div class="me-action-text">Faible volume + faible marge : candidat à la sortie lors du changement de saison.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="me-card" style="margin-top:14px">
+      <h3>Menu actuel</h3>
+      <p>Cette table sera alimentée automatiquement par les ventes détaillées et les fiches techniques.</p>
+      <table class="me-table">
+        <thead>
+          <tr>
+            <th>Plat</th>
+            <th>Ventes</th>
+            <th>Prix</th>
+            <th>Coût matière</th>
+            <th>Marge €</th>
+            <th>Food cost</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Exemple — Plat A</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td><span class="me-badge">À analyser</span></td></tr>
+          <tr><td>Exemple — Plat B</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td><span class="me-badge">À analyser</span></td></tr>
+          <tr><td>Exemple — Plat C</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td><span class="me-badge">À analyser</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="me-card" style="margin-top:14px">
+      <h3>Comparaison de carte</h3>
+      <p>Prévu pour comparer la saison actuelle avec une nouvelle carte : plats conservés, retirés, nouveaux prix, nouvelle marge estimée et impact global.</p>
+      <div class="module-chips" style="justify-content:flex-start">
+        <span class="module-chip">Carte actuelle</span>
+        <span class="module-chip">Carte hiver</span>
+        <span class="module-chip">Comparaison marge</span>
+        <span class="module-chip">Comparaison popularité</span>
+        <span class="module-chip">Décision finale</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="module-page no-print" id="module-foodcost" data-module="foodcost">
+  <div class="module-shell">
+    <div class="module-kicker">Menu & Food Cost</div>
+    <div class="module-title">Analyse food cost</div>
+    <div class="module-lead">Coûts théoriques, marges et évolution du coût matière.</div>
+    <div class="module-placeholder">
+      <div class="module-placeholder-icon">⌁</div>
+      <strong>Module prêt à être construit</strong>
+      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
+      <div class="module-chips"><span class="module-chip">Food cost</span><span class="module-chip">Marge théorique</span><span class="module-chip">Variations</span><span class="module-chip">Alertes</span></div>
+      
+    </div>
+  </div>
+</section>
+
+
+<section class="module-page no-print" id="module-posimport" data-module="posimport">
+  <div class="module-shell">
+    <div class="module-kicker">Ventes</div>
+    <div class="module-title">Import caisse</div>
+    <div class="module-lead">Point d'entrée des exports de caisse détaillés et futurs imports automatisés.</div>
+    <div class="module-placeholder">
+      <div class="module-placeholder-icon">⇩</div>
+      <strong>Module prêt à être construit</strong>
+      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
+      <div class="module-chips"><span class="module-chip">Import quotidien</span><span class="module-chip">Exports caisse</span><span class="module-chip">Automatisation e-mail</span><span class="module-chip">Historique</span></div>
+      
+    </div>
+  </div>
+</section>
+
+
+<section class="module-page no-print" id="module-sales" data-module="sales">
+  <div class="module-shell">
+    <div class="module-kicker">Ventes</div>
+    <div class="module-title">Analyse des ventes</div>
+    <div class="module-lead">Analyse du chiffre d'affaires par période, service et produit.</div>
+    <div class="module-placeholder">
+      <div class="module-placeholder-icon">↗</div>
+      <strong>Module prêt à être construit</strong>
+      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
+      <div class="module-chips"><span class="module-chip">CA</span><span class="module-chip">Tickets</span><span class="module-chip">Panier moyen</span><span class="module-chip">Produits</span><span class="module-chip">Services</span></div>
+      
+    </div>
+  </div>
+</section>
+
+
+<section class="module-page no-print" id="module-teamperf" data-module="teamperf">
+  <div class="module-shell">
+    <div class="module-kicker">Ventes</div>
+    <div class="module-title">Performance équipe</div>
+    <div class="module-lead">Lecture opérationnelle des ventes par serveur et indicateurs associés.</div>
+    <div class="module-placeholder">
+      <div class="module-placeholder-icon">◎</div>
+      <strong>Module prêt à être construit</strong>
+      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
+      <div class="module-chips"><span class="module-chip">CA serveur</span><span class="module-chip">Tickets</span><span class="module-chip">Panier moyen</span><span class="module-chip">Comparaisons</span></div>
+      
+    </div>
+  </div>
+</section>
+
+
+<section class="module-page no-print" id="module-dashboard" data-module="dashboard">
+  <div class="module-shell">
+    <div class="module-kicker">Pilotage</div>
+    <div class="module-title">Tableau de bord</div>
+    <div class="module-lead">Synthèse instantanée des données RH, ventes, matière et opérations.</div>
+    <div class="module-placeholder">
+      <div class="module-placeholder-icon">▤</div>
+      <strong>Module prêt à être construit</strong>
+      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
+      <div class="module-chips"><span class="module-chip">CA</span><span class="module-chip">RH</span><span class="module-chip">Marge</span><span class="module-chip">Stocks</span><span class="module-chip">Alertes</span><span class="module-chip">Tendances</span></div>
+      
+    </div>
+  </div>
+</section>
+
+
+<section class="module-page no-print" id="module-reports" data-module="reports">
+  <div class="module-shell">
+    <div class="module-kicker">Pilotage</div>
+    <div class="module-title">Rapports & exports</div>
+    <div class="module-lead">Rapports périodiques et exports destinés au pilotage, à la comptabilité ou aux RH.</div>
+    <div class="module-placeholder">
+      <div class="module-placeholder-icon">⇧</div>
+      <strong>Module prêt à être construit</strong>
+      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
+      <div class="module-chips"><span class="module-chip">Excel</span><span class="module-chip">PDF</span><span class="module-chip">Comparatifs</span><span class="module-chip">Exports</span></div>
+      
+    </div>
+  </div>
+</section>
+
+
+<section class="module-page no-print" id="module-alltools" data-module="alltools">
+  <div class="module-shell">
+    <div class="module-kicker">Pilotage</div>
+    <div class="module-title">Tous les outils</div>
+    <div class="module-lead">Vue d'ensemble des modules disponibles dans l'application interne.</div>
+    <div class="module-placeholder">
+      <div class="module-placeholder-icon">▦</div>
+      <strong>Module prêt à être construit</strong>
+      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
+      <div class="module-chips"><span class="module-chip">RH</span><span class="module-chip">Ventes</span><span class="module-chip">Stocks</span><span class="module-chip">Food cost</span><span class="module-chip">Pilotage</span></div>
+      
+    </div>
+  </div>
+</section>
+
+
+<section class="module-page no-print" id="module-settings" data-module="settings">
+  <div class="module-shell">
+    <div class="module-kicker">Administration</div>
+    <div class="module-title">Paramètres</div>
+    <div class="module-lead">Établissements, utilisateurs, rôles, connexions et réglages généraux.</div>
+    <div class="module-placeholder">
+      <div class="module-placeholder-icon">⚙</div>
+      <strong>Module prêt à être construit</strong>
+      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
+      <div class="module-chips"><span class="module-chip">Utilisateurs</span><span class="module-chip">Rôles</span><span class="module-chip">Accès salarié par PIN</span><span class="module-chip">Demandes CP</span><span class="module-chip">Établissements</span><span class="module-chip">Connexions</span><span class="module-chip">Imports</span></div>
+      
+    </div>
+  </div>
+</section>
+
+
 <script>
+
+var CURRENT_PLANNING_DEPT='salle';
+var CURRENT_TEAM_DEPT='salle';
+
+function normalizeDept(v){
+  return String(v||'salle').toLowerCase()==='cuisine'?'cuisine':'salle';
+}
+function empInDept(emp,dept){
+  if(dept==='all')return true;
+  return normalizeDept(emp&&emp.department)===dept;
+}
+function updateDeptTabs(id,current){
+  var root=document.getElementById(id);
+  if(!root)return;
+  root.querySelectorAll('.dept-tab').forEach(function(btn){
+    btn.classList.toggle('active',btn.getAttribute('data-dept')===current);
+  });
+}
+function setPlanningDept(dept){
+  CURRENT_PLANNING_DEPT=dept||'salle';
+  updateDeptTabs('planningDeptTabs',CURRENT_PLANNING_DEPT);
+  buildBody();
+  setDates(new Date(document.getElementById('weekDate').value));
+}
+function setTeamDept(dept){
+  CURRENT_TEAM_DEPT=dept||'salle';
+  updateDeptTabs('teamDeptTabs',CURRENT_TEAM_DEPT);
+  openRH();
+}
+
+
+/* ==========================================================
+   NAVIGATION APPLICATION
+   ========================================================== */
+function openAppSidebar(){ document.body.classList.add('app-sidebar-open'); }
+function closeAppSidebar(){ document.body.classList.remove('app-sidebar-open'); }
+
+function setAppNavActive(page){
+  document.querySelectorAll('.app-nav-item[data-page]').forEach(function(btn){
+    btn.classList.toggle('active', btn.getAttribute('data-page')===page);
+  });
+}
+
+function hideFutureModules(){
+  document.querySelectorAll('.module-page').forEach(function(p){p.classList.remove('open');});
+}
+
+function setHeaderMode(page){
+  var sub=document.querySelector('.brand-sub');
+  var hright=document.querySelector('.hright');
+  if(!sub)return;
+
+  var labels={
+    planning:'— Planning équipe',
+    team:'— Configuration équipe',
+    pointage:'— Pointage',
+    stocks:'— Stocks',
+    inventory:'— Inventaire',
+    suppliers:'— Fournisseurs',
+    menu:'— Menu & Recettes',
+    costs:'— Coûts matière',
+    menuengineering:'— Menu Engineering',
+    foodcost:'— Analyse food cost',
+    posimport:'— Import caisse',
+    sales:'— Analyse des ventes',
+    teamperf:'— Performance équipe',
+    dashboard:'— Tableau de bord',
+    reports:'— Rapports & exports',
+    alltools:'— Tous les outils',
+    settings:'— Paramètres'
+  };
+  sub.textContent=labels[page]||'— Outil interne';
+
+  /* Les contrôles de semaine/impression/IA ne concernent que le planning. */
+  if(hright) hright.style.visibility=(page==='planning'?'visible':'hidden');
+}
+
+function navigateApp(page){
+  closeAppSidebar();
+  hideFutureModules();
+
+  var planning=document.getElementById('planningPage');
+  var team=document.getElementById('teamPage');
+
+  if(page==='team'){
+    if(planning)planning.style.display='none';
+    if(team)team.classList.remove('open');
+    openRH();
+    setAppNavActive('team');
+    setHeaderMode('team');
+    return;
+  }
+
+  if(team)team.classList.remove('open');
+
+  if(page==='planning'){
+    if(planning)planning.style.display='';
+    setAppNavActive('planning');
+    setHeaderMode('planning');
+    window.scrollTo(0,0);
+    return;
+  }
+
+  if(planning)planning.style.display='none';
+  var target=document.getElementById('module-'+page);
+  if(target)target.classList.add('open');
+  setAppNavActive(page);
+  setHeaderMode(page);
+  window.scrollTo(0,0);
+}
+
+/* Initialise la nouvelle coque sans modifier le comportement métier existant. */
+document.addEventListener('DOMContentLoaded',function(){
+  setAppNavActive('planning');
+  setHeaderMode('planning');
+  updateDeptTabs('planningDeptTabs',CURRENT_PLANNING_DEPT);
+  updateDeptTabs('teamDeptTabs',CURRENT_TEAM_DEPT);
+});
+
 var DAYS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
 var DAYS_FULL=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 var IS_WE=[false,false,false,false,false,true,true];
@@ -757,11 +1510,13 @@ function buildHeader(){
 function buildBody(){
   var tb=document.getElementById('tbody');tb.innerHTML='';
   EMPS.forEach(function(emp,ei){
+    ensureEmpConfig(emp);
     if(emp.hidden)return; // MASQUÉ — on saute
+    if(!empInDept(emp,CURRENT_PLANNING_DEPT))return;
     var col=getColor(ei);
     var tr=document.createElement('tr');tr.className='emp-row';
     var td0=document.createElement('td');td0.className='td-emp';
-    td0.innerHTML='<div style="display:flex;align-items:center;gap:6px"><div class="emp-av" style="background:'+col.bg+';color:'+col.fg+'">'+emp.name.slice(0,2).toUpperCase()+'</div><div><div class="emp-n">'+emp.name+'</div><div class="emp-c">'+(emp.contract||'')+' h</div></div></div>';
+    td0.innerHTML='<div style="display:flex;align-items:center;gap:6px"><div class="emp-av" style="background:'+col.bg+';color:'+col.fg+'">'+emp.name.slice(0,2).toUpperCase()+'</div><div><div class="emp-n">'+emp.name+' <span class="emp-dept-badge">'+(normalizeDept(emp.department)==='cuisine'?'Cuisine':'Salle')+'</span></div><div class="emp-c">'+(emp.contract||'')+' h</div></div></div>';
     tr.appendChild(td0);
     DAYS.forEach(function(_,di){
       var td=document.createElement('td');
@@ -901,10 +1656,10 @@ function chkWeek(ei){
 
 function toMinN(s){if(!s||s==='—')return null;var p=s.split(':').map(Number);return p[0]*60+p[1];}
 function presentAt(sh,t){var sm=toMinN(sh.s),em=toMinN(sh.e);if(sm===null)return false;if(em===null)return sm<=t;if(em<=sm)em+=1440;return sm<=t&&em>=t;}
-function minCovApm(di){var slots=[15*60,15*60+30,16*60,16*60+30,17*60,17*60+30,18*60],mn=999;slots.forEach(function(t){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;d.shifts.forEach(function(sh){if(presentAt(sh,t))c++;});});if(c<mn)mn=c;});return mn===999?0:mn;}
-function cntMidi(di){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<15*60&&em>12*60)f=true;}});if(f)c++;});return c;}
+function minCovApm(di){var slots=[15*60,15*60+30,16*60,16*60+30,17*60,17*60+30,18*60],mn=999;slots.forEach(function(t){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden||!empInDept(emp,CURRENT_PLANNING_DEPT))return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;d.shifts.forEach(function(sh){if(presentAt(sh,t))c++;});});if(c<mn)mn=c;});return mn===999?0:mn;}
+function cntMidi(di){var c=0;EMPS.forEach(function(emp,ei){if(emp.hidden||!empInDept(emp,CURRENT_PLANNING_DEPT))return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;var f=false;d.shifts.forEach(function(sh){if(!f&&sh.s&&sh.e&&sh.s!=='—'&&sh.e!=='—'){var sm=toMinN(sh.s),em=toMinN(sh.e);if(em<=sm)em+=1440;if(sm<15*60&&em>12*60)f=true;}});if(f)c++;});return c;}
 function cntSoir(di){var c=0;EMPS.forEach(function(emp,ei){
-  if(emp.hidden)return;
+  if(emp.hidden||!empInDept(emp,CURRENT_PLANNING_DEPT))return;
   var d=DATA[ei][di];
   if(!d||d.x||!d.shifts)return;
   if(d.status&&d.status!=='Coupure')return;
@@ -919,7 +1674,7 @@ function cntSoir(di){var c=0;EMPS.forEach(function(emp,ei){
   });
   if(f)c++;
 });return c;}
-function totHDay(di){var t=0;EMPS.forEach(function(emp,ei){if(emp.hidden)return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;t+=calcDayH(d.shifts);});return t;}
+function totHDay(di){var t=0;EMPS.forEach(function(emp,ei){if(emp.hidden||!empInDept(emp,CURRENT_PLANNING_DEPT))return;var d=DATA[ei][di];if(!d||d.x||!d.shifts)return;if(d.status&&d.status!=='Coupure')return;t+=calcDayH(d.shifts);});return t;}
 
 function updateRowTotal(ei){
   if(EMPS[ei]&&EMPS[ei].hidden)return;
@@ -1078,13 +1833,17 @@ function buildPrintDoc(){
   }
 
   var visibleCount=0,hiddenCount=0;
-  EMPS.forEach(function(e){if(e.hidden)hiddenCount++;else visibleCount++;});
+  EMPS.forEach(function(e){
+    ensureEmpConfig(e);
+    if(!empInDept(e,CURRENT_PLANNING_DEPT))return;
+    if(e.hidden)hiddenCount++;else visibleCount++;
+  });
 
   var info=document.getElementById('ph-info-p1');
   if(info){
     info.innerHTML=
       'S.'+getWeekNum(mon)+'&nbsp;&middot;&nbsp;Semaine du '+fmtFull(mon)+' au '+fmtFull(sun)
-      +'<br>Planning hebdomadaire &mdash; '+visibleCount+' actifs'
+      +'<br>Planning '+(CURRENT_PLANNING_DEPT==='all'?'Salle + Cuisine':(CURRENT_PLANNING_DEPT==='cuisine'?'Cuisine':'Salle'))+' &mdash; '+visibleCount+' actifs'
       +(hiddenCount?' · '+hiddenCount+' hors planning':'');
   }
 
@@ -1110,6 +1869,8 @@ function buildPrintDoc(){
   tbody.innerHTML='';
 
   EMPS.forEach(function(emp,ei){
+    ensureEmpConfig(emp);
+    if(!empInDept(emp,CURRENT_PLANNING_DEPT))return;
     var tr=document.createElement('tr');
     if(emp.hidden)tr.style.cssText='color:#999;background:#f5f5f5;';
 
@@ -1246,6 +2007,7 @@ function doPrint(){
 
 /* CONFIGURATION ÉQUIPE — migration des anciennes règles vers des données éditables */
 var EMP_RANKS=['Bar','Salle bas','Salle 400','Grand côté','Petit côté','Fond','Accueil','Runner'];
+var KITCHEN_RANKS=['Chef','Second','Chef de partie','Commis','Pâtisserie','Plonge'];
 
 var LEGACY_TEAM_CONFIG={
   'Virginie':{ranks:['Bar','Salle bas','Salle 400','Grand côté','Petit côté','Runner'],services:{morning:true,lunch:true,evening:false,closing:false,split:false},preferredService:'lunch',aiEnabled:true,countsForCoverage:true},
@@ -1270,6 +2032,8 @@ var LEGACY_TEAM_CONFIG={
 
 function ensureEmpConfig(emp){
   if(!emp)return emp;
+  if(!emp.department)emp.department='salle';
+  emp.department=normalizeDept(emp.department);
   var legacy=LEGACY_TEAM_CONFIG[emp.name]||null;
 
   if(typeof emp.aiEnabled!=='boolean')emp.aiEnabled=legacy?legacy.aiEnabled:false;
@@ -1320,19 +2084,20 @@ function teamCheckbox(id,label,checked){
 
 /* RH MODAL */
 function openRH(){
+  hideFutureModules();
+  setAppNavActive('team');
+  setHeaderMode('team');
   var page=document.getElementById('teamPage');
   var planning=document.getElementById('planningPage');
   if(planning)planning.style.display='none';
   if(page)page.classList.add('open');
   document.body.scrollTop=0;
   document.documentElement.scrollTop=0;
-  var sub=document.querySelector('.brand-sub');
-  if(sub)sub.textContent='— Configuration équipe';
-
   var body=document.getElementById('rhBody'),html='';
 
   EMPS.forEach(function(emp,ei){
     ensureEmpConfig(emp);
+    if(!empInDept(emp,CURRENT_TEAM_DEPT))return;
     var col=getColor(ei);
     var reposDays=ensureEmpRhDays(emp,ei).slice();
     var isHidden=!!emp.hidden;
@@ -1342,6 +2107,7 @@ function openRH(){
     html+='<div class="emp-config-top">';
     html+='<div class="emp-edit-av" style="background:'+col.bg+';color:'+col.fg+';align-self:center">'+emp.name.slice(0,2).toUpperCase()+'</div>';
     html+='<div><div class="config-label">Employé <span class="team-section-number">#'+(ei+1)+'</span></div><input class="field-inp" id="rh_name_'+ei+'" value="'+emp.name+'"></div>';
+    html+='<div><div class="config-label">Pôle</div><select class="field-inp" id="rh_dept_'+ei+'"><option value="salle" '+(normalizeDept(emp.department)==='salle'?'selected':'')+'>Salle</option><option value="cuisine" '+(normalizeDept(emp.department)==='cuisine'?'selected':'')+'>Cuisine</option></select></div>';
     html+='<div><div class="config-label">Contrat h/sem</div><input class="field-inp" type="number" min="0" step="0.5" id="rh_contract_'+ei+'" value="'+(emp.contract||'')+'" placeholder="42"></div>';
     html+='<div><div class="config-label">Taux brut €/h</div><input class="field-inp" type="number" min="0" step="0.01" id="rh_gross_'+ei+'" value="'+(emp.grossHourlyRate||'')+'" placeholder="12.00"></div>';
     html+='<div class="config-secondary"><div class="config-label">Fonction / note courte</div><input class="field-inp" id="rh_role_'+ei+'" value="'+(emp.role||'')+'" placeholder="Chef de rang..."></div>';
@@ -1368,11 +2134,12 @@ function openRH(){
     html+='<div style="display:flex;align-items:center;gap:6px;margin-top:7px;font-size:9px;color:var(--g500)">Max coupures / sem. <select class="field-inp" id="rh_maxsplit_'+ei+'" style="width:58px;padding:2px 5px"><option value="0" '+(emp.maxSplits===0?'selected':'')+'>0</option><option value="1" '+(emp.maxSplits===1?'selected':'')+'>1</option><option value="2" '+(emp.maxSplits===2?'selected':'')+'>2</option></select></div>';
     html+='</div>';
 
-    html+='<div class="emp-config-box"><div class="emp-config-title">Rangs maîtrisés</div><div class="chk-chips">';
-    EMP_RANKS.forEach(function(r,ri){
+    var activeRanks=normalizeDept(emp.department)==='cuisine'?KITCHEN_RANKS:EMP_RANKS;
+    html+='<div class="emp-config-box"><div class="emp-config-title">'+(normalizeDept(emp.department)==='cuisine'?'Postes cuisine':'Rangs maîtrisés')+'</div><div class="chk-chips">';
+    activeRanks.forEach(function(r,ri){
       html+=teamCheckbox('rh_rank_'+ei+'_'+ri,r,emp.ranks.indexOf(r)>=0);
     });
-    html+='</div><div style="font-size:8px;color:var(--g400);margin-top:6px">Aucun rang coché = compétences non renseignées ; l’IA ne doit pas en inventer.</div></div>';
+    html+='</div><div class="kitchen-note">'+(normalizeDept(emp.department)==='cuisine'?'Postes cuisine maîtrisés. Cette liste pourra évoluer avec votre organisation.':'Aucun rang coché = compétences non renseignées.')+'</div></div>';
 
     html+='<div class="emp-config-box"><div class="emp-config-title">Jours off habituels</div><div class="repos-toggle-grid">';
     DAYS.forEach(function(d,di){
@@ -1404,8 +2171,10 @@ function syncRHModalToData(){
     var g=document.getElementById('rh_gross_'+ei);
     var role=document.getElementById('rh_role_'+ei);
     var pref=document.getElementById('rh_pref_'+ei);
+    var dept=document.getElementById('rh_dept_'+ei);
 
     if(n&&n.value&&n.value!=='__DEL__')emp.name=n.value.trim()||emp.name;
+    if(dept)emp.department=normalizeDept(dept.value);
     if(c)emp.contract=c.value===''?0:(parseFloat(c.value)||0);
     if(g)emp.grossHourlyRate=g.value===''?0:(parseFloat(g.value)||0);
     if(role)emp.role=role.value.trim();
@@ -1435,7 +2204,8 @@ function syncRHModalToData(){
     if(!emp.services.split)emp.maxSplits=0;
 
     emp.ranks=[];
-    EMP_RANKS.forEach(function(r,ri){
+    var syncRanks=normalizeDept(emp.department)==='cuisine'?KITCHEN_RANKS:EMP_RANKS;
+    syncRanks.forEach(function(r,ri){
       if(ck('rh_rank_'+ei+'_'+ri))emp.ranks.push(r);
     });
 
@@ -1486,8 +2256,8 @@ function closeRH(){
   var planning=document.getElementById('planningPage');
   if(page)page.classList.remove('open');
   if(planning)planning.style.display='';
-  var sub=document.querySelector('.brand-sub');
-  if(sub)sub.textContent='— Planning équipe';
+  setAppNavActive('planning');
+  setHeaderMode('planning');
   document.body.scrollTop=0;
   document.documentElement.scrollTop=0;
 }
@@ -1506,6 +2276,7 @@ function addEmp(){
   syncRHModalToData();
   EMPS.push({
     name:'Nouveau·elle',
+    department:(CURRENT_TEAM_DEPT==='cuisine'?'cuisine':'salle'),
     contract:42,
     grossHourlyRate:0,
     role:'',
