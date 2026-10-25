@@ -99,17 +99,31 @@ export const handler = async function(event) {
 
       const teamPayload = payload.team.map((emp) => ({
         name: String(emp?.name || "").trim(),
+        department: emp?.department === "cuisine" ? "cuisine" : "salle",
         contract: Number(emp?.contract) || 0,
+        grossHourlyRate: Number(emp?.grossHourlyRate) || 0,
         role: String(emp?.role || ""),
         hidden: Boolean(emp?.hidden),
         rhDays: Array.isArray(emp?.rhDays)
           ? emp.rhDays.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6)
-          : []
+          : [],
+        aiEnabled: Boolean(emp?.aiEnabled),
+        countsForCoverage: Boolean(emp?.countsForCoverage),
+        preferredService: String(emp?.preferredService || "flexible"),
+        services: emp?.services && typeof emp.services === "object" ? emp.services : {},
+        ranks: Array.isArray(emp?.ranks) ? emp.ranks.map(String) : [],
+        earliestStart: String(emp?.earliestStart || ""),
+        latestEnd: String(emp?.latestEnd || ""),
+        maxSplits: Math.max(0, Math.min(2, Number(emp?.maxSplits) || 0))
       }));
 
       const weekPayload = {
         weekDate,
         data: payload.data,
+        pointage:
+          payload.pointage && typeof payload.pointage === "object"
+            ? payload.pointage
+            : {},
         manualEvents: Array.isArray(payload.manualEvents)
           ? payload.manualEvents
           : [],
