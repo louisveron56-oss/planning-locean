@@ -746,6 +746,93 @@ body.app-nav-ready > .module-page{
   .pt-history-open{width:100%}
 }
 
+
+/* ==========================================================
+   ANALYSE DES VENTES V1
+   ========================================================== */
+.sales-v1{padding:18px}
+.sales-head{
+  display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px
+}
+.sales-head-main{flex:1;min-width:240px}
+.sales-eyebrow{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:var(--g500);font-weight:800}
+.sales-title{font-size:22px;line-height:1.05;color:var(--navy);font-weight:800;margin-top:3px}
+.sales-sub{font-size:9px;color:var(--g500);margin-top:5px;line-height:1.45}
+.sales-filters{display:flex;gap:7px;flex-wrap:wrap}
+.sales-filter{
+  height:34px;border:1px solid var(--g200);border-radius:8px;background:#fff;
+  color:var(--navy);font:inherit;font-size:9px;padding:0 10px
+}
+.sales-grid-kpi{
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:12px
+}
+.sales-card{
+  background:#fff;border:1px solid var(--g200);border-radius:12px;padding:12px 13px
+}
+.sales-kpi-label{font-size:7.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--g500);font-weight:800}
+.sales-kpi-value{font-size:21px;color:var(--navy);font-weight:800;margin-top:4px}
+.sales-kpi-foot{font-size:8px;color:var(--g500);margin-top:5px}
+.sales-delta{font-weight:800}
+.sales-delta.up{color:#177149}.sales-delta.down{color:#b44b38}.sales-delta.flat{color:#777}
+.sales-section-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:12px;margin-top:12px}
+.sales-section-title{font-size:11px;color:var(--navy);font-weight:800}
+.sales-section-sub{font-size:8px;color:var(--g500);margin-top:2px}
+.sales-placeholder-chart{
+  margin-top:11px;height:220px;border-radius:10px;
+  background:
+    linear-gradient(to top,transparent 24%,rgba(31,45,58,.05) 25%,transparent 26%),
+    linear-gradient(to top,transparent 49%,rgba(31,45,58,.05) 50%,transparent 51%),
+    linear-gradient(to top,transparent 74%,rgba(31,45,58,.05) 75%,transparent 76%),
+    #faf9f6;
+  position:relative;overflow:hidden
+}
+.sales-chart-line{
+  position:absolute;left:5%;right:5%;top:44%;height:2px;background:var(--navy);
+  transform:rotate(-5deg);transform-origin:left center;border-radius:4px
+}
+.sales-chart-line:before,.sales-chart-line:after{
+  content:"";position:absolute;width:8px;height:8px;border-radius:50%;background:var(--navy);top:-3px
+}
+.sales-chart-line:before{left:18%}.sales-chart-line:after{right:22%}
+.sales-period-tabs{display:flex;gap:5px;margin-top:8px}
+.sales-period-tabs button{
+  border:1px solid var(--g200);background:#fff;border-radius:7px;padding:5px 8px;
+  font:inherit;font-size:8px;font-weight:700;color:var(--g500);cursor:pointer
+}
+.sales-period-tabs button.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.sales-service-list,.sales-alert-list,.sales-family-list{display:grid;gap:8px;margin-top:10px}
+.sales-service-row,.sales-alert-row,.sales-family-row{
+  border:1px solid var(--g100);background:#faf9f6;border-radius:9px;padding:9px 10px
+}
+.sales-service-top,.sales-family-top{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.sales-service-name,.sales-family-name{font-size:9px;font-weight:800;color:var(--navy)}
+.sales-service-ca,.sales-family-ca{font-size:9px;font-weight:800;color:var(--navy)}
+.sales-mini{font-size:7.5px;color:var(--g500);margin-top:3px}
+.sales-bar{height:5px;background:#ecebe6;border-radius:999px;margin-top:6px;overflow:hidden}
+.sales-bar > span{display:block;height:100%;background:var(--navy);border-radius:999px}
+.sales-table-wrap{overflow:auto;margin-top:10px}
+.sales-table{width:100%;border-collapse:collapse;min-width:720px}
+.sales-table th,.sales-table td{padding:9px 10px;border-bottom:1px solid var(--g100);text-align:left}
+.sales-table th{font-size:7.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--g500);background:#faf9f6}
+.sales-table td{font-size:8.5px;color:var(--g700)}
+.sales-alert-row{display:flex;gap:9px;align-items:flex-start}
+.sales-alert-dot{width:8px;height:8px;border-radius:50%;background:#d9a845;margin-top:3px;flex:0 0 auto}
+.sales-alert-title{font-size:8.5px;font-weight:800;color:var(--navy)}
+.sales-alert-txt{font-size:7.5px;color:var(--g500);margin-top:2px;line-height:1.4}
+.sales-empty-note{
+  margin-top:12px;padding:10px 11px;border-radius:9px;background:#f6f5f1;
+  border:1px dashed var(--g200);font-size:8px;color:var(--g500);line-height:1.5
+}
+@media(max-width:1100px){
+  .sales-grid-kpi{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .sales-section-grid{grid-template-columns:1fr}
+}
+@media(max-width:650px){
+  .sales-v1{padding:12px}
+  .sales-grid-kpi{grid-template-columns:1fr}
+  .sales-title{font-size:19px}
+}
+
 </style>
 </head>
 <body class="app-nav-ready">
@@ -1291,17 +1378,142 @@ body.app-nav-ready > .module-page{
 </section>
 
 
-<section class="module-page no-print" id="module-sales" data-module="sales">
-  <div class="module-shell">
-    <div class="module-kicker">Ventes</div>
-    <div class="module-title">Analyse des ventes</div>
-    <div class="module-lead">Analyse du chiffre d'affaires par période, service et produit.</div>
-    <div class="module-placeholder">
-      <div class="module-placeholder-icon">↗</div>
-      <strong>Module prêt à être construit</strong>
-      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
-      <div class="module-chips"><span class="module-chip">CA</span><span class="module-chip">Tickets</span><span class="module-chip">Panier moyen</span><span class="module-chip">Produits</span><span class="module-chip">Services</span></div>
-      
+
+<section class="module-page" id="module-sales">
+  <div class="sales-v1">
+    <div class="sales-head">
+      <div class="sales-head-main">
+        <div class="sales-eyebrow">Pilotage commercial</div>
+        <div class="sales-title">Analyse des ventes</div>
+        <div class="sales-sub">Une lecture courte et utile : niveau d’activité, évolution, services, familles et alertes.</div>
+      </div>
+      <div class="sales-filters">
+        <select class="sales-filter"><option>L'Océan</option></select>
+        <select class="sales-filter">
+          <option>30 derniers jours</option>
+          <option>7 derniers jours</option>
+          <option>Mois en cours</option>
+          <option>Année en cours</option>
+        </select>
+        <select class="sales-filter">
+          <option>Tous les services</option>
+          <option>Midi</option>
+          <option>Après-midi</option>
+          <option>Soir</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="sales-grid-kpi">
+      <div class="sales-card">
+        <div class="sales-kpi-label">CA TTC</div>
+        <div class="sales-kpi-value">—</div>
+        <div class="sales-kpi-foot">vs N-1 <span class="sales-delta flat">—</span></div>
+      </div>
+      <div class="sales-card">
+        <div class="sales-kpi-label">Couverts</div>
+        <div class="sales-kpi-value">—</div>
+        <div class="sales-kpi-foot">vs N-1 <span class="sales-delta flat">—</span></div>
+      </div>
+      <div class="sales-card">
+        <div class="sales-kpi-label">Ticket moyen</div>
+        <div class="sales-kpi-value">—</div>
+        <div class="sales-kpi-foot">vs N-1 <span class="sales-delta flat">—</span></div>
+      </div>
+      <div class="sales-card">
+        <div class="sales-kpi-label">Retours</div>
+        <div class="sales-kpi-value">—</div>
+        <div class="sales-kpi-foot">Montant / CA</div>
+      </div>
+      <div class="sales-card">
+        <div class="sales-kpi-label">Offerts</div>
+        <div class="sales-kpi-value">—</div>
+        <div class="sales-kpi-foot">Montant / CA</div>
+      </div>
+    </div>
+
+    <div class="sales-section-grid">
+      <div class="sales-card">
+        <div class="sales-section-title">Évolution du chiffre d'affaires</div>
+        <div class="sales-section-sub">Lecture quotidienne, hebdomadaire, mensuelle ou annuelle.</div>
+        <div class="sales-period-tabs">
+          <button class="active" type="button">Jour</button>
+          <button type="button">Semaine</button>
+          <button type="button">Mois</button>
+          <button type="button">Année</button>
+        </div>
+        <div class="sales-placeholder-chart">
+          <div class="sales-chart-line"></div>
+        </div>
+        <div class="sales-empty-note">Les données live de BASE Z OCEAN seront branchées ici ensuite.</div>
+      </div>
+
+      <div class="sales-card">
+        <div class="sales-section-title">Performance par service</div>
+        <div class="sales-section-sub">Identifier immédiatement quel moment de la journée porte le CA.</div>
+        <div class="sales-service-list">
+          <div class="sales-service-row">
+            <div class="sales-service-top"><span class="sales-service-name">Midi</span><span class="sales-service-ca">—</span></div>
+            <div class="sales-mini">CA · couverts · ticket moyen</div><div class="sales-bar"><span style="width:72%"></span></div>
+          </div>
+          <div class="sales-service-row">
+            <div class="sales-service-top"><span class="sales-service-name">Après-midi</span><span class="sales-service-ca">—</span></div>
+            <div class="sales-mini">CA · couverts · ticket moyen</div><div class="sales-bar"><span style="width:28%"></span></div>
+          </div>
+          <div class="sales-service-row">
+            <div class="sales-service-top"><span class="sales-service-name">Soir</span><span class="sales-service-ca">—</span></div>
+            <div class="sales-mini">CA · couverts · ticket moyen</div><div class="sales-bar"><span style="width:54%"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sales-section-grid">
+      <div class="sales-card">
+        <div class="sales-section-title">Familles & catégories</div>
+        <div class="sales-section-sub">Voir ce qui progresse, ce qui ralentit et ce qui pèse réellement dans le CA.</div>
+        <div class="sales-table-wrap">
+          <table class="sales-table">
+            <thead>
+              <tr><th>Famille</th><th>CA</th><th>Quantité</th><th>Poids CA</th><th>vs N-1</th><th>Tendance</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+              <tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+              <tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sales-card">
+        <div class="sales-section-title">Alertes utiles</div>
+        <div class="sales-section-sub">Seulement les écarts qui méritent une lecture.</div>
+        <div class="sales-alert-list">
+          <div class="sales-alert-row">
+            <span class="sales-alert-dot"></span>
+            <div><div class="sales-alert-title">Données incomplètes</div><div class="sales-alert-txt">Afficher ici les Z manquants ou périodes partielles avant toute comparaison.</div></div>
+          </div>
+          <div class="sales-alert-row">
+            <span class="sales-alert-dot"></span>
+            <div><div class="sales-alert-title">Ticket moyen en baisse</div><div class="sales-alert-txt">Alerte uniquement lorsqu'une variation dépasse un seuil significatif.</div></div>
+          </div>
+          <div class="sales-alert-row">
+            <span class="sales-alert-dot"></span>
+            <div><div class="sales-alert-title">Baisse de fréquentation</div><div class="sales-alert-txt">Séparer une baisse de couverts d'une baisse de dépense moyenne.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sales-card" style="margin-top:12px">
+      <div class="sales-section-title">Lecture dirigeant</div>
+      <div class="sales-section-sub">Le résumé qui répond à : est-ce qu'on vend mieux, moins bien, et pourquoi ?</div>
+      <div class="sales-empty-note">
+        Exemple futur : « Le CA progresse de 6,8 % sur 30 jours, principalement grâce au soir (+11 %).
+        Les couverts sont stables mais le ticket moyen augmente de 1,90 €. Les boissons chaudes reculent de 8 %.
+        Données complètes sur la période. »
+      </div>
     </div>
   </div>
 </section>
