@@ -532,6 +532,99 @@ body.app-nav-ready > .module-page{
   font-size:8px;color:var(--g400);margin-top:6px;line-height:1.4
 }
 
+
+/* ==========================================================
+   POINTAGE V1
+   ========================================================== */
+.pointage-toolbar{
+  display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;
+  margin-top:20px;background:#fff;border:1px solid var(--g200);
+  border-radius:12px;padding:13px 14px;
+}
+.pointage-toolbar-spacer{flex:1}
+.pointage-label{
+  display:block;font-size:8px;font-weight:750;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--g500);margin:0 0 5px 2px;
+}
+.pointage-date{
+  height:34px;border:1px solid var(--g200);border-radius:8px;background:#fff;
+  color:var(--navy);font-family:inherit;font-size:11px;padding:0 10px;
+}
+.pointage-state{
+  height:34px;display:flex;align-items:center;gap:7px;padding:0 10px;
+  border:1px solid var(--g200);border-radius:8px;background:#faf9f6;
+  font-size:9px;font-weight:650;color:var(--g600);
+}
+.pointage-state-dot{width:7px;height:7px;border-radius:50%;background:#d1a74f}
+.pointage-state.validated{color:#13734b;background:#f0faf5;border-color:#ccebdd}
+.pointage-state.validated .pointage-state-dot{background:#1c9a66}
+.pointage-validate{height:34px}
+.pointage-summary{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px;
+}
+.pointage-summary-card{
+  background:#fff;border:1px solid var(--g200);border-radius:11px;padding:12px 13px;
+}
+.pointage-summary-card span{
+  display:block;font-size:8px;text-transform:uppercase;letter-spacing:.07em;color:var(--g500)
+}
+.pointage-summary-card strong{
+  display:block;margin-top:5px;font-size:17px;color:var(--navy);font-weight:750
+}
+.pointage-table-wrap{
+  margin-top:12px;background:#fff;border:1px solid var(--g200);border-radius:12px;
+  overflow:auto;
+}
+.pointage-table{width:100%;border-collapse:collapse;min-width:1080px}
+.pointage-table th{
+  position:sticky;top:0;background:#f7f6f2;color:var(--g500);
+  text-transform:uppercase;letter-spacing:.055em;font-size:7.5px;font-weight:750;
+  text-align:left;padding:9px 8px;border-bottom:1px solid var(--g200);white-space:nowrap
+}
+.pointage-table td{
+  padding:8px;border-bottom:1px solid var(--g100);font-size:9px;color:var(--g700);
+  vertical-align:middle;
+}
+.pointage-table tbody tr:last-child td{border-bottom:0}
+.pointage-emp{display:flex;align-items:center;gap:7px;min-width:125px}
+.pointage-avatar{
+  width:28px;height:28px;border-radius:8px;display:flex;align-items:center;
+  justify-content:center;font-size:8px;font-weight:800;flex:0 0 auto
+}
+.pointage-name{font-weight:700;color:var(--navy);font-size:10px}
+.pointage-role{font-size:8px;color:var(--g400);margin-top:1px}
+.pointage-plan{
+  min-width:90px;font-size:9px;font-weight:650;color:var(--navy);white-space:nowrap
+}
+.pointage-plan.status{color:var(--g500);font-weight:600}
+.pointage-input,.pointage-select,.pointage-note{
+  height:31px;border:1px solid var(--g200);border-radius:7px;background:#fff;
+  font:inherit;font-size:9px;color:var(--navy);padding:0 7px;box-sizing:border-box
+}
+.pointage-input{width:82px}
+.pointage-pause{width:62px}
+.pointage-select{width:94px}
+.pointage-note{width:145px}
+.pointage-input:focus,.pointage-select:focus,.pointage-note:focus{
+  outline:none;border-color:#aab5bc;box-shadow:0 0 0 2px rgba(30,50,65,.05)
+}
+.pointage-total{font-weight:750;color:var(--navy);white-space:nowrap}
+.pointage-diff{font-weight:750;white-space:nowrap}
+.pointage-diff.pos{color:#b35e18}
+.pointage-diff.neg{color:#3f6c8c}
+.pointage-diff.zero{color:#19845a}
+.pointage-row-inactive{background:#fbfaf7}
+.pointage-row-inactive .pointage-input{background:#f5f4f0;color:#aaa}
+.pointage-footnote{
+  margin-top:10px;font-size:8.5px;color:var(--g500);line-height:1.5
+}
+@media(max-width:900px){
+  .pointage-summary{grid-template-columns:1fr 1fr}
+  .pointage-toolbar{align-items:stretch}
+  .pointage-toolbar-spacer{display:none}
+  .pointage-validate{width:100%}
+}
+
 </style>
 </head>
 <body class="app-nav-ready">
@@ -708,32 +801,79 @@ body.app-nav-ready > .module-page{
 </section>
 
 
+
 <section class="module-page no-print" id="module-pointage" data-module="pointage">
   <div class="module-shell">
     <div class="module-kicker">RH</div>
     <div class="module-title">Pointage</div>
-    <div class="module-lead">Heures réellement effectuées, écarts avec le planning et validation quotidienne par le manager.</div>
-    <div class="module-placeholder">
-      <div class="module-placeholder-icon">◷</div>
-      <strong>Module prêt à être construit</strong>
-      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
-      <div class="module-chips"><span class="module-chip">Prérempli depuis Planning</span><span class="module-chip">Salle + Cuisine</span><span class="module-chip">Heures réelles</span><span class="module-chip">Écarts</span><span class="module-chip">Validation manager</span><span class="module-chip">Dictée vocale</span></div>
-      
-<div class="pointage-preview">
-  <div class="pointage-card">
-    <div class="pointage-card-title">Prévu → Réel</div>
-    <div class="pointage-card-text">Les salariés et horaires seront préremplis depuis le planning. Le manager ne corrigera que les écarts du jour.</div>
-  </div>
-  <div class="pointage-card">
-    <div class="pointage-card-title">Saisie vocale</div>
-    <div class="pointage-card-text">Dictée libre → aperçu des changements → validation humaine avant sauvegarde.</div>
-    <div class="pointage-mic">🎙</div>
-  </div>
-</div>
+    <div class="module-lead">Heures réellement effectuées, préremplies à partir du planning puis corrigées et validées quotidiennement par le manager.</div>
 
+    <div class="pointage-toolbar">
+      <div>
+        <label class="pointage-label" for="pointageDate">Journée</label>
+        <input class="pointage-date" type="date" id="pointageDate" onchange="changePointageDate()">
+      </div>
+
+      <div class="dept-tabs" id="pointageDeptTabs" style="margin:0">
+        <button class="dept-tab active" data-dept="all" onclick="setPointageDept('all')">Tous</button>
+        <button class="dept-tab" data-dept="salle" onclick="setPointageDept('salle')">Salle</button>
+        <button class="dept-tab" data-dept="cuisine" onclick="setPointageDept('cuisine')">Cuisine</button>
+      </div>
+
+      <div class="pointage-toolbar-spacer"></div>
+
+      <div class="pointage-state" id="pointageState">
+        <span class="pointage-state-dot"></span>
+        <span>Non validé</span>
+      </div>
+
+      <button class="btn btn-primary pointage-validate" type="button" onclick="validatePointageDay()">
+        ✓ Valider la journée
+      </button>
+    </div>
+
+    <div class="pointage-summary" id="pointageSummary">
+      <div class="pointage-summary-card">
+        <span>Salariés prévus</span><strong id="ptSumPlanned">0</strong>
+      </div>
+      <div class="pointage-summary-card">
+        <span>Heures prévues</span><strong id="ptSumPlannedH">0h00</strong>
+      </div>
+      <div class="pointage-summary-card">
+        <span>Heures réelles</span><strong id="ptSumActualH">0h00</strong>
+      </div>
+      <div class="pointage-summary-card">
+        <span>Écart journée</span><strong id="ptSumDiff">0h00</strong>
+      </div>
+    </div>
+
+    <div class="pointage-table-wrap">
+      <table class="pointage-table">
+        <thead>
+          <tr>
+            <th>Salarié</th>
+            <th>Pôle</th>
+            <th>Prévu</th>
+            <th>Arrivée réelle</th>
+            <th>Départ réel</th>
+            <th>Pause</th>
+            <th>Total réel</th>
+            <th>Écart</th>
+            <th>Statut</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody id="pointageBody"></tbody>
+      </table>
+    </div>
+
+    <div class="pointage-footnote">
+      <strong>V1 :</strong> le planning reste la référence du prévu. Modifier une heure ici ne modifie jamais le planning.
+      La saisie vocale viendra ensuite, une fois cette base validée.
     </div>
   </div>
 </section>
+
 
 
 <section class="module-page no-print" id="module-stocks" data-module="stocks">
@@ -1099,6 +1239,181 @@ function setTeamDept(dept){
 }
 
 
+
+function pointageStatusOptions(value){
+  var opts=['Présent','Non prévu','RH','Vacances','CFA','Arrêt maladie','Absence'];
+  return opts.map(function(o){
+    return '<option value="'+o+'" '+(o===value?'selected':'')+'>'+o+'</option>';
+  }).join('');
+}
+
+function pointageRowChanged(ei){
+  var dateStr=pointageDateKey();
+  var di=dayIndexFromDate(dateStr);
+  if(di<0||!EMPS[ei])return;
+
+  var emp=EMPS[ei];
+  var row=getOrCreatePointageRow(dateStr,emp,ei,di);
+
+  var a=document.getElementById('pt_arr_'+ei);
+  var d=document.getElementById('pt_dep_'+ei);
+  var p=document.getElementById('pt_pause_'+ei);
+  var st=document.getElementById('pt_status_'+ei);
+  var n=document.getElementById('pt_note_'+ei);
+
+  row.arrival=a?a.value:'';
+  row.departure=d?d.value:'';
+  row.pause=p?Math.max(0,Number(p.value)||0):0;
+  row.status=st?st.value:'Présent';
+  row.note=n?n.value:'';
+
+  var day=getPointageDay(dateStr,true);
+  day.validated=false;
+  day.validatedAt='';
+
+  renderPointageTotalsOnly();
+  updatePointageState();
+  saveToStorage();
+}
+
+function renderPointage(){
+  var body=document.getElementById('pointageBody');
+  var dateEl=document.getElementById('pointageDate');
+  if(!body||!dateEl)return;
+
+  if(!dateEl.value){
+    var today=new Date();
+    dateEl.value=today.toISOString().slice(0,10);
+  }
+
+  var dateStr=dateEl.value;
+  var di=dayIndexFromDate(dateStr);
+  if(di<0)return;
+
+  body.innerHTML='';
+
+  EMPS.forEach(function(emp,ei){
+    ensureEmpConfig(emp);
+    if(emp.hidden)return;
+    if(!empInDept(emp,CURRENT_POINTAGE_DEPT))return;
+
+    var planned=DATA[ei]&&DATA[ei][di]?DATA[ei][di]:null;
+    var row=getOrCreatePointageRow(dateStr,emp,ei,di);
+    var col=getColor(ei);
+    var tr=document.createElement('tr');
+    if(row.status!=='Présent')tr.className='pointage-row-inactive';
+
+    var plannedText=shiftDisplay(planned);
+    var plannedMins=plannedMinutesForDay(planned);
+    var actualMins=actualMinutesFromRow(row);
+    var diff=actualMins-plannedMins;
+    var diffClass=diff>0?'pos':(diff<0?'neg':'zero');
+
+    tr.innerHTML=
+      '<td><div class="pointage-emp">'+
+        '<div class="pointage-avatar" style="background:'+col.bg+';color:'+col.fg+'">'+emp.name.slice(0,2).toUpperCase()+'</div>'+
+        '<div><div class="pointage-name">'+emp.name+'</div><div class="pointage-role">'+(emp.role||'')+'</div></div>'+
+      '</div></td>'+
+      '<td><span class="emp-dept-badge">'+(normalizeDept(emp.department)==='cuisine'?'Cuisine':'Salle')+'</span></td>'+
+      '<td><div class="pointage-plan '+((planned&&((planned.status)||planned.x))?'status':'')+'">'+plannedText+'</div>'+
+        (plannedMins?'<div class="pointage-role">'+minutesToHHMM(plannedMins,false)+'</div>':'')+
+      '</td>'+
+      '<td><input class="pointage-input" type="time" id="pt_arr_'+ei+'" value="'+(row.arrival||'')+'" onchange="pointageRowChanged('+ei+')"></td>'+
+      '<td><input class="pointage-input" type="time" id="pt_dep_'+ei+'" value="'+(row.departure||'')+'" onchange="pointageRowChanged('+ei+')"></td>'+
+      '<td><input class="pointage-input pointage-pause" type="number" min="0" step="5" id="pt_pause_'+ei+'" value="'+(Number(row.pause)||0)+'" onchange="pointageRowChanged('+ei+')"> min</td>'+
+      '<td><span class="pointage-total" id="pt_total_'+ei+'">'+minutesToHHMM(actualMins,false)+'</span></td>'+
+      '<td><span class="pointage-diff '+diffClass+'" id="pt_diff_'+ei+'">'+minutesToHHMM(diff,true)+'</span></td>'+
+      '<td><select class="pointage-select" id="pt_status_'+ei+'" onchange="pointageRowChanged('+ei+')">'+pointageStatusOptions(row.status)+'</select></td>'+
+      '<td><input class="pointage-note" id="pt_note_'+ei+'" value="'+String(row.note||'').replace(/"/g,'&quot;')+'" placeholder="Optionnel" onchange="pointageRowChanged('+ei+')"></td>';
+
+    body.appendChild(tr);
+  });
+
+  updatePointageState();
+  renderPointageTotalsOnly();
+}
+
+function renderPointageTotalsOnly(){
+  var dateStr=pointageDateKey();
+  var di=dayIndexFromDate(dateStr);
+  if(di<0)return;
+
+  var plannedPeople=0,plannedTotal=0,actualTotal=0;
+
+  EMPS.forEach(function(emp,ei){
+    ensureEmpConfig(emp);
+    if(emp.hidden||!empInDept(emp,CURRENT_POINTAGE_DEPT))return;
+
+    var d=DATA[ei]&&DATA[ei][di]?DATA[ei][di]:null;
+    var pmins=plannedMinutesForDay(d);
+    if(pmins>0)plannedPeople++;
+    plannedTotal+=pmins;
+
+    var day=getPointageDay(dateStr,true);
+    var row=day.rows[empPointageKey(emp)]||makeDefaultPointageRow(emp,ei,di);
+    var amins=actualMinutesFromRow(row);
+    actualTotal+=amins;
+
+    var totalEl=document.getElementById('pt_total_'+ei);
+    var diffEl=document.getElementById('pt_diff_'+ei);
+    if(totalEl)totalEl.textContent=minutesToHHMM(amins,false);
+    if(diffEl){
+      var diff=amins-pmins;
+      diffEl.textContent=minutesToHHMM(diff,true);
+      diffEl.className='pointage-diff '+(diff>0?'pos':(diff<0?'neg':'zero'));
+    }
+  });
+
+  var e;
+  e=document.getElementById('ptSumPlanned');if(e)e.textContent=plannedPeople;
+  e=document.getElementById('ptSumPlannedH');if(e)e.textContent=minutesToHHMM(plannedTotal,false);
+  e=document.getElementById('ptSumActualH');if(e)e.textContent=minutesToHHMM(actualTotal,false);
+  e=document.getElementById('ptSumDiff');if(e)e.textContent=minutesToHHMM(actualTotal-plannedTotal,true);
+}
+
+function updatePointageState(){
+  var dateStr=pointageDateKey();
+  var day=getPointageDay(dateStr,false);
+  var el=document.getElementById('pointageState');
+  if(!el)return;
+
+  var validated=!!(day&&day.validated);
+  el.classList.toggle('validated',validated);
+  el.innerHTML='<span class="pointage-state-dot"></span><span>'+
+    (validated?'Validé'+(day.validatedAt?' · '+new Date(day.validatedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):''):'Non validé')+
+    '</span>';
+}
+
+async function validatePointageDay(){
+  var dateStr=pointageDateKey();
+  if(!dateStr)return;
+
+  var day=getPointageDay(dateStr,true);
+  day.validated=true;
+  day.validatedAt=new Date().toISOString();
+
+  updatePointageState();
+  saveLocalSnapshot(CURRENT_WEEK);
+  await flushServerSave(CURRENT_WEEK);
+}
+
+async function changePointageDate(){
+  var dateStr=pointageDateKey();
+  if(!dateStr)return;
+  var monday=dateToMondayISO(dateStr);
+
+  if(monday&&monday!==CURRENT_WEEK){
+    var weekEl=document.getElementById('weekDate');
+    if(weekEl)weekEl.value=monday;
+    CURRENT_WEEK=monday;
+    await loadServerWeek(monday);
+    setDates(new Date(monday+'T12:00:00'));
+    buildBody();
+  }
+
+  renderPointage();
+}
+
 /* ==========================================================
    NAVIGATION APPLICATION
    ========================================================== */
@@ -1174,6 +1489,11 @@ function navigateApp(page){
   if(planning)planning.style.display='none';
   var target=document.getElementById('module-'+page);
   if(target)target.classList.add('open');
+  if(page==='pointage'){
+    var pd=document.getElementById('pointageDate');
+    if(pd&&!pd.value)pd.value=new Date().toISOString().slice(0,10);
+    renderPointage();
+  }
   setAppNavActive(page);
   setHeaderMode(page);
   window.scrollTo(0,0);
@@ -1185,6 +1505,7 @@ document.addEventListener('DOMContentLoaded',function(){
   setHeaderMode('planning');
   updateDeptTabs('planningDeptTabs',CURRENT_PLANNING_DEPT);
   updateDeptTabs('teamDeptTabs',CURRENT_TEAM_DEPT);
+  updateDeptTabs('pointageDeptTabs',CURRENT_POINTAGE_DEPT);
 });
 
 var DAYS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
@@ -1365,6 +1686,137 @@ function hasFullWeekAbsence(ei){
 }
 
 var DATA={};
+
+var POINTAGE={};
+var CURRENT_POINTAGE_DEPT='all';
+
+function pointageWeekKey(weekDate){
+  return STORAGE_KEY+'_pointage_'+weekDate;
+}
+
+function dateToMondayISO(dateStr){
+  var d=new Date(dateStr+'T12:00:00');
+  if(isNaN(d.getTime()))return '';
+  var jsDay=d.getDay(); // 0 Sunday
+  var delta=(jsDay===0?-6:1-jsDay);
+  d.setDate(d.getDate()+delta);
+  return d.toISOString().slice(0,10);
+}
+
+function dayIndexFromDate(dateStr){
+  var d=new Date(dateStr+'T12:00:00');
+  if(isNaN(d.getTime()))return -1;
+  var jsDay=d.getDay();
+  return jsDay===0?6:jsDay-1;
+}
+
+function pointageDateKey(){
+  var el=document.getElementById('pointageDate');
+  return el&&el.value?el.value:'';
+}
+
+function getPointageDay(dateStr,create){
+  if(!dateStr)return null;
+  if(!POINTAGE[dateStr]&&create){
+    POINTAGE[dateStr]={validated:false,validatedAt:'',rows:{}};
+  }
+  return POINTAGE[dateStr]||null;
+}
+
+function empPointageKey(emp){
+  return String(emp&&emp.name||'').trim();
+}
+
+function shiftDisplay(d){
+  if(!d)return '—';
+  if(d.status)return d.status;
+  if(d.x)return 'RH';
+  if(!d.shifts||!d.shifts.length)return '—';
+  return d.shifts.map(function(sh){
+    if(!sh||!sh.s)return '';
+    return sh.s+(sh.e?' > '+sh.e:'');
+  }).filter(Boolean).join(' / ')||'—';
+}
+
+function plannedMinutesForDay(d){
+  if(!d||d.status||d.x||!d.shifts)return 0;
+  return Math.round(calcDayH(d.shifts)*60);
+}
+
+function firstStartLastEnd(d){
+  if(!d||d.status||d.x||!d.shifts||!d.shifts.length)return null;
+  var valid=d.shifts.filter(function(sh){return sh&&sh.s&&sh.s!=='—'&&sh.e&&sh.e!=='—';});
+  if(!valid.length)return null;
+  return {start:valid[0].s,end:valid[valid.length-1].e};
+}
+
+function elapsedMinutes(start,end){
+  var sm=toMin(start),em=toMin(end);
+  if(sm===null||em===null)return 0;
+  var diff=em-sm;
+  if(diff<=0)diff+=1440;
+  return diff;
+}
+
+function minutesToHHMM(mins,signed){
+  mins=Math.round(Number(mins)||0);
+  var sign='';
+  if(signed){
+    if(mins>0)sign='+';
+    else if(mins<0){sign='−';mins=Math.abs(mins);}
+  }else if(mins<0){mins=Math.abs(mins);}
+  var h=Math.floor(mins/60),m=mins%60;
+  return sign+h+'h'+pad(m);
+}
+
+function defaultPointageStatus(d){
+  if(!d)return 'Présent';
+  if(d.status)return d.status;
+  if(d.x)return 'RH';
+  if(d.shifts&&d.shifts.length)return 'Présent';
+  return 'Non prévu';
+}
+
+function makeDefaultPointageRow(emp,ei,di){
+  var d=DATA[ei]&&DATA[ei][di]?DATA[ei][di]:null;
+  var bounds=firstStartLastEnd(d);
+  var planned=plannedMinutesForDay(d);
+  var pause=30;
+
+  if(bounds&&planned>0){
+    pause=Math.max(0,elapsedMinutes(bounds.start,bounds.end)-planned);
+  }
+
+  var status=defaultPointageStatus(d);
+  var active=status==='Présent';
+
+  return{
+    arrival:active&&bounds?bounds.start:'',
+    departure:active&&bounds?bounds.end:'',
+    pause:active?pause:0,
+    status:status,
+    note:''
+  };
+}
+
+function getOrCreatePointageRow(dateStr,emp,ei,di){
+  var day=getPointageDay(dateStr,true);
+  var key=empPointageKey(emp);
+  if(!day.rows[key])day.rows[key]=makeDefaultPointageRow(emp,ei,di);
+  return day.rows[key];
+}
+
+function actualMinutesFromRow(row){
+  if(!row||row.status!=='Présent'||!row.arrival||!row.departure)return 0;
+  return Math.max(0,elapsedMinutes(row.arrival,row.departure)-(Number(row.pause)||0));
+}
+
+function setPointageDept(dept){
+  CURRENT_POINTAGE_DEPT=dept||'all';
+  updateDeptTabs('pointageDeptTabs',CURRENT_POINTAGE_DEPT);
+  renderPointage();
+}
+
 function initData(){
   DATA={};
   EMPS.forEach(function(emp,ei){
@@ -2369,6 +2821,7 @@ function serializeTeam(){
     ensureEmpConfig(e);
     return{
       name:e.name,
+      department:normalizeDept(e.department),
       contract:Number(e.contract)||0,
       grossHourlyRate:Number(e.grossHourlyRate)||0,
       role:e.role||'',
@@ -2393,6 +2846,7 @@ function applySavedTeam(team){
     var rh=Array.isArray(e.rhDays)?e.rhDays.map(function(v){return parseInt(v,10);}):[];
     var emp={
       name:e.name||'Employé',
+      department:normalizeDept(e.department),
       contract:Number(e.contract)||0,
       grossHourlyRate:Number(e.grossHourlyRate)||0,
       role:e.role||'',
@@ -2415,6 +2869,7 @@ function applySavedTeam(team){
 
 function freshWeekData(){
   DATA={};
+  POINTAGE={};
   EMPS.forEach(function(emp,ei){
     ensureEmpRhDays(emp,ei);
     DATA[ei]={};
@@ -2433,6 +2888,7 @@ function saveLocalSnapshot(weekDate){
     localStorage.setItem(STORAGE_KEY+'_team',JSON.stringify(serializeTeam()));
     localStorage.setItem(localWeekKey(weekDate),JSON.stringify({
       data:DATA,
+      pointage:POINTAGE,
       manualEvents:getManualEvents(weekDate),
       savedAt:new Date().toISOString()
     }));
@@ -2450,12 +2906,14 @@ function loadLocalSnapshot(weekDate){
     var wraw=localStorage.getItem(localWeekKey(weekDate));
     if(!wraw){
       freshWeekData();
+      POINTAGE={};
       return false;
     }
 
     var p=JSON.parse(wraw);
     if(p&&p.data){
       DATA=p.data;
+      POINTAGE=(p.pointage&&typeof p.pointage==='object')?p.pointage:{};
       if(Array.isArray(p.manualEvents)){
         localStorage.setItem(manualEventsKey(weekDate),JSON.stringify(p.manualEvents));
       }
@@ -2536,6 +2994,7 @@ async function flushServerSave(weekDate){
         weekDate:weekDate,
         team:serializeTeam(),
         data:DATA,
+        pointage:POINTAGE,
         manualEvents:getManualEvents(weekDate)
       })
     });
@@ -2584,6 +3043,7 @@ async function loadServerWeek(weekDate){
 
     if(result.week&&result.week.data){
       DATA=result.week.data;
+      POINTAGE=(result.week.pointage&&typeof result.week.pointage==='object')?result.week.pointage:{};
       if(Array.isArray(result.week.manualEvents)){
         localStorage.setItem(
           manualEventsKey(weekDate),
