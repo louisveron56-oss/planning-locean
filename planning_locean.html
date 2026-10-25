@@ -1951,7 +1951,8 @@ function renderPointageHistory(){
     var dt=new Date(dateStr+'T12:00:00');
     var label=dt.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'});
 
-    return '<div class="pt-history-row">'+
+    var selected=(dateStr===pointageDateKey())?' style="background:#f7f6f2"':'';
+    return '<div class="pt-history-row"'+selected+'>'+
       '<div class="pt-history-date">'+label+'</div>'+
       '<div><span class="pt-history-status '+statusClass+'">'+statusLabel+'</span></div>'+
       '<div class="pt-history-metric">Prévu<strong>'+minutesToHHMM(totals.planned,false)+'</strong></div>'+
@@ -1963,9 +1964,37 @@ function renderPointageHistory(){
 }
 
 async function openPointageDate(dateStr){
-  var el=document.getElementById('pointageDate');
-  if(el)el.value=dateStr;
-  await changePointageDate();
+  if(!dateStr)return;
+
+  var monday=dateToMondayISO(dateStr);
+  var weekEl=document.getElementById('weekDate');
+  var dateEl=document.getElementById('pointageDate');
+
+  // Quitter proprement une éventuelle correction en cours.
+  POINTAGE_EDITING_VALIDATED=false;
+  var reason=document.getElementById('ptManagerReason');
+  if(reason)reason.value='';
+
+  // Charger explicitement la bonne semaine si nécessaire.
+  if(monday && monday!==CURRENT_WEEK){
+    if(weekEl)weekEl.value=monday;
+    CURRENT_WEEK=monday;
+    await loadServerWeek(monday);
+    setDates(new Date(monday+'T12:00:00'));
+    buildBody();
+  }
+
+  // Sélectionner ensuite la journée exacte.
+  if(dateEl)dateEl.value=dateStr;
+
+  renderPointage();
+
+  // Ramener visuellement l'utilisateur en haut de la feuille de pointage.
+  var module=document.getElementById('module-pointage');
+  if(module){
+    try{module.scrollIntoView({behavior:'smooth',block:'start'});}
+    catch(e){window.scrollTo(0,0);}
+  }
 }
 
 function renderPointageWeekly(){
