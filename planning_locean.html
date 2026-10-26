@@ -747,90 +747,183 @@ body.app-nav-ready > .module-page{
 }
 
 
+.mobile-bottom-nav{display:none}
+.pt-mobile-list{display:none}
+@media(max-width:760px){
+  body{padding-bottom:72px}
+  .app-sidebar{display:none!important}
+  .app-main{margin-left:0!important;width:100%!important}
+  .mobile-bottom-nav{
+    position:fixed;left:0;right:0;bottom:0;z-index:9999;height:64px;
+    display:grid;grid-template-columns:repeat(5,1fr);
+    background:rgba(255,255,255,.97);border-top:1px solid var(--g200);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    padding-bottom:env(safe-area-inset-bottom)
+  }
+  .mobile-bottom-nav button{
+    border:0;background:transparent;font:inherit;color:var(--g500);
+    font-size:10px;font-weight:700;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:3px
+  }
+  .mobile-bottom-nav button .ico{font-size:18px}
+  .mobile-bottom-nav button.active{color:var(--navy)}
+
+  #module-pointage .module-inner{padding:12px!important}
+  #module-pointage .pointage-toolbar{flex-direction:column;align-items:stretch;gap:8px}
+  #module-pointage .pointage-toolbar-spacer{display:none}
+  #module-pointage .pointage-date,
+  #module-pointage .pointage-toolbar .btn,
+  #module-pointage .pt-mic-btn{width:100%;min-height:46px;font-size:14px;border-radius:12px}
+  #module-pointage .pt-role-switch{width:100%;padding:4px;border-radius:12px}
+  #module-pointage .pt-role-btn{flex:1;height:38px;font-size:12px}
+  #module-pointage .pointage-table-wrap{display:none!important}
+  #module-pointage .pointage-summary{grid-template-columns:repeat(2,1fr);gap:8px}
+  #module-pointage .pointage-summary-card{padding:12px}
+  #module-pointage .pointage-summary-label{font-size:10px}
+  #module-pointage .pointage-summary-value{font-size:18px}
+  .pt-mobile-list{display:grid;gap:10px;margin-top:12px}
+  .pt-mobile-card{background:#fff;border:1px solid var(--g200);border-radius:14px;padding:13px}
+  .pt-mobile-card-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:10px}
+  .pt-mobile-name{font-size:16px;font-weight:800;color:var(--navy)}
+  .pt-mobile-meta{font-size:11px;color:var(--g500);margin-top:2px}
+  .pt-mobile-plan{font-size:11px;font-weight:700;color:var(--navy);background:#f4f3ef;border-radius:999px;padding:5px 8px;white-space:nowrap}
+  .pt-mobile-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .pt-mobile-field label{display:block;font-size:10px;font-weight:800;color:var(--g500);margin:0 0 4px 2px}
+  .pt-mobile-field input,.pt-mobile-field select{
+    width:100%;height:46px;border:1px solid var(--g200);border-radius:11px;
+    background:#fff;color:var(--navy);font:inherit;font-size:15px;padding:0 10px;
+    box-sizing:border-box;-webkit-text-fill-color:var(--navy);color-scheme:light
+  }
+  .pt-mobile-note{grid-column:1/-1}
+  .pt-mobile-note input{font-size:13px}
+  .pt-mobile-result{margin-top:10px;padding-top:10px;border-top:1px solid var(--g100);display:flex;justify-content:space-between}
+  .pt-mobile-real{font-size:12px;color:var(--g500)}
+  .pt-mobile-real strong{font-size:15px;color:var(--navy)}
+  .pt-mobile-diff{font-size:13px;font-weight:800}
+  .pt-mobile-diff.pos{color:#177149}.pt-mobile-diff.neg{color:#b44b38}.pt-mobile-diff.zero{color:#777}
+  #module-pointage .pt-voice-panel{
+    position:fixed;left:10px;right:10px;bottom:74px;z-index:9998;max-height:70vh;overflow:auto;
+    border-radius:16px;box-shadow:0 12px 40px rgba(20,30,45,.18)
+  }
+  #module-pointage .pt-voice-transcript{font-size:14px;min-height:100px}
+  #module-pointage .pt-voice-actions{display:grid;grid-template-columns:1fr}
+  #module-pointage .pt-voice-actions .btn{min-height:46px;font-size:13px}
+  #module-pointage .pt-history-row{grid-template-columns:1fr auto;gap:7px;padding:11px}
+  #module-pointage .pt-history-metric{display:none}
+  #module-pointage .pt-history-open{height:38px;font-size:11px;padding:0 12px}
+  #module-pointage .pt-weekly{display:none}
+}
+
+
 /* ==========================================================
-   ANALYSE DES VENTES V1
+   PLANNING MOBILE — VUE JOURNALIÈRE
    ========================================================== */
-.sales-v1{padding:18px}
-.sales-head{
-  display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px
+.pl-mobile-day{display:none}
+@media(max-width:760px){
+  #planningPage .planning-desktop-grid{display:none!important}
+  #planningPage .week-wrap{display:none!important}
+  #planningPage.mobile-week-mode .week-wrap{display:block!important;overflow-x:auto}
+  #planningPage.mobile-week-mode .pl-mobile-day{display:none!important}
+  #planningPage:not(.mobile-week-mode) .planning-table-wrap{display:none!important}
+
+  .pl-mobile-day{display:block;padding:10px 12px 18px}
+  .pl-mobile-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .pl-mobile-head-main{min-width:0;flex:1}
+  .pl-mobile-title{font-size:18px;font-weight:800;color:var(--navy)}
+  .pl-mobile-sub{font-size:11px;color:var(--g500);margin-top:2px}
+  .pl-mobile-week-btn{
+    min-height:42px;padding:0 11px;border:1px solid var(--g200);
+    border-radius:11px;background:#fff;color:var(--navy);font:inherit;
+    font-size:11px;font-weight:750
+  }
+  .pl-day-tabs{
+    display:grid;grid-template-columns:repeat(7,minmax(0,1fr));
+    gap:4px;margin-bottom:10px
+  }
+  .pl-day-tab{
+    min-width:0;min-height:48px;border:1px solid var(--g200);
+    border-radius:10px;background:#fff;color:var(--g500);
+    font:inherit;padding:5px 2px;font-size:10px;font-weight:750
+  }
+  .pl-day-tab span{display:block;font-size:9px;font-weight:600;margin-top:2px}
+  .pl-day-tab.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .pl-mobile-dept{display:flex;gap:5px;margin-bottom:10px}
+  .pl-mobile-dept button{
+    flex:1;min-height:40px;border:1px solid var(--g200);border-radius:10px;
+    background:#fff;color:var(--g500);font:inherit;font-size:11px;font-weight:750
+  }
+  .pl-mobile-dept button.active{background:#f0efe9;color:var(--navy)}
+  .pl-mobile-list{display:grid;gap:8px}
+  .pl-mobile-card{
+    background:#fff;border:1px solid var(--g200);border-radius:13px;
+    padding:12px 13px
+  }
+  .pl-mobile-card-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .pl-mobile-name{font-size:15px;font-weight:800;color:var(--navy)}
+  .pl-mobile-role{font-size:10px;color:var(--g500);margin-top:2px}
+  .pl-mobile-hours{font-size:14px;font-weight:800;color:var(--navy);text-align:right}
+  .pl-mobile-hours small{display:block;font-size:9px;color:var(--g500);font-weight:600;margin-top:2px}
+  .pl-mobile-status{
+    display:inline-flex;margin-top:7px;padding:4px 7px;border-radius:999px;
+    background:#f4f3ef;color:var(--g600);font-size:10px;font-weight:750
+  }
+  .pl-mobile-status.off{background:#f1f1ef;color:#888}
+  .pl-mobile-status.abs{background:#fff2ef;color:#a6523c}
+  .pl-mobile-empty{
+    padding:18px;text-align:center;border:1px dashed var(--g200);
+    border-radius:12px;color:var(--g500);font-size:12px;background:#faf9f6
+  }
 }
-.sales-head-main{flex:1;min-width:240px}
-.sales-eyebrow{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:var(--g500);font-weight:800}
-.sales-title{font-size:22px;line-height:1.05;color:var(--navy);font-weight:800;margin-top:3px}
-.sales-sub{font-size:9px;color:var(--g500);margin-top:5px;line-height:1.45}
-.sales-filters{display:flex;gap:7px;flex-wrap:wrap}
-.sales-filter{
-  height:34px;border:1px solid var(--g200);border-radius:8px;background:#fff;
-  color:var(--navy);font:inherit;font-size:9px;padding:0 10px
+
+
+/* ==========================================================
+   V7.9 — RH COÛTS / PERFORMANCE ÉQUIPE / AMÉLIORATIONS
+   ========================================================== */
+.rh-pay-note{
+  margin-top:7px;padding:8px 10px;border:1px solid var(--g100);
+  background:#faf9f6;border-radius:9px;font-size:8.5px;line-height:1.45;color:var(--g500)
 }
-.sales-grid-kpi{
-  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:12px
+.rh-pay-note strong{color:var(--navy)}
+.future-panel-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+.future-panel{
+  background:#fff;border:1px solid var(--g200);border-radius:12px;padding:13px
 }
-.sales-card{
-  background:#fff;border:1px solid var(--g200);border-radius:12px;padding:12px 13px
+.future-panel .fp-label{font-size:7.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--g500);font-weight:800}
+.future-panel .fp-value{font-size:19px;font-weight:800;color:var(--navy);margin-top:5px}
+.future-panel .fp-sub{font-size:8px;color:var(--g500);margin-top:4px;line-height:1.4}
+.data-source-banner{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin-top:12px;padding:11px 12px;border:1px solid var(--g200);border-radius:11px;background:#faf9f6
 }
-.sales-kpi-label{font-size:7.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--g500);font-weight:800}
-.sales-kpi-value{font-size:21px;color:var(--navy);font-weight:800;margin-top:4px}
-.sales-kpi-foot{font-size:8px;color:var(--g500);margin-top:5px}
-.sales-delta{font-weight:800}
-.sales-delta.up{color:#177149}.sales-delta.down{color:#b44b38}.sales-delta.flat{color:#777}
-.sales-section-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:12px;margin-top:12px}
-.sales-section-title{font-size:11px;color:var(--navy);font-weight:800}
-.sales-section-sub{font-size:8px;color:var(--g500);margin-top:2px}
-.sales-placeholder-chart{
-  margin-top:11px;height:220px;border-radius:10px;
-  background:
-    linear-gradient(to top,transparent 24%,rgba(31,45,58,.05) 25%,transparent 26%),
-    linear-gradient(to top,transparent 49%,rgba(31,45,58,.05) 50%,transparent 51%),
-    linear-gradient(to top,transparent 74%,rgba(31,45,58,.05) 75%,transparent 76%),
-    #faf9f6;
-  position:relative;overflow:hidden
+.data-source-title{font-size:9px;font-weight:800;color:var(--navy)}
+.data-source-sub{font-size:8px;color:var(--g500);margin-top:3px}
+.data-source-pill{font-size:8px;font-weight:800;padding:5px 8px;border-radius:999px;background:#eef4ee;color:#2d6b45;white-space:nowrap}
+.dev-board{display:grid;grid-template-columns:340px 1fr;gap:14px;margin-top:12px}
+.dev-form,.dev-list-wrap{background:#fff;border:1px solid var(--g200);border-radius:12px;padding:14px}
+.dev-field{margin-top:10px}
+.dev-field:first-child{margin-top:0}
+.dev-field label{display:block;font-size:8px;font-weight:800;color:var(--g500);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.dev-field input,.dev-field select,.dev-field textarea{
+  width:100%;box-sizing:border-box;border:1px solid var(--g200);border-radius:9px;background:#fff;
+  padding:9px 10px;font:inherit;font-size:10px;color:var(--navy)
 }
-.sales-chart-line{
-  position:absolute;left:5%;right:5%;top:44%;height:2px;background:var(--navy);
-  transform:rotate(-5deg);transform-origin:left center;border-radius:4px
-}
-.sales-chart-line:before,.sales-chart-line:after{
-  content:"";position:absolute;width:8px;height:8px;border-radius:50%;background:var(--navy);top:-3px
-}
-.sales-chart-line:before{left:18%}.sales-chart-line:after{right:22%}
-.sales-period-tabs{display:flex;gap:5px;margin-top:8px}
-.sales-period-tabs button{
-  border:1px solid var(--g200);background:#fff;border-radius:7px;padding:5px 8px;
-  font:inherit;font-size:8px;font-weight:700;color:var(--g500);cursor:pointer
-}
-.sales-period-tabs button.active{background:var(--navy);color:#fff;border-color:var(--navy)}
-.sales-service-list,.sales-alert-list,.sales-family-list{display:grid;gap:8px;margin-top:10px}
-.sales-service-row,.sales-alert-row,.sales-family-row{
-  border:1px solid var(--g100);background:#faf9f6;border-radius:9px;padding:9px 10px
-}
-.sales-service-top,.sales-family-top{display:flex;justify-content:space-between;gap:10px;align-items:center}
-.sales-service-name,.sales-family-name{font-size:9px;font-weight:800;color:var(--navy)}
-.sales-service-ca,.sales-family-ca{font-size:9px;font-weight:800;color:var(--navy)}
-.sales-mini{font-size:7.5px;color:var(--g500);margin-top:3px}
-.sales-bar{height:5px;background:#ecebe6;border-radius:999px;margin-top:6px;overflow:hidden}
-.sales-bar > span{display:block;height:100%;background:var(--navy);border-radius:999px}
-.sales-table-wrap{overflow:auto;margin-top:10px}
-.sales-table{width:100%;border-collapse:collapse;min-width:720px}
-.sales-table th,.sales-table td{padding:9px 10px;border-bottom:1px solid var(--g100);text-align:left}
-.sales-table th{font-size:7.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--g500);background:#faf9f6}
-.sales-table td{font-size:8.5px;color:var(--g700)}
-.sales-alert-row{display:flex;gap:9px;align-items:flex-start}
-.sales-alert-dot{width:8px;height:8px;border-radius:50%;background:#d9a845;margin-top:3px;flex:0 0 auto}
-.sales-alert-title{font-size:8.5px;font-weight:800;color:var(--navy)}
-.sales-alert-txt{font-size:7.5px;color:var(--g500);margin-top:2px;line-height:1.4}
-.sales-empty-note{
-  margin-top:12px;padding:10px 11px;border-radius:9px;background:#f6f5f1;
-  border:1px dashed var(--g200);font-size:8px;color:var(--g500);line-height:1.5
-}
-@media(max-width:1100px){
-  .sales-grid-kpi{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .sales-section-grid{grid-template-columns:1fr}
-}
-@media(max-width:650px){
-  .sales-v1{padding:12px}
-  .sales-grid-kpi{grid-template-columns:1fr}
-  .sales-title{font-size:19px}
+.dev-field textarea{min-height:90px;resize:vertical}
+.dev-submit{width:100%;min-height:40px;margin-top:10px}
+.dev-list{display:grid;gap:8px;margin-top:10px}
+.dev-card{border:1px solid var(--g100);border-radius:10px;padding:10px 11px;background:#faf9f6}
+.dev-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.dev-card-title{font-size:10px;font-weight:800;color:var(--navy)}
+.dev-card-meta{font-size:7.5px;color:var(--g500);margin-top:3px}
+.dev-card-desc{font-size:8.5px;color:var(--g600);line-height:1.45;margin-top:7px}
+.dev-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.dev-tag{font-size:7.5px;padding:4px 6px;border-radius:999px;background:#eeece6;color:var(--g600);font-weight:700}
+.dev-empty{padding:24px;text-align:center;color:var(--g500);font-size:9px}
+@media(max-width:760px){
+  .future-panel-grid{grid-template-columns:1fr}
+  .dev-board{grid-template-columns:1fr}
+  .dev-field input,.dev-field select,.dev-field textarea{font-size:16px;min-height:44px}
+  .dev-field textarea{min-height:110px}
+  .data-source-banner{align-items:flex-start;flex-direction:column}
 }
 
 </style>
@@ -887,6 +980,7 @@ body.app-nav-ready > .module-page{
   </div>
 
   <div class="app-sidebar-foot">
+    <button class="app-nav-item" data-page="improvements" onclick="navigateApp('improvements')"><span class="app-nav-icon">✦</span>Améliorations</button>
     <button class="app-nav-item" data-page="settings" onclick="navigateApp('settings')"><span class="app-nav-icon">⚙</span>Paramètres</button>
   </div>
 </aside>
@@ -932,7 +1026,25 @@ body.app-nav-ready > .module-page{
   </div>
   <div class="table-card">
     <div class="table-scroll">
-      <table>
+      
+<div class="pl-mobile-day" id="plMobileDay">
+  <div class="pl-mobile-head">
+    <div class="pl-mobile-head-main">
+      <div class="pl-mobile-title" id="plMobileTitle">Planning du jour</div>
+      <div class="pl-mobile-sub" id="plMobileSub">Vue opérationnelle</div>
+    </div>
+    <button class="pl-mobile-week-btn" type="button" onclick="toggleMobilePlanningWeek()">Vue semaine</button>
+  </div>
+  <div class="pl-day-tabs" id="plDayTabs"></div>
+  <div class="pl-mobile-dept" id="plMobileDept">
+    <button type="button" data-dept="all" class="active" onclick="setMobilePlanningDept('all')">Tous</button>
+    <button type="button" data-dept="salle" onclick="setMobilePlanningDept('salle')">Salle</button>
+    <button type="button" data-dept="cuisine" onclick="setMobilePlanningDept('cuisine')">Cuisine</button>
+  </div>
+  <div class="pl-mobile-list" id="plMobileList"></div>
+</div>
+
+<table>
         <thead><tr id="hrow"><th class="th-emp">Employé·e</th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
@@ -1101,6 +1213,8 @@ body.app-nav-ready > .module-page{
         <tbody id="pointageBody"></tbody>
       </table>
     </div>
+<div class="pt-mobile-list" id="ptMobileList"></div>
+
 
     <div class="pointage-footnote">
       Le planning reste la référence du prévu. Modifier une heure ici ne modifie jamais le planning.
@@ -1378,158 +1492,66 @@ body.app-nav-ready > .module-page{
 </section>
 
 
-
-<section class="module-page" id="module-sales">
-  <div class="sales-v1">
-    <div class="sales-head">
-      <div class="sales-head-main">
-        <div class="sales-eyebrow">Pilotage commercial</div>
-        <div class="sales-title">Analyse des ventes</div>
-        <div class="sales-sub">Une lecture courte et utile : niveau d’activité, évolution, services, familles et alertes.</div>
-      </div>
-      <div class="sales-filters">
-        <select class="sales-filter"><option>L'Océan</option></select>
-        <select class="sales-filter">
-          <option>30 derniers jours</option>
-          <option>7 derniers jours</option>
-          <option>Mois en cours</option>
-          <option>Année en cours</option>
-        </select>
-        <select class="sales-filter">
-          <option>Tous les services</option>
-          <option>Midi</option>
-          <option>Après-midi</option>
-          <option>Soir</option>
-        </select>
-      </div>
+<section class="module-page no-print" id="module-sales" data-module="sales">
+  <div class="module-shell">
+    <div class="module-kicker">Ventes</div>
+    <div class="module-title">Analyse des ventes</div>
+    <div class="module-lead">Analyse du chiffre d'affaires par période, service et produit.</div>
+    <div class="data-source-banner">
+      <div><div class="data-source-title">BASE Z OCEAN</div>
+      <div class="data-source-sub">Source de ventes vérifiée · alimentation continue · connexion serveur à brancher pour lecture automatique.</div></div>
+      <span class="data-source-pill">Prêt à connecter</span>
     </div>
-
-    <div class="sales-grid-kpi">
-      <div class="sales-card">
-        <div class="sales-kpi-label">CA TTC</div>
-        <div class="sales-kpi-value">—</div>
-        <div class="sales-kpi-foot">vs N-1 <span class="sales-delta flat">—</span></div>
-      </div>
-      <div class="sales-card">
-        <div class="sales-kpi-label">Couverts</div>
-        <div class="sales-kpi-value">—</div>
-        <div class="sales-kpi-foot">vs N-1 <span class="sales-delta flat">—</span></div>
-      </div>
-      <div class="sales-card">
-        <div class="sales-kpi-label">Ticket moyen</div>
-        <div class="sales-kpi-value">—</div>
-        <div class="sales-kpi-foot">vs N-1 <span class="sales-delta flat">—</span></div>
-      </div>
-      <div class="sales-card">
-        <div class="sales-kpi-label">Retours</div>
-        <div class="sales-kpi-value">—</div>
-        <div class="sales-kpi-foot">Montant / CA</div>
-      </div>
-      <div class="sales-card">
-        <div class="sales-kpi-label">Offerts</div>
-        <div class="sales-kpi-value">—</div>
-        <div class="sales-kpi-foot">Montant / CA</div>
-      </div>
-    </div>
-
-    <div class="sales-section-grid">
-      <div class="sales-card">
-        <div class="sales-section-title">Évolution du chiffre d'affaires</div>
-        <div class="sales-section-sub">Lecture quotidienne, hebdomadaire, mensuelle ou annuelle.</div>
-        <div class="sales-period-tabs">
-          <button class="active" type="button">Jour</button>
-          <button type="button">Semaine</button>
-          <button type="button">Mois</button>
-          <button type="button">Année</button>
-        </div>
-        <div class="sales-placeholder-chart">
-          <div class="sales-chart-line"></div>
-        </div>
-        <div class="sales-empty-note">Les données live de BASE Z OCEAN seront branchées ici ensuite.</div>
-      </div>
-
-      <div class="sales-card">
-        <div class="sales-section-title">Performance par service</div>
-        <div class="sales-section-sub">Identifier immédiatement quel moment de la journée porte le CA.</div>
-        <div class="sales-service-list">
-          <div class="sales-service-row">
-            <div class="sales-service-top"><span class="sales-service-name">Midi</span><span class="sales-service-ca">—</span></div>
-            <div class="sales-mini">CA · couverts · ticket moyen</div><div class="sales-bar"><span style="width:72%"></span></div>
-          </div>
-          <div class="sales-service-row">
-            <div class="sales-service-top"><span class="sales-service-name">Après-midi</span><span class="sales-service-ca">—</span></div>
-            <div class="sales-mini">CA · couverts · ticket moyen</div><div class="sales-bar"><span style="width:28%"></span></div>
-          </div>
-          <div class="sales-service-row">
-            <div class="sales-service-top"><span class="sales-service-name">Soir</span><span class="sales-service-ca">—</span></div>
-            <div class="sales-mini">CA · couverts · ticket moyen</div><div class="sales-bar"><span style="width:54%"></span></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="sales-section-grid">
-      <div class="sales-card">
-        <div class="sales-section-title">Familles & catégories</div>
-        <div class="sales-section-sub">Voir ce qui progresse, ce qui ralentit et ce qui pèse réellement dans le CA.</div>
-        <div class="sales-table-wrap">
-          <table class="sales-table">
-            <thead>
-              <tr><th>Famille</th><th>CA</th><th>Quantité</th><th>Poids CA</th><th>vs N-1</th><th>Tendance</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-              <tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-              <tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="sales-card">
-        <div class="sales-section-title">Alertes utiles</div>
-        <div class="sales-section-sub">Seulement les écarts qui méritent une lecture.</div>
-        <div class="sales-alert-list">
-          <div class="sales-alert-row">
-            <span class="sales-alert-dot"></span>
-            <div><div class="sales-alert-title">Données incomplètes</div><div class="sales-alert-txt">Afficher ici les Z manquants ou périodes partielles avant toute comparaison.</div></div>
-          </div>
-          <div class="sales-alert-row">
-            <span class="sales-alert-dot"></span>
-            <div><div class="sales-alert-title">Ticket moyen en baisse</div><div class="sales-alert-txt">Alerte uniquement lorsqu'une variation dépasse un seuil significatif.</div></div>
-          </div>
-          <div class="sales-alert-row">
-            <span class="sales-alert-dot"></span>
-            <div><div class="sales-alert-title">Baisse de fréquentation</div><div class="sales-alert-txt">Séparer une baisse de couverts d'une baisse de dépense moyenne.</div></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="sales-card" style="margin-top:12px">
-      <div class="sales-section-title">Lecture dirigeant</div>
-      <div class="sales-section-sub">Le résumé qui répond à : est-ce qu'on vend mieux, moins bien, et pourquoi ?</div>
-      <div class="sales-empty-note">
-        Exemple futur : « Le CA progresse de 6,8 % sur 30 jours, principalement grâce au soir (+11 %).
-        Les couverts sont stables mais le ticket moyen augmente de 1,90 €. Les boissons chaudes reculent de 8 %.
-        Données complètes sur la période. »
-      </div>
+    <div class="module-placeholder">
+      <div class="module-placeholder-icon">↗</div>
+      <strong>Module prêt à être construit</strong>
+      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
+      <div class="module-chips"><span class="module-chip">CA</span><span class="module-chip">Tickets</span><span class="module-chip">Panier moyen</span><span class="module-chip">Produits</span><span class="module-chip">Services</span></div>
+      
     </div>
   </div>
 </section>
 
 
+
 <section class="module-page no-print" id="module-teamperf" data-module="teamperf">
   <div class="module-shell">
-    <div class="module-kicker">Ventes</div>
+    <div class="module-kicker">Ventes · Équipe</div>
     <div class="module-title">Performance équipe</div>
-    <div class="module-lead">Lecture opérationnelle des ventes par serveur et indicateurs associés.</div>
-    <div class="module-placeholder">
+    <div class="module-lead">Préparer une lecture équitable des ventes par serveur, croisée avec les heures réellement travaillées.</div>
+
+    <div class="data-source-banner">
+      <div>
+        <div class="data-source-title">Source ventes prévue : BASE Z OCEAN</div>
+        <div class="data-source-sub">Jours · Services · Familles · Périodes · données détaillées disponibles depuis le 14 mai 2024.</div>
+      </div>
+      <span class="data-source-pill">Structure vérifiée</span>
+    </div>
+
+    <div class="future-panel-grid">
+      <div class="future-panel"><div class="fp-label">CA serveur</div><div class="fp-value">—</div><div class="fp-sub">À alimenter lorsque les anciennes statistiques employés seront importées.</div></div>
+      <div class="future-panel"><div class="fp-label">CA / heure réelle</div><div class="fp-value">—</div><div class="fp-sub">Croisement futur : ventes serveur ÷ heures issues du Pointage.</div></div>
+      <div class="future-panel"><div class="fp-label">Ticket moyen</div><div class="fp-value">—</div><div class="fp-sub">Analyse individuelle, évolution mensuelle et historique.</div></div>
+    </div>
+
+    <div class="module-placeholder" style="margin-top:12px">
       <div class="module-placeholder-icon">◎</div>
-      <strong>Module prêt à être construit</strong>
-      <p>La navigation et l'emplacement sont déjà créés. Les fonctions métier seront ajoutées progressivement sans modifier l'architecture générale.</p>
-      <div class="module-chips"><span class="module-chip">CA serveur</span><span class="module-chip">Tickets</span><span class="module-chip">Panier moyen</span><span class="module-chip">Comparaisons</span></div>
-      
+      <strong>Future analyse d'intéressement</strong>
+      <p>Le module devra comparer des situations équivalentes avant toute logique de prime : heures réelles, midi/soir, volume de couverts, poste et contexte du service.</p>
+      <div class="module-chips">
+        <span class="module-chip">CA serveur</span>
+        <span class="module-chip">CA / heure</span>
+        <span class="module-chip">Ticket moyen</span>
+        <span class="module-chip">Couverts</span>
+        <span class="module-chip">Évolution</span>
+        <span class="module-chip">Simulation prime</span>
+      </div>
+    </div>
+
+    <div class="module-placeholder" style="margin-top:12px">
+      <div class="module-placeholder-icon">↺</div>
+      <strong>Historique employés à récupérer</strong>
+      <p>Rappel : aller rechercher les chiffres par serveur dans les anciennes caisses / exports depuis 2024 et les intégrer progressivement dans une table dédiée.</p>
     </div>
   </div>
 </section>
@@ -1582,6 +1604,52 @@ body.app-nav-ready > .module-page{
   </div>
 </section>
 
+
+
+<section class="module-page no-print" id="module-improvements" data-module="improvements">
+  <div class="module-shell">
+    <div class="module-kicker">Administration</div>
+    <div class="module-title">Améliorations</div>
+    <div class="module-lead">Centraliser les bugs, points à revoir et idées d'évolution remontés par l'équipe d'administration.</div>
+
+    <div class="dev-board">
+      <div class="dev-form">
+        <div class="dev-field">
+          <label>Type</label>
+          <select id="devType"><option>Bug</option><option>À revoir</option><option>Idée d'évolution</option></select>
+        </div>
+        <div class="dev-field">
+          <label>Titre</label>
+          <input id="devTitle" placeholder="Ex. Pointage mobile">
+        </div>
+        <div class="dev-field">
+          <label>Module concerné</label>
+          <select id="devModule">
+            <option>Planning</option><option>Pointage</option><option>Équipe / RH</option>
+            <option>Ventes</option><option>Performance équipe</option><option>Stocks</option>
+            <option>Fournisseurs</option><option>Tableau de bord</option><option>Autre</option>
+          </select>
+        </div>
+        <div class="dev-field">
+          <label>Priorité</label>
+          <select id="devPriority"><option>Normale</option><option>Haute</option><option>Faible</option></select>
+        </div>
+        <div class="dev-field">
+          <label>Description</label>
+          <textarea id="devDesc" placeholder="Décrire ce qu'il faut corriger ou faire évoluer…"></textarea>
+        </div>
+        <button class="btn btn-primary dev-submit" type="button" onclick="addImprovement()">Ajouter au suivi</button>
+        <div class="rh-pay-note"><strong>Prototype :</strong> les remontées sont enregistrées sur cet appareil. La synchronisation multi-admin sera branchée au backend lors de la mise en place des comptes utilisateurs.</div>
+      </div>
+
+      <div class="dev-list-wrap">
+        <div class="module-title" style="font-size:15px">Suivi</div>
+        <div class="module-lead" style="margin-top:2px">Nouveau · À traiter · En cours · Résolu</div>
+        <div class="dev-list" id="devList"></div>
+      </div>
+    </div>
+  </div>
+</section>
 
 <section class="module-page no-print" id="module-settings" data-module="settings">
   <div class="module-shell">
@@ -1832,6 +1900,7 @@ function renderPointage(){
   updatePointageState();
   renderPointageTotalsOnly();
   updatePointageLockUI();
+  renderPointageMobile();
   renderPointageHistory();
   renderPointageWeekly();
   renderPointageAudit();
@@ -2311,6 +2380,54 @@ async function openPointageDate(dateStr){
   }
 }
 
+
+function renderPointageMobile(){
+  var list=document.getElementById('ptMobileList');
+  if(!list)return;
+  var dateStr=pointageDateKey(),di=dayIndexFromDate(dateStr);
+  if(di<0){list.innerHTML='';return;}
+  var locked=pointageInputsDisabled(),cards=[];
+  EMPS.forEach(function(emp,ei){
+    ensureEmpConfig(emp);
+    if(emp.hidden||!empInDept(emp,CURRENT_POINTAGE_DEPT))return;
+    var dayData=DATA[ei]&&DATA[ei][di]?DATA[ei][di]:null;
+    var row=getOrCreatePointageRow(dateStr,emp,ei,di);
+    var planned=plannedMinutesForDay(dayData),actual=actualMinutesFromRow(row),diff=actual-planned;
+    cards.push(
+      '<div class="pt-mobile-card">'+
+      '<div class="pt-mobile-card-head"><div><div class="pt-mobile-name">'+emp.name+'</div><div class="pt-mobile-meta">'+
+      (normalizeDept(emp.department)==='cuisine'?'Cuisine':'Salle')+'</div></div>'+
+      '<div class="pt-mobile-plan">'+(shiftDisplay(dayData)||'Non prévu')+'</div></div>'+
+      '<div class="pt-mobile-grid">'+
+      '<div class="pt-mobile-field"><label>Arrivée</label><input type="time" id="ptm_arr_'+ei+'" value="'+(row.arrival||'')+'" '+(locked?'disabled':'')+' onchange="pointageMobileChanged('+ei+')"></div>'+
+      '<div class="pt-mobile-field"><label>Départ</label><input type="time" id="ptm_dep_'+ei+'" value="'+(row.departure||'')+'" '+(locked?'disabled':'')+' onchange="pointageMobileChanged('+ei+')"></div>'+
+      '<div class="pt-mobile-field"><label>Pause (min)</label><input type="number" min="0" step="5" id="ptm_pause_'+ei+'" value="'+(Number(row.pause)||0)+'" '+(locked?'disabled':'')+' onchange="pointageMobileChanged('+ei+')"></div>'+
+      '<div class="pt-mobile-field"><label>Statut</label><select id="ptm_status_'+ei+'" '+(locked?'disabled':'')+' onchange="pointageMobileChanged('+ei+')">'+pointageStatusOptions(row.status)+'</select></div>'+
+      '<div class="pt-mobile-field pt-mobile-note"><label>Note</label><input id="ptm_note_'+ei+'" value="'+String(row.note||'').replace(/"/g,'&quot;')+'" placeholder="Optionnel" '+(locked?'disabled':'')+' onchange="pointageMobileChanged('+ei+')"></div>'+
+      '</div><div class="pt-mobile-result"><div class="pt-mobile-real">Réel <strong>'+minutesToHHMM(actual,false)+'</strong></div>'+
+      '<div class="pt-mobile-diff '+(diff>0?'pos':(diff<0?'neg':'zero'))+'">'+minutesToHHMM(diff,true)+'</div></div></div>'
+    );
+  });
+  list.innerHTML=cards.join('');
+}
+function pointageMobileChanged(ei){
+  var dateStr=pointageDateKey(),di=dayIndexFromDate(dateStr);
+  if(di<0||!EMPS[ei]||pointageDayLocked())return;
+  var row=getOrCreatePointageRow(dateStr,EMPS[ei],ei,di);
+  var a=document.getElementById('ptm_arr_'+ei),d=document.getElementById('ptm_dep_'+ei),
+      p=document.getElementById('ptm_pause_'+ei),st=document.getElementById('ptm_status_'+ei),
+      n=document.getElementById('ptm_note_'+ei);
+  row.arrival=a?a.value:''; row.departure=d?d.value:'';
+  row.pause=p?Math.max(0,Number(p.value)||0):0; row.status=st?st.value:'Présent'; row.note=n?n.value:'';
+  var day=getPointageDay(dateStr,true);
+  if(!day.validated)saveToStorage();
+  renderPointage();
+}
+function updateMobileBottomNav(page){
+  document.querySelectorAll('#mobileBottomNav button[data-mnav]').forEach(function(btn){
+    btn.classList.toggle('active',btn.getAttribute('data-mnav')===page);
+  });
+}
 function renderPointageWeekly(){
   var body=document.getElementById('ptWeeklyBody');
   if(!body)return;
@@ -2367,6 +2484,151 @@ async function changePointageDate(){
   renderPointage();
 }
 
+
+function mobilePlanningDateForDay(di){
+  var monday=CURRENT_WEEK?new Date(CURRENT_WEEK+'T12:00:00'):new Date();
+  var d=new Date(monday); d.setDate(monday.getDate()+di);
+  return d;
+}
+
+function mobilePlanningShiftLabel(d){
+  if(!d)return 'Non prévu';
+  if(d.status)return d.status;
+  if(d.x)return 'RH';
+  if(!d.shifts||!d.shifts.length)return 'Non prévu';
+  return d.shifts.map(function(sh){
+    return (sh.s||'—')+' → '+(sh.e||'—');
+  }).join(' · ');
+}
+
+function mobilePlanningMinutes(d){
+  return plannedMinutesForDay(d);
+}
+
+function renderMobilePlanning(){
+  var tabs=document.getElementById('plDayTabs');
+  var list=document.getElementById('plMobileList');
+  if(!tabs||!list)return;
+
+  var shortDays=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  tabs.innerHTML=shortDays.map(function(label,di){
+    var dt=mobilePlanningDateForDay(di);
+    return '<button type="button" class="pl-day-tab '+(di===MOBILE_PLANNING_DAY?'active':'')+
+      '" onclick="setMobilePlanningDay('+di+')">'+label+
+      '<span>'+pad(dt.getDate())+'/'+pad(dt.getMonth()+1)+'</span></button>';
+  }).join('');
+
+  var date=mobilePlanningDateForDay(MOBILE_PLANNING_DAY);
+  var title=document.getElementById('plMobileTitle');
+  var sub=document.getElementById('plMobileSub');
+  if(title)title.textContent=date.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  if(sub)sub.textContent='Planning opérationnel · '+(MOBILE_PLANNING_DEPT==='all'?'Tous':(MOBILE_PLANNING_DEPT==='cuisine'?'Cuisine':'Salle'));
+
+  document.querySelectorAll('#plMobileDept button').forEach(function(b){
+    b.classList.toggle('active',b.getAttribute('data-dept')===MOBILE_PLANNING_DEPT);
+  });
+
+  var cards=[];
+  EMPS.forEach(function(emp,ei){
+    ensureEmpConfig(emp);
+    if(emp.hidden)return;
+    if(MOBILE_PLANNING_DEPT!=='all'&&normalizeDept(emp.department)!==MOBILE_PLANNING_DEPT)return;
+
+    var d=DATA[ei]&&DATA[ei][MOBILE_PLANNING_DAY]?DATA[ei][MOBILE_PLANNING_DAY]:null;
+    var label=mobilePlanningShiftLabel(d);
+    var mins=mobilePlanningMinutes(d);
+    var statusClass='';
+    if(label==='RH'||label==='Non prévu')statusClass=' off';
+    if(d&&d.status&&d.status!=='')statusClass=' abs';
+
+    cards.push(
+      '<div class="pl-mobile-card">'+
+        '<div class="pl-mobile-card-top">'+
+          '<div><div class="pl-mobile-name">'+emp.name+'</div>'+
+          '<div class="pl-mobile-role">'+(normalizeDept(emp.department)==='cuisine'?'Cuisine':'Salle')+
+          (emp.role?' · '+emp.role:'')+'</div></div>'+
+          '<div class="pl-mobile-hours">'+(mins?minutesToHHMM(mins,false):'—')+
+          '<small>heures prévues</small></div>'+
+        '</div>'+
+        '<div class="pl-mobile-status'+statusClass+'">'+label+'</div>'+
+      '</div>'
+    );
+  });
+
+  list.innerHTML=cards.length?cards.join(''):'<div class="pl-mobile-empty">Aucun salarié à afficher pour ce filtre.</div>';
+}
+
+function setMobilePlanningDay(di){
+  MOBILE_PLANNING_DAY=Math.max(0,Math.min(6,Number(di)||0));
+  renderMobilePlanning();
+}
+
+function setMobilePlanningDept(dept){
+  MOBILE_PLANNING_DEPT=(dept==='salle'||dept==='cuisine')?dept:'all';
+  renderMobilePlanning();
+}
+
+function toggleMobilePlanningWeek(){
+  var page=document.getElementById('planningPage');
+  if(!page)return;
+  page.classList.toggle('mobile-week-mode');
+  var btn=page.querySelector('.pl-mobile-week-btn');
+  if(btn)btn.textContent=page.classList.contains('mobile-week-mode')?'Vue jour':'Vue semaine';
+}
+
+
+var IMPROVEMENTS=[];
+function loadImprovements(){
+  try{IMPROVEMENTS=JSON.parse(localStorage.getItem('locean_improvements_v1')||'[]');}
+  catch(e){IMPROVEMENTS=[];}
+}
+function saveImprovements(){
+  try{localStorage.setItem('locean_improvements_v1',JSON.stringify(IMPROVEMENTS));}catch(e){}
+}
+function addImprovement(){
+  var title=document.getElementById('devTitle');
+  var desc=document.getElementById('devDesc');
+  if(!title||!title.value.trim())return;
+  IMPROVEMENTS.unshift({
+    id:Date.now(),
+    type:(document.getElementById('devType')||{}).value||'À revoir',
+    title:title.value.trim(),
+    module:(document.getElementById('devModule')||{}).value||'Autre',
+    priority:(document.getElementById('devPriority')||{}).value||'Normale',
+    desc:desc?desc.value.trim():'',
+    status:'Nouveau',
+    createdAt:new Date().toISOString()
+  });
+  saveImprovements();
+  title.value=''; if(desc)desc.value='';
+  renderImprovements();
+}
+function cycleImprovementStatus(id){
+  var order=['Nouveau','À traiter','En cours','Résolu'];
+  var item=IMPROVEMENTS.find(function(x){return x.id===id;});
+  if(!item)return;
+  var i=order.indexOf(item.status);
+  item.status=order[(i+1)%order.length];
+  saveImprovements();renderImprovements();
+}
+function renderImprovements(){
+  var list=document.getElementById('devList');if(!list)return;
+  if(!IMPROVEMENTS.length){
+    list.innerHTML='<div class="dev-empty">Aucune remontée pour le moment.</div>';return;
+  }
+  list.innerHTML=IMPROVEMENTS.map(function(x){
+    var dt=new Date(x.createdAt);
+    return '<div class="dev-card"><div class="dev-card-top"><div>'+
+      '<div class="dev-card-title">'+escapeHtml(x.title)+'</div>'+
+      '<div class="dev-card-meta">'+escapeHtml(x.type)+' · '+escapeHtml(x.module)+' · '+dt.toLocaleDateString('fr-FR')+'</div></div>'+
+      '<button class="btn btn-ghost" type="button" onclick="cycleImprovementStatus('+x.id+')">'+escapeHtml(x.status)+'</button></div>'+
+      (x.desc?'<div class="dev-card-desc">'+escapeHtml(x.desc)+'</div>':'')+
+      '<div class="dev-tags"><span class="dev-tag">'+escapeHtml(x.priority)+'</span></div></div>';
+  }).join('');
+}
+function escapeHtml(v){
+  return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});
+}
 /* ==========================================================
    NAVIGATION APPLICATION
    ========================================================== */
@@ -2405,6 +2667,7 @@ function setHeaderMode(page){
     dashboard:'— Tableau de bord',
     reports:'— Rapports & exports',
     alltools:'— Tous les outils',
+    improvements:'— Améliorations',
     settings:'— Paramètres'
   };
   sub.textContent=labels[page]||'— Outil interne';
@@ -2414,6 +2677,9 @@ function setHeaderMode(page){
 }
 
 function navigateApp(page){
+  if(page==='improvements')setTimeout(renderImprovements,0);
+  if(page==='planning')setTimeout(renderMobilePlanning,0);
+  updateMobileBottomNav(page);
   closeAppSidebar();
   hideFutureModules();
 
@@ -2454,6 +2720,7 @@ function navigateApp(page){
 
 /* Initialise la nouvelle coque sans modifier le comportement métier existant. */
 document.addEventListener('DOMContentLoaded',function(){
+  loadImprovements();
   setAppNavActive('planning');
   setHeaderMode('planning');
   updateDeptTabs('planningDeptTabs',CURRENT_PLANNING_DEPT);
@@ -2642,6 +2909,8 @@ var DATA={};
 
 var POINTAGE={};
 var CURRENT_POINTAGE_DEPT='all';
+var MOBILE_PLANNING_DAY=(new Date().getDay()+6)%7;
+var MOBILE_PLANNING_DEPT='all';
 var CURRENT_POINTAGE_ROLE='admin'; // démonstration locale ; future authentification remplacera ce sélecteur
 var POINTAGE_VOICE_CHANGES=[];
 var POINTAGE_RECOGNITION=null;
@@ -2961,6 +3230,7 @@ function buildBody(){
 
   applySelects();
   updateAllTotals();
+  renderMobilePlanning();
 }
 
 function applySelects(){
@@ -3444,10 +3714,52 @@ var LEGACY_TEAM_CONFIG={
   'Louis':{ranks:['Bar','Salle bas','Salle 400','Grand côté','Petit côté','Fond','Accueil','Runner'],services:{morning:true,lunch:true,evening:true,closing:true,split:false},preferredService:'flexible',aiEnabled:false,countsForCoverage:false}
 };
 
+
+function hcrWeightedWeeklyHours(contractHours){
+  var h=Math.max(0,Number(contractHours)||0),w=0;
+  w+=Math.min(h,35);
+  if(h>35)w+=Math.min(h-35,4)*1.10;
+  if(h>39)w+=Math.min(h-39,4)*1.20;
+  if(h>43)w+=(h-43)*1.50;
+  return w;
+}
+function hcrMonthlyEquivalentHours(contractHours){
+  return hcrWeightedWeeklyHours(contractHours)*52/12;
+}
+function baseHourlyFromMonthly(emp){
+  ensureEmpConfig(emp);
+  var monthly=Number(emp.grossMonthlySalary)||0;
+  var eq=hcrMonthlyEquivalentHours(emp.contract);
+  return monthly>0&&eq>0?monthly/eq:0;
+}
+function hcrCostForWeeklyHours(hours,baseRate){
+  var h=Math.max(0,Number(hours)||0),r=Math.max(0,Number(baseRate)||0),c=0;
+  c+=Math.min(h,35)*r;
+  if(h>35)c+=Math.min(h-35,4)*r*1.10;
+  if(h>39)c+=Math.min(h-39,4)*r*1.20;
+  if(h>43)c+=(h-43)*r*1.50;
+  return c;
+}
+function rhPaySummary(emp){
+  ensureEmpConfig(emp);
+  var monthly=Number(emp.grossMonthlySalary)||0;
+  if(!monthly)return 'Renseigner le brut mensuel pour calculer le coût planning.';
+  var rate=baseHourlyFromMonthly(emp);
+  var h=Number(emp.contract)||0;
+  var txt='Base reconstituée ≈ <strong>'+rate.toFixed(2).replace('.',',')+' €/h</strong>';
+  if(h>35){
+    txt+=' · majorations HCR intégrées';
+  }
+  return txt;
+}
 function ensureEmpConfig(emp){
   if(!emp)return emp;
   if(!emp.department)emp.department='salle';
   emp.department=normalizeDept(emp.department);
+  if((emp.grossMonthlySalary===undefined||emp.grossMonthlySalary===null||emp.grossMonthlySalary==='') && Number(emp.grossHourlyRate)>0){
+    emp.grossMonthlySalary=Math.round(Number(emp.grossHourlyRate)*hcrMonthlyEquivalentHours(emp.contract||35)*100)/100;
+  }
+  if(!Number.isFinite(Number(emp.grossMonthlySalary)))emp.grossMonthlySalary=0;
   var legacy=LEGACY_TEAM_CONFIG[emp.name]||null;
 
   if(typeof emp.aiEnabled!=='boolean')emp.aiEnabled=legacy?legacy.aiEnabled:false;
@@ -3523,7 +3835,7 @@ function openRH(){
     html+='<div><div class="config-label">Employé <span class="team-section-number">#'+(ei+1)+'</span></div><input class="field-inp" id="rh_name_'+ei+'" value="'+emp.name+'"></div>';
     html+='<div><div class="config-label">Pôle</div><select class="field-inp" id="rh_dept_'+ei+'"><option value="salle" '+(normalizeDept(emp.department)==='salle'?'selected':'')+'>Salle</option><option value="cuisine" '+(normalizeDept(emp.department)==='cuisine'?'selected':'')+'>Cuisine</option></select></div>';
     html+='<div><div class="config-label">Contrat h/sem</div><input class="field-inp" type="number" min="0" step="0.5" id="rh_contract_'+ei+'" value="'+(emp.contract||'')+'" placeholder="42"></div>';
-    html+='<div><div class="config-label">Taux brut €/h</div><input class="field-inp" type="number" min="0" step="0.01" id="rh_gross_'+ei+'" value="'+(emp.grossHourlyRate||'')+'" placeholder="12.00"></div>';
+    html+='<div><div class="config-label">Salaire brut mensuel €</div><input class="field-inp" type="number" min="0" step="1" id="rh_gross_month_'+ei+'" value="'+(emp.grossMonthlySalary||'')+'" placeholder="2500"><div class="rh-pay-note">'+rhPaySummary(emp)+'</div></div>';
     html+='<div class="config-secondary"><div class="config-label">Fonction / note courte</div><input class="field-inp" id="rh_role_'+ei+'" value="'+(emp.role||'')+'" placeholder="Chef de rang..."></div>';
     html+='<div class="config-secondary"><div class="config-label">Préférence</div><select class="field-inp" id="rh_pref_'+ei+'">'
       +'<option value="flexible" '+(emp.preferredService==='flexible'?'selected':'')+'>Flexible</option>'
@@ -3582,7 +3894,7 @@ function syncRHModalToData(){
 
     var n=document.getElementById('rh_name_'+ei);
     var c=document.getElementById('rh_contract_'+ei);
-    var g=document.getElementById('rh_gross_'+ei);
+    var gm=document.getElementById('rh_gross_month_'+ei);
     var role=document.getElementById('rh_role_'+ei);
     var pref=document.getElementById('rh_pref_'+ei);
     var dept=document.getElementById('rh_dept_'+ei);
@@ -3590,7 +3902,7 @@ function syncRHModalToData(){
     if(n&&n.value&&n.value!=='__DEL__')emp.name=n.value.trim()||emp.name;
     if(dept)emp.department=normalizeDept(dept.value);
     if(c)emp.contract=c.value===''?0:(parseFloat(c.value)||0);
-    if(g)emp.grossHourlyRate=g.value===''?0:(parseFloat(g.value)||0);
+    if(gm)emp.grossMonthlySalary=gm.value===''?0:(parseFloat(gm.value)||0);
     if(role)emp.role=role.value.trim();
     if(pref)emp.preferredService=pref.value||'flexible';
 
@@ -3693,6 +4005,7 @@ function addEmp(){
     department:(CURRENT_TEAM_DEPT==='cuisine'?'cuisine':'salle'),
     contract:42,
     grossHourlyRate:0,
+    grossMonthlySalary:0,
     role:'',
     aiEnabled:false,
     countsForCoverage:true,
@@ -4632,6 +4945,15 @@ window.addEventListener('beforeunload',function(){
     </div>
   </div>
 </div>
+
+
+<nav class="mobile-bottom-nav" id="mobileBottomNav">
+  <button type="button" data-mnav="dashboard" onclick="navigateApp('dashboard')"><span class="ico">⌂</span><span>Accueil</span></button>
+  <button type="button" data-mnav="planning" onclick="navigateApp('planning')"><span class="ico">▦</span><span>Planning</span></button>
+  <button type="button" data-mnav="pointage" onclick="navigateApp('pointage')"><span class="ico">✓</span><span>Pointage</span></button>
+  <button type="button" data-mnav="sales" onclick="navigateApp('sales')"><span class="ico">↗</span><span>Ventes</span></button>
+  <button type="button" data-mnav="more" onclick="openAppSidebar()"><span class="ico">•••</span><span>Plus</span></button>
+</nav>
 
 </body>
 </html>
