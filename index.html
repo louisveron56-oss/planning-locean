@@ -954,6 +954,8 @@ body.app-nav-ready > .module-page{
 .auth-logout{
   border:1px solid var(--g200);background:#fff;border-radius:8px;padding:6px 8px;
   color:var(--navy);font:inherit;font-size:8px;font-weight:750;cursor:pointer
+}body.auth-locked > *:not(.auth-gate):not(.netlify-identity-widget){
+  visibility:hidden;
 }
 body.auth-locked .auth-gate{visibility:visible}
 @media(max-width:760px){
@@ -1841,7 +1843,13 @@ function initLoceanIdentity(){
   netlifyIdentity.on('error',function(err){
     console.error('Identity:',err);
   });
-
+netlifyIdentity.on('close', function(){
+  if(!netlifyIdentity.currentUser()){
+    var gate = document.getElementById('authGate');
+    if(gate) gate.style.display = '';
+    setAuthUI(null);
+  }
+});
   netlifyIdentity.init();
 }
 
