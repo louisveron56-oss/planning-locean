@@ -926,9 +926,57 @@ body.app-nav-ready > .module-page{
   .data-source-banner{align-items:flex-start;flex-direction:column}
 }
 
+
+/* ==========================================================
+   V8.0 — AUTHENTIFICATION NETLIFY IDENTITY
+   ========================================================== */
+.auth-gate{
+  position:fixed;inset:0;z-index:20000;background:#f4f2ed;
+  display:flex;align-items:center;justify-content:center;padding:24px;
+}
+.auth-gate.hidden{display:none}
+.auth-card{
+  width:min(430px,100%);background:#fff;border:1px solid var(--g200);
+  border-radius:18px;padding:28px;box-shadow:0 18px 60px rgba(20,30,45,.10)
+}
+.auth-brand{font-size:11px;text-transform:uppercase;letter-spacing:.12em;font-weight:800;color:var(--g500)}
+.auth-title{font-size:27px;line-height:1.05;font-weight:800;color:var(--navy);margin-top:8px}
+.auth-copy{font-size:13px;line-height:1.55;color:var(--g500);margin-top:10px}
+.auth-login{
+  width:100%;min-height:48px;margin-top:20px;border:0;border-radius:12px;
+  background:var(--navy);color:#fff;font:inherit;font-size:14px;font-weight:800;cursor:pointer
+}
+.auth-user{
+  display:none;align-items:center;gap:8px;margin-left:auto
+}
+.auth-user.visible{display:flex}
+.auth-user-email{font-size:8px;color:var(--g500);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.auth-logout{
+  border:1px solid var(--g200);background:#fff;border-radius:8px;padding:6px 8px;
+  color:var(--navy);font:inherit;font-size:8px;font-weight:750;cursor:pointer
+}
+body.auth-locked > *:not(.auth-gate):not(.netlify-identity-widget){visibility:hidden}
+body.auth-locked .auth-gate{visibility:visible}
+@media(max-width:760px){
+  .auth-card{padding:22px}
+  .auth-title{font-size:24px}
+  .auth-copy{font-size:14px}
+  .auth-login{font-size:16px}
+}
+
 </style>
+<script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
 </head>
 <body class="app-nav-ready">
+<div class="auth-gate" id="authGate">
+  <div class="auth-card">
+    <div class="auth-brand">L'Océan · Outil interne</div>
+    <div class="auth-title">Connexion requise</div>
+    <div class="auth-copy">Cet espace contient des données internes de l'établissement. Connecte-toi avec le compte qui a été invité par l'administration.</div>
+    <button class="auth-login" type="button" onclick="openIdentityLogin()">Se connecter</button>
+  </div>
+</div>
+
 
 <div class="app-sidebar-backdrop no-print" id="appSidebarBackdrop" onclick="closeAppSidebar()"></div>
 <aside class="app-sidebar no-print" id="appSidebar" aria-label="Navigation principale">
@@ -1668,6 +1716,81 @@ body.app-nav-ready > .module-page{
 
 
 <script>
+
+/* ==========================================================
+   AUTHENTIFICATION NETLIFY IDENTITY
+   ========================================================== */
+var LOCEAN_AUTH_USER=null;
+
+function setAuthUI(user){
+  LOCEAN_AUTH_USER=user||null;
+  var gate=document.getElementById('authGate');
+  var userBox=document.getElementById('authUser');
+  var email=document.getElementById('authUserEmail');
+
+  if(user){
+    document.body.classList.remove('auth-locked');
+    if(gate)gate.classList.add('hidden');
+    if(userBox)userBox.classList.add('visible');
+    if(email)email.textContent=user.email||'Utilisateur';
+  }else{
+    document.body.classList.add('auth-locked');
+    if(gate)gate.classList.remove('hidden');
+    if(userBox)userBox.classList.remove('visible');
+    if(email)email.textContent='';
+  }
+}
+
+function openIdentityLogin(){
+  if(window.netlifyIdentity)window.netlifyIdentity.open('login');
+}
+
+function logoutIdentity(){
+  if(window.netlifyIdentity)window.netlifyIdentity.logout();
+}
+
+async function getIdentityToken(){
+  if(!window.netlifyIdentity||!LOCEAN_AUTH_USER)return null;
+  try{
+    return await window.netlifyIdentity.refresh();
+  }catch(e){
+    try{
+      return LOCEAN_AUTH_USER.token&&LOCEAN_AUTH_USER.token.access_token
+        ? LOCEAN_AUTH_USER.token.access_token
+        : null;
+    }catch(_){return null;}
+  }
+}
+
+function initLoceanIdentity(){
+  document.body.classList.add('auth-locked');
+
+  if(!window.netlifyIdentity){
+    console.error('Netlify Identity non chargé');
+    return;
+  }
+
+  netlifyIdentity.on('init',function(user){
+    setAuthUI(user);
+  });
+
+  netlifyIdentity.on('login',function(user){
+    setAuthUI(user);
+    netlifyIdentity.close();
+  });
+
+  netlifyIdentity.on('logout',function(){
+    setAuthUI(null);
+  });
+
+  netlifyIdentity.on('error',function(err){
+    console.error('Identity:',err);
+  });
+
+  netlifyIdentity.init();
+}
+
+
 
 var CURRENT_PLANNING_DEPT='salle';
 var CURRENT_TEAM_DEPT='salle';
@@ -2720,6 +2843,7 @@ function navigateApp(page){
 
 /* Initialise la nouvelle coque sans modifier le comportement métier existant. */
 document.addEventListener('DOMContentLoaded',function(){
+  initLoceanIdentity();
   loadImprovements();
   setAppNavActive('planning');
   setHeaderMode('planning');
@@ -4954,6 +5078,12 @@ window.addEventListener('beforeunload',function(){
   <button type="button" data-mnav="sales" onclick="navigateApp('sales')"><span class="ico">↗</span><span>Ventes</span></button>
   <button type="button" data-mnav="more" onclick="openAppSidebar()"><span class="ico">•••</span><span>Plus</span></button>
 </nav>
+
+
+<div class="auth-user" id="authUser">
+  <span class="auth-user-email" id="authUserEmail"></span>
+  <button class="auth-logout" type="button" onclick="logoutIdentity()">Déconnexion</button>
+</div>
 
 </body>
 </html>
