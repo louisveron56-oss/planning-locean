@@ -1745,7 +1745,11 @@ function setAuthUI(user){
 
 function openIdentityLogin(){
   if(window.netlifyIdentity){
+    var gate = document.getElementById('authGate');
+    if(gate) gate.style.display = 'none';
     window.netlifyIdentity.open('login');
+  }
+}
   }
 }
 
