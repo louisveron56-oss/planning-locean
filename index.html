@@ -931,7 +931,7 @@ body.app-nav-ready > .module-page{
    V8.0 — AUTHENTIFICATION NETLIFY IDENTITY
    ========================================================== */
 .auth-gate{
-  position:fixed;inset:0;z-index:20000;background:#f4f2ed;
+  position:fixed;inset:0;z-index:1000;background:#f4f2ed;
   display:flex;align-items:center;justify-content:center;padding:24px;
 }
 .auth-gate.hidden{display:none}
@@ -962,7 +962,10 @@ body.auth-locked .auth-gate{visibility:visible}
   .auth-copy{font-size:14px}
   .auth-login{font-size:16px}
 }
-
+.netlify-identity-widget {
+  position: fixed !important;
+  z-index: 30000 !important;
+}
 </style>
 <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
 </head>
