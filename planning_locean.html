@@ -973,7 +973,7 @@ body.auth-locked .auth-gate{visibility:visible}
     <div class="auth-brand">L'Océan · Outil interne</div>
     <div class="auth-title">Connexion requise</div>
     <div class="auth-copy">Cet espace contient des données internes de l'établissement. Connecte-toi avec le compte qui a été invité par l'administration.</div>
-    <button class="auth-login" type="button" onclick="openIdentityLogin()">Se connecter</button>
+    <button class="auth-login" type="button" id="authLoginBtn">Se connecter</button>
   </div>
 </div>
 
@@ -1742,28 +1742,49 @@ function setAuthUI(user){
 }
 
 function openIdentityLogin(){
-  if(window.netlifyIdentity)window.netlifyIdentity.open('login');
+  if(window.netlifyIdentity){
+    window.netlifyIdentity.open('login');
+  }
 }
 
 function logoutIdentity(){
-  if(window.netlifyIdentity)window.netlifyIdentity.logout();
+  if(window.netlifyIdentity){
+    window.netlifyIdentity.logout();
+  }
 }
 
 async function getIdentityToken(){
   if(!window.netlifyIdentity||!LOCEAN_AUTH_USER)return null;
   try{
-    return await window.netlifyIdentity.refresh();
-  }catch(e){
-    try{
-      return LOCEAN_AUTH_USER.token&&LOCEAN_AUTH_USER.token.access_token
-        ? LOCEAN_AUTH_USER.token.access_token
-        : null;
-    }catch(_){return null;}
+    var refreshed=await window.netlifyIdentity.refresh();
+    if(refreshed&&refreshed.token&&refreshed.token.access_token){
+      return refreshed.token.access_token;
+    }
+  }catch(e){}
+  try{
+    return LOCEAN_AUTH_USER.token&&LOCEAN_AUTH_USER.token.access_token
+      ? LOCEAN_AUTH_USER.token.access_token
+      : null;
+  }catch(_){
+    return null;
   }
+}
+
+function identityHashType(){
+  var h=window.location.hash||'';
+  if(h.indexOf('invite_token=')>=0)return 'invite';
+  if(h.indexOf('recovery_token=')>=0)return 'recovery';
+  if(h.indexOf('confirmation_token=')>=0)return 'signup';
+  return null;
 }
 
 function initLoceanIdentity(){
   document.body.classList.add('auth-locked');
+
+  var loginBtn=document.getElementById('authLoginBtn');
+  if(loginBtn){
+    loginBtn.addEventListener('click',openIdentityLogin);
+  }
 
   if(!window.netlifyIdentity){
     console.error('Netlify Identity non chargé');
@@ -1772,11 +1793,39 @@ function initLoceanIdentity(){
 
   netlifyIdentity.on('init',function(user){
     setAuthUI(user);
+
+    var hashType=identityHashType();
+
+    // Le widget Netlify sait traiter les tokens présents dans le hash.
+    // On ouvre explicitement l'interface correspondante pour éviter
+    // d'afficher seulement notre écran "Connexion requise".
+    if(!user&&hashType){
+      setTimeout(function(){
+        try{
+          if(hashType==='invite'){
+            netlifyIdentity.open('signup');
+          }else if(hashType==='recovery'){
+            netlifyIdentity.open('login');
+          }else{
+            netlifyIdentity.open('signup');
+          }
+        }catch(e){
+          console.error('Ouverture Identity:',e);
+        }
+      },150);
+    }
   });
 
   netlifyIdentity.on('login',function(user){
     setAuthUI(user);
-    netlifyIdentity.close();
+    try{netlifyIdentity.close();}catch(e){}
+    if(window.location.hash){
+      history.replaceState(null,'',window.location.pathname+window.location.search);
+    }
+  });
+
+  netlifyIdentity.on('signup',function(user){
+    setAuthUI(user);
   });
 
   netlifyIdentity.on('logout',function(){
@@ -1789,6 +1838,7 @@ function initLoceanIdentity(){
 
   netlifyIdentity.init();
 }
+
 
 
 
