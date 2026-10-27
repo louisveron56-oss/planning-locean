@@ -1,13 +1,25 @@
 /* L'Océan — réception et validation de BL et factures. */
 (function(){
 'use strict';
-var root,docs=[],current=null,busy=false;
+var root,docs=[],current=null,busy=false,productCatalog=[];
 function e(t,c,txt){var x=document.createElement(t);if(c)x.className=c;if(txt!==undefined)x.textContent=txt;return x;}
 function add(p,t,c,txt){var x=e(t,c,txt);p.appendChild(x);return x;}
 function token(){var user=window.netlifyIdentity&&window.netlifyIdentity.currentUser();return user?user.jwt():Promise.reject(Error('Connexion requise'));}
 async function call(method,path,payload){var auth=await token();var r=await fetch('/.netlify/functions/purchase-documents'+(path||''),{method,headers:{Authorization:'Bearer '+auth,...(payload?{'Content-Type':'application/json'}:{})},body:payload?JSON.stringify(payload):undefined,cache:'no-store'});var body=await r.json();if(!r.ok)throw Error(body.error||'Erreur du service documentaire');return body;}
 function money(p){return Number.isFinite(Number(p))&&p!==''&&p!==null?new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(Number(p)):'Non précisé';}
 function show(text,error){var x=root.querySelector('.pd-status');if(x){x.textContent=text;x.style.color=error?'#aa3d30':'#3a6473';}}
+async function optimizedImage(file){
+ if(file.size<=1800000||!file.type.startsWith('image/'))return file;
+ if(!['image/jpeg','image/png','image/webp'].includes(file.type))return file;
+ try{
+  var bitmap=await createImageBitmap(file),ratio=Math.min(1,1800/Math.max(bitmap.width,bitmap.height));
+  var canvas=document.createElement('canvas');canvas.width=Math.round(bitmap.width*ratio);canvas.height=Math.round(bitmap.height*ratio);
+  canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();
+  var blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.82));
+  if(blob&&blob.size<file.size)return new File([blob],file.name.replace(/\.[^.]+$/,'.jpg'),{type:'image/jpeg'});
+ }catch(_){}
+ return file;
+}
 function fileData(file){return new Promise(function(resolve,reject){var reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Lecture impossible'));reader.readAsDataURL(file);});}
 function uploadCard(){
  var block=add(root,'section','pd-card'),header=add(block,'div','pd-heading');
@@ -20,6 +32,7 @@ function uploadCard(){
  async function receive(file){
   if(!file)return;
   if(!['application/pdf','image/jpeg','image/png','image/webp'].includes(file.type)){show('Format non pris en charge.',true);return;}
+  if(file.type.startsWith('image/'))file=await optimizedImage(file);
   if(file.size>2500000){show('Document trop volumineux (limite 2,5 Mo). Réduis la photo ou le PDF.',true);return;}
   if(busy)return;
   busy=true;show('Enregistrement privé du document…');
@@ -31,7 +44,14 @@ function uploadCard(){
  photo.addEventListener('change',()=>receive(photo.files?.[0]));files.addEventListener('change',()=>receive(files.files?.[0]));
 }
 async function refresh(){
- try{var result=await call('GET','');docs=result.documents||[];renderList();}
+ try{
+  var auth=await token();
+  var [result,catalogResponse]=await Promise.all([
+   call('GET',''),
+   fetch('/.netlify/functions/purchases',{headers:{Authorization:'Bearer '+auth},cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null)
+  ]);
+  productCatalog=catalogResponse?.products||[];docs=result.documents||[];renderList();
+ }
  catch(err){show(err.message,true);}
 }
 function renderList(){
@@ -58,7 +78,15 @@ function lineInput(p,line,i){
  var unit=valueInput(row,'Unité / conditionnement',line.unit||'');
  var price=valueInput(row,'Prix HT indiqué',line.unitPriceHT??'','number');price.step='any';
  var ref=valueInput(row,'Référence fournisseur',line.reference||'');
- if(line.catalogIndex!==null&&line.catalogIndex!==undefined)add(row,'small','pd-matched','Correspondance exacte catalogue à vérifier : référence #'+(line.catalogIndex+1));
+ if(line.catalogIndex!==null&&line.catalogIndex!==undefined&&productCatalog[line.catalogIndex]){
+  var existing=productCatalog[line.catalogIndex];
+  var detail='Catalogue : '+existing.name+' · '+money(existing.price)+' HT';
+  if(line.unitPriceHT!==null&&line.unitPriceHT!==undefined){
+   var d=Number(line.unitPriceHT)-Number(existing.price);
+   detail+=' · écart indicatif '+(d>=0?'+':'')+money(d);
+  }
+  add(row,'small','pd-matched',detail);
+ }
  var warning=add(row,'small','pd-warning','Attention : contrôler colis / unité / kilo avant toute comparaison de prix.');
  return ()=>({description:name.value.trim(),quantity:qty.value===''?null:Number(qty.value),unit:unit.value.trim(),unitPriceHT:price.value===''?null:Number(price.value),reference:ref.value.trim(),lineTotalHT:line.lineTotalHT??null,catalogIndex:line.catalogIndex??null,confidence:line.confidence||'low'});
 }
