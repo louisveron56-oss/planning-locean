@@ -1,0 +1,131 @@
+/* L'Océan — réception et validation de BL et factures. */
+(function(){
+'use strict';
+var root,docs=[],current=null,busy=false;
+function e(t,c,txt){var x=document.createElement(t);if(c)x.className=c;if(txt!==undefined)x.textContent=txt;return x;}
+function add(p,t,c,txt){var x=e(t,c,txt);p.appendChild(x);return x;}
+function token(){var user=window.netlifyIdentity&&window.netlifyIdentity.currentUser();return user?user.jwt():Promise.reject(Error('Connexion requise'));}
+async function call(method,path,payload){var auth=await token();var r=await fetch('/.netlify/functions/purchase-documents'+(path||''),{method,headers:{Authorization:'Bearer '+auth,...(payload?{'Content-Type':'application/json'}:{})},body:payload?JSON.stringify(payload):undefined,cache:'no-store'});var body=await r.json();if(!r.ok)throw Error(body.error||'Erreur du service documentaire');return body;}
+function money(p){return Number.isFinite(Number(p))&&p!==''&&p!==null?new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(Number(p)):'Non précisé';}
+function show(text,error){var x=root.querySelector('.pd-status');if(x){x.textContent=text;x.style.color=error?'#aa3d30':'#3a6473';}}
+function fileData(file){return new Promise(function(resolve,reject){var reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Lecture impossible'));reader.readAsDataURL(file);});}
+function uploadCard(){
+ var block=add(root,'section','pd-card'),header=add(block,'div','pd-heading');
+ add(header,'h3','','Documents fournisseurs');add(header,'p','','Photographier un BL ou importer une facture. Archivage privé et validation après lecture IA.');
+ var buttons=add(block,'div','pd-upload-actions');
+ var camera=add(buttons,'label','pd-action','📷 Prendre une photo');var photo=add(camera,'input','pd-hidden');photo.type='file';photo.accept='image/*';photo.setAttribute('capture','environment');
+ var other=add(buttons,'label','pd-action pd-secondary','⇧ Importer PDF / image');var files=add(other,'input','pd-hidden');files.type='file';files.accept='application/pdf,image/jpeg,image/png,image/webp';files.multiple=false;
+ add(block,'p','pd-help','PDF, JPEG, PNG ou WebP · 2,5 Mo maximum · Les prix ne sont jamais modifiés automatiquement.');
+ add(block,'p','pd-status','');
+ async function receive(file){
+  if(!file)return;
+  if(!['application/pdf','image/jpeg','image/png','image/webp'].includes(file.type)){show('Format non pris en charge.',true);return;}
+  if(file.size>2500000){show('Document trop volumineux (limite 2,5 Mo). Réduis la photo ou le PDF.',true);return;}
+  if(busy)return;
+  busy=true;show('Enregistrement privé du document…');
+  try{var dataUri=await fileData(file);var response=await call('POST','',{action:'upload',filename:file.name,mime:file.type,establishment:'LOCEAN',dataUri});
+   show('Document archivé. Tu peux maintenant lancer sa lecture IA.');
+   await refresh();await openDocument(response.document.id);
+  }catch(err){show(err.message,true);}finally{busy=false;photo.value='';files.value='';}
+ }
+ photo.addEventListener('change',()=>receive(photo.files?.[0]));files.addEventListener('change',()=>receive(files.files?.[0]));
+}
+async function refresh(){
+ try{var result=await call('GET','');docs=result.documents||[];renderList();}
+ catch(err){show(err.message,true);}
+}
+function renderList(){
+ var host=root.querySelector('.pd-list');if(!host)return;host.replaceChildren();
+ var h=add(host,'div','pd-list-title');add(h,'h4','','Documents enregistrés');add(h,'span','',docs.length+' document(s)');
+ if(!docs.length){add(host,'p','pd-help','Aucun document enregistré pour le moment.');return;}
+ docs.forEach(function(doc){
+  var row=add(host,'button','pd-doc');row.type='button';
+  var left=add(row,'span','pd-doc-body');
+  add(left,'strong','',doc.supplier||doc.filename);
+  add(left,'small','',[(doc.kind||'Document'),doc.date||'',doc.documentNumber||''].filter(Boolean).join(' · '));
+  var badge=add(row,'span','pd-doc-badge',doc.status||'à analyser');
+  if(doc.status==='validé')badge.classList.add('confirmed');
+  row.onclick=()=>openDocument(doc.id);
+ });
+}
+function valueInput(p,label,value,type){
+ var wrap=add(p,'label','pd-field');add(wrap,'span','',label);var input=add(wrap,'input','');input.type=type||'text';input.value=value??'';return input;
+}
+function lineInput(p,line,i){
+ var row=add(p,'div','pd-line');add(row,'strong','','Ligne '+(i+1));
+ var name=valueInput(row,'Produit',line.description||'');
+ var qty=valueInput(row,'Quantité',line.quantity??'','number');qty.step='any';
+ var unit=valueInput(row,'Unité / conditionnement',line.unit||'');
+ var price=valueInput(row,'Prix HT indiqué',line.unitPriceHT??'','number');price.step='any';
+ var ref=valueInput(row,'Référence fournisseur',line.reference||'');
+ if(line.catalogIndex!==null&&line.catalogIndex!==undefined)add(row,'small','pd-matched','Correspondance exacte catalogue à vérifier : référence #'+(line.catalogIndex+1));
+ var warning=add(row,'small','pd-warning','Attention : contrôler colis / unité / kilo avant toute comparaison de prix.');
+ return ()=>({description:name.value.trim(),quantity:qty.value===''?null:Number(qty.value),unit:unit.value.trim(),unitPriceHT:price.value===''?null:Number(price.value),reference:ref.value.trim(),lineTotalHT:line.lineTotalHT??null,catalogIndex:line.catalogIndex??null,confidence:line.confidence||'low'});
+}
+async function openOriginal(doc){
+ try{var result=await call('GET','?id='+encodeURIComponent(doc.id)+'&original=1');
+  var a=document.createElement('a');a.href=result.dataUri;a.download=result.filename||'document';document.body.appendChild(a);a.click();a.remove();
+ }catch(err){show(err.message,true);}
+}
+async function openDocument(id){
+ try{
+  var response=await call('GET','?id='+encodeURIComponent(id));current=response.document;renderDetail();
+ }catch(err){show(err.message,true);}
+}
+function renderDetail(){
+ var host=root.querySelector('.pd-detail');if(!host)return;host.replaceChildren();
+ if(!current){add(host,'p','pd-help','Sélectionne un document pour consulter son détail.');return;}
+ var doc=current,header=add(host,'div','pd-detail-title');
+ add(header,'h4','',doc.filename);
+ var close=add(header,'button','pd-link','Fermer');close.onclick=()=>{current=null;renderDetail();};
+ var actions=add(host,'div','pd-detail-actions');
+ var original=add(actions,'button','pd-action pd-secondary','Voir le fichier original');original.onclick=()=>openOriginal(doc);
+ if(doc.status!=='validé'){
+  var analyze=add(actions,'button','pd-action','✦ Lire avec l’IA');
+  analyze.disabled=busy;
+  analyze.onclick=async()=>{
+   if(busy)return;busy=true;analyze.disabled=true;show('Lecture IA en cours — aucun tarif ne sera modifié.');
+   try{var r=await call('POST','',{action:'analyze',id:doc.id});current=r.document;await refresh();renderDetail();show('Lecture effectuée. Vérifie les informations avant validation.');}
+   catch(err){show(err.message,true);}finally{busy=false;analyze.disabled=false;}
+  };
+ }
+ if(doc.analysisError)add(host,'p','pd-warning','Analyse précédente : '+doc.analysisError);
+ if(doc.status==='validé')add(host,'p','pd-approved','✓ Document validé et classé. Aucun prix catalogue modifié.');
+ var form=add(host,'div','pd-review');
+ var supplier=valueInput(form,'Fournisseur',doc.supplier||'');
+ var date=valueInput(form,'Date du document',doc.date||'','date');
+ var number=valueInput(form,'Numéro BL / facture',doc.documentNumber||'');
+ var kindWrap=add(form,'label','pd-field');add(kindWrap,'span','','Type de document');var kind=add(kindWrap,'select','');
+ ['BL','facture','inventaire','autre'].forEach(function(v){var o=add(kind,'option','',v);o.value=v;if(doc.kind===v)o.selected=true;});
+ var desc=add(host,'h5','','Lignes reconnues ('+doc.lines.length+')');
+ if(!doc.lines.length)add(host,'p','pd-warning','Aucune ligne reconnue. Le document est archivé ; relance la lecture ou renseigne les informations indispensables.');
+ var lines=[],lineHost=add(host,'div','pd-lines');
+ doc.lines.forEach((item,i)=>lines.push(lineInput(lineHost,item,i)));
+ if(doc.status!=='validé'){
+  var note=add(host,'p','pd-help','Validation = archivage des données extraites, sans création de facture comptable, sans mouvement de stock et sans mise à jour automatique des prix.');
+  var approve=add(host,'button','pd-action pd-approve','✓ Valider et classer');
+  approve.onclick=async()=>{
+   if(!supplier.value.trim()||!date.value){show('Indique le fournisseur et la date du document avant de valider.',true);return;}
+   if(!confirm('Valider les informations du document ? Cette action ne change aucun tarif.'))return;
+   approve.disabled=true;try{var r=await call('POST','',{action:'confirm',id:doc.id,supplier:supplier.value,date:date.value,documentNumber:number.value,kind:kind.value,lines:lines.map(f=>f())});current=r.document;await refresh();renderDetail();show('Document validé et classé.');}
+   catch(err){show(err.message,true);}finally{approve.disabled=false;}
+  };
+ }else{
+  supplier.disabled=true;date.disabled=true;number.disabled=true;kind.disabled=true;
+  lineHost.querySelectorAll('input').forEach(x=>x.disabled=true);
+ }
+}
+function install(){
+ var page=document.getElementById('module-suppliers');if(!page)return;
+ var holder=page.querySelector('.module-shell');if(!holder)return;
+ root=add(holder,'div','pd-root');uploadCard();
+ add(root,'div','pd-list');add(root,'div','pd-detail');renderList();renderDetail();
+ var observer=new MutationObserver(function(){if(page.classList.contains('open'))refresh();});
+ observer.observe(page,{attributes:true,attributeFilter:['class']});
+ if(page.classList.contains('open'))refresh();
+}
+var css=e('style');
+css.textContent='.pd-root{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:18px}.pd-root>section{grid-column:1/-1}.pd-card,.pd-list,.pd-detail{border:1px solid #e7e8e4;border-radius:11px;background:#fff;padding:17px;min-width:0}.pd-heading h3{font-size:16px;color:#0A3D62;margin:0 0 7px}.pd-heading p{font-size:12px;color:#71808b;line-height:1.5}.pd-upload-actions,.pd-detail-actions{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0}.pd-action{display:inline-flex;gap:6px;align-items:center;justify-content:center;border:0;border-radius:8px;background:#0A3D62;color:#fff;padding:11px 13px;font:650 12px system-ui;cursor:pointer}.pd-action:disabled{opacity:.5;cursor:wait}.pd-secondary{background:#f3f5f4;color:#0A3D62;border:1px solid #e0e5e3}.pd-hidden{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none}.pd-help,.pd-status{font-size:11px;color:#71808b;line-height:1.5;margin:10px 0 0}.pd-list-title,.pd-detail-title{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-bottom:12px}.pd-list-title h4,.pd-detail-title h4{margin:0;color:#0A3D62;font-size:14px}.pd-list-title span{color:#83919c;font-size:11px}.pd-doc{display:flex;align-items:center;justify-content:space-between;gap:7px;border:0;border-bottom:1px solid #f0f1ef;padding:12px 0;background:white;width:100%;text-align:left;cursor:pointer}.pd-doc-body{display:flex;flex-direction:column;gap:5px;min-width:0}.pd-doc-body strong{font-size:12px;color:#293f4e;overflow-wrap:anywhere}.pd-doc-body small{color:#7f8992;font-size:10px}.pd-doc-badge{font-size:10px;background:#f5eee0;border-radius:7px;color:#8a651c;padding:5px;white-space:nowrap}.pd-doc-badge.confirmed{background:#e6f1e9;color:#24603e}.pd-link{background:none;border:none;color:#0A3D62;cursor:pointer}.pd-review{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pd-field{display:flex;flex-direction:column;gap:5px;color:#5b6d7a;font-size:10px;min-width:0}.pd-field input,.pd-field select{width:100%;max-width:100%;min-width:0;padding:9px;border:1px solid #dce0df;border-radius:7px;color:#263c48;box-sizing:border-box;font-size:12px}.pd-line{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:12px;margin:10px 0;border:1px solid #e9ece8;border-radius:8px}.pd-line>strong,.pd-line>small{grid-column:1/-1}.pd-line>strong{color:#0A3D62;font-size:12px}.pd-lines{max-height:440px;overflow-y:auto}.pd-warning{font-size:11px;color:#a06a30}.pd-approved{font-size:11px;color:#24603e}.pd-detail h5{font-size:13px;margin:17px 0 0}.pd-approve{margin-top:12px}.pd-matched{font-size:10px;color:#206a48}@media(max-width:940px){.pd-root{grid-template-columns:1fr}.pd-review{grid-template-columns:1fr}}';
+document.head.appendChild(css);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
+})();
