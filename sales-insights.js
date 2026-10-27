@@ -149,7 +149,7 @@ function render(ctx){
  var host=document.querySelector('#module-sales .module-placeholder');if(!host)return;
  var existing=host.querySelector('.sales-insights');if(existing)existing.remove();
  var panel=node('div','sales-insights');panel.appendChild(node('p','sales-insight-label','ANALYSES COMPLÉMENTAIRES'));
- timeline(panel,ctx);services(panel,ctx);families(panel,ctx);
+ services(panel,ctx);timeline(panel,ctx);families(panel,ctx);
  host.appendChild(panel);
 }
 function installStyles(){
