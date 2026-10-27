@@ -35,8 +35,27 @@ function dayEvents(date){
   }
  });
  var rank=function(e){return e.type==='rcv_home'?0:e.type==='rcv_home_relocated'?1:e.type==='major_sports_broadcast'?2:e.impact==='high'?3:e.type==='rcv_away'?4:5;};
+ (VERIFIED_RUGBY_FIXTURES[date]||[]).forEach(function(match){
+  var equivalent=[...unique.values()].some(function(ev){
+   var n=compact(ev.name||'');
+   return n.includes('vannes')&&n.includes('clermont')&&/^rcv_/.test(String(ev.type||''));
+  });
+  if(!equivalent)unique.set('confirmed-fixture-'+date,match);
+ });
  return {events:[...unique.values()].sort((a,b)=>rank(a)-rank(b)),searched:stored!==null,week:wk};
 }
+/* Match historique confirmé : LNR et Rugby Club Vannes (J7 Top 14 2026-2027).
+   Le 19 octobre est la date de début de semaine du planning, pas le jour du match. */
+var VERIFIED_RUGBY_FIXTURES={
+ '2026-10-24':[{
+  type:'rcv_home',name:'🏉 RC Vannes – ASM Clermont',
+  date:'samedi 24 octobre · 14h30',lieu:'Stade de la Rabine — Vannes',
+  impact:'high',note:'Top 14 · 7e journée · match à domicile',
+  _sortDate:'2026-10-24T14:30:00',
+  url:'https://top14.lnr.fr/feuille-de-match/2026-2027/j7/11862-vannes-clermont',
+  verified:true
+ }]
+};
 function rugbyDetail(ev){
  if(!/^rcv_/.test(String(ev.type||'')))return null;
  if(ev.type==='rcv_home')return 'À domicile · affluence locale potentielle';
@@ -65,6 +84,7 @@ function render(){
    if(secondary)contents.appendChild(element('small','',secondary));
    var rugby=rugbyDetail(ev);
    if(rugby)contents.appendChild(element('span','sales-day-event-context',rugby));
+   if(ev.verified)contents.appendChild(element('span','sales-day-event-context','Match confirmé · source LNR / RC Vannes'));
    row.appendChild(contents);list.appendChild(row);
   });
   panel.appendChild(list);
