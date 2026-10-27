@@ -964,15 +964,32 @@ body.auth-locked > .module-page,
 body.auth-locked > .mobile-bottom-nav {
   visibility: hidden;
 
+
+/* Masquer l'application avant connexion */
+body.auth-locked .app-sidebar,
+body.auth-locked .app-sidebar-backdrop,
+body.auth-locked .header,
+body.auth-locked #planningPage,
+body.auth-locked #teamPage,
+body.auth-locked .module-page,
+body.auth-locked .mobile-bottom-nav {
+  display: none !important;
 }
-body.auth-locked .auth-gate{visibility:visible}
+
+/* Afficher l'écran de connexion */
+body.auth-locked .auth-gate {
+  display: flex !important;
+  visibility: visible;
+}
+
 @media(max-width:760px){
   .auth-card{padding:22px}
   .auth-title{font-size:24px}
   .auth-copy{font-size:14px}
   .auth-login{font-size:16px}
 }
-.netlify-identity-widget {
+
+  .netlify-identity-widget {
   position: fixed !important;
   z-index: 30000 !important;
 }
