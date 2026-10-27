@@ -5,7 +5,6 @@ var selected='overview';
 function isDaily(){return !!document.querySelector('#module-sales .sales-tabs button.selected')&&[...document.querySelectorAll('#module-sales .sales-tabs button')].indexOf(document.querySelector('#module-sales .sales-tabs button.selected'))===0;}
 var tabs=[
  ['overview','Synthèse'],
- ['services','Services'],
  ['products','Produits & activités'],
  ['payments','Encaissements'],
  ['annual','Ventes annuelles détaillées']
@@ -50,12 +49,12 @@ function apply(){
   hidden(root.querySelector(selector),selected!=='overview');
  var insights=root.querySelector('.sales-insights');
  if(insights){
-  hidden(insights,!['overview','services','products'].includes(selected)||(selected==='overview'&&isDaily()));
-  hidden(insights.querySelector('.sales-insight-label'),selected!=='overview');
+  hidden(insights,!['overview','products'].includes(selected));
+  hidden(insights.querySelector('.sales-insight-label'),true);
   for(var section of insights.querySelectorAll('.sales-insight-section')){
    var title=section.querySelector('h3')?.textContent||'';
-   var group=title.includes('services')?'services':title.includes('Familles')?'products':'overview';
-   hidden(section,selected!==group);
+   var group=title.includes('services')?'overview':title.includes('Familles')?'products':'overview';
+   hidden(section,selected!==group||(selected==='overview'&&isDaily()&&!title.includes('services')));
   }
  }
  var performance=root.querySelector('.sales-extra');
