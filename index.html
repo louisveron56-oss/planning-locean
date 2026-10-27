@@ -955,17 +955,7 @@ body.app-nav-ready > .module-page{
   border:1px solid var(--g200);background:#fff;border-radius:8px;padding:6px 8px;
   color:var(--navy);font:inherit;font-size:8px;font-weight:750;cursor:pointer
 
-body.auth-locked > .app-sidebar,
-body.auth-locked > .app-sidebar-backdrop,
-body.auth-locked > .header,
-body.auth-locked > #planningPage,
-body.auth-locked > #teamPage,
-body.auth-locked > .module-page,
-body.auth-locked > .mobile-bottom-nav {
-  visibility: hidden;
-
-
-/* Masquer l'application avant connexion */
+/* Masquer l'application RH avant connexion */
 body.auth-locked .app-sidebar,
 body.auth-locked .app-sidebar-backdrop,
 body.auth-locked .header,
@@ -1773,7 +1763,7 @@ function setAuthUI(user){
 function openIdentityLogin(){
   if(window.netlifyIdentity){
     var gate = document.getElementById('authGate');
-    if(gate) gate.style.display = 'none';
+    if(gate) gate.style.display = '';
     window.netlifyIdentity.open('login');
   }
 }
