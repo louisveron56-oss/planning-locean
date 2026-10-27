@@ -66,6 +66,7 @@ function apply(){
    hidden(element,group!==selected);
   }
  }
+ hidden(root.querySelector('.sales-day-events'),selected!=='overview'||!isDaily());
  hidden(root.querySelector('.sales-annual-panel'),selected!=='annual');
  var extra=root.querySelector('.sales-weather-goals');
  if(extra){
@@ -76,6 +77,7 @@ function apply(){
   }
  }
 }
+window.applyLoceanSalesTabs=apply;
 function start(){
  var page=document.getElementById('module-sales');if(!page)return;
  var root=page.querySelector('.module-placeholder');if(!root)return;
