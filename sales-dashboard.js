@@ -102,6 +102,6 @@ var calendarScript=document.createElement('script');calendarScript.src='./sales-
 var eventsScript=document.createElement('script');eventsScript.src='./sales-events.js';eventsScript.defer=true;document.head.appendChild(eventsScript);
 var purchasesScript=document.createElement('script');purchasesScript.src='./purchases-catalog.js';purchasesScript.defer=true;document.head.appendChild(purchasesScript);
 var documentsScript=document.createElement('script');documentsScript.src='./purchases-documents.js';documentsScript.defer=true;document.head.appendChild(documentsScript);
-var mobileUXScript=document.createElement('script');mobileUXScript.src='./mobile-experience.js';mobileUXScript.defer=true;document.head.appendChild(mobileUXScript);
-var prismThemeScript=document.createElement('script');prismThemeScript.src='./prism-theme.js';prismThemeScript.defer=true;document.head.appendChild(prismThemeScript);
+var mobileUXScript=document.createElement('script');mobileUXScript.src='./mobile-experience.js';mobileUXScript.async=false;document.head.appendChild(mobileUXScript);
+var prismThemeScript=document.createElement('script');prismThemeScript.src='./prism-theme.js';prismThemeScript.async=false;document.head.appendChild(prismThemeScript);
 })();
