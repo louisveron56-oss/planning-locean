@@ -16,7 +16,7 @@ async function userToken(){
   // Certains navigateurs iOS renvoient une DOMException peu explicite
   // au rafraîchissement Identity. Un access token encore valide reste acceptable.
   var cached=u.token;
-  if(cached&&cached.access_token&&Number(cached.expires_at||0)>Date.now()+30000&&cached.access_token.split('.').length===3)return cached.access_token;
+  if(cached&&cached.access_token&&Number(cached.expires_at||0)*(Number(cached.expires_at||0)<1e11?1000:1)>Date.now()+30000&&cached.access_token.split('.').length===3)return cached.access_token;
   throw Error('Session : impossible de renouveler la connexion sécurisée. Déconnecte-toi puis reconnecte-toi dans Prism. ('+(err.message||'erreur navigateur')+')');
  }
 }
