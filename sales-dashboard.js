@@ -100,4 +100,5 @@ var goalsScript=document.createElement('script');goalsScript.src='./sales-weathe
 var navigationScript=document.createElement('script');navigationScript.src='./sales-navigation.js';navigationScript.defer=true;document.head.appendChild(navigationScript);
 var calendarScript=document.createElement('script');calendarScript.src='./sales-calendar.js';calendarScript.defer=true;document.head.appendChild(calendarScript);
 var eventsScript=document.createElement('script');eventsScript.src='./sales-events.js';eventsScript.defer=true;document.head.appendChild(eventsScript);
+var purchasesScript=document.createElement('script');purchasesScript.src='./purchases-catalog.js';purchasesScript.defer=true;document.head.appendChild(purchasesScript);
 })();
