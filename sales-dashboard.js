@@ -50,17 +50,19 @@ function redraw(){
  nav.appendChild(button('›',function(){anchor=nextPeriod(anchor,period,1);redraw();}));
  var picker=elem('input','sales-date');picker.type='date';picker.value=key(anchor);picker.title='Choisir une date';picker.addEventListener('change',function(){if(picker.value){anchor=fromKey(picker.value);redraw();}});nav.appendChild(picker);controls.appendChild(nav);container.appendChild(controls);
  var grid=elem('div','sales-stats');
- grid.appendChild(card('Chiffre d’affaires TTC',euro.format(ca),'N-1 : '+delta(ca,sum(previousYear,'ca_ttc'))));
+ grid.appendChild(card('Chiffre d’affaires TTC',euro.format(ca),previousYear.length?'N-1 : '+euro.format(sum(previousYear,'ca_ttc'))+' · '+delta(ca,sum(previousYear,'ca_ttc')):'N-1 : données indisponibles'));
  grid.appendChild(card('CA HT',euro.format(sum(current,'ca_ht')),'Période choisie'));
  grid.appendChild(card('Couverts',integer.format(covers),'N-1 : '+delta(covers,sum(previousYear,'couverts'))));
  grid.appendChild(card('Ticket moyen pondéré',decimals.format(weighted)+' €','Selon couverts et ticket moyen de chaque jour'));
  container.appendChild(grid);
- var headline=elem('div','sales-summary');
- headline.appendChild(elem('strong','',current.length+' journée(s) renseignée(s)'));
- headline.appendChild(elem('span','', 'CA vs période précédente : '+delta(ca,sum(previous,'ca_ttc'))+' · CA vs N-1 : '+delta(ca,sum(previousYear,'ca_ttc'))));
- container.appendChild(headline);
- buildTable(container,range,map);
- container.appendChild(elem('p','sales-note','Source : LOCEAN_DATA_API / Jours. Les jours sans Z ne sont jamais traités comme un CA nul. Pour les jours et semaines, N-1 signifie même jour de la semaine, 52 semaines plus tôt.'));
+ if(period!=='day'){
+  var headline=elem('div','sales-summary');
+  headline.appendChild(elem('strong','',current.length+' journée(s) renseignée(s)'));
+  headline.appendChild(elem('span','', 'CA vs période précédente : '+delta(ca,sum(previous,'ca_ttc'))+' · CA vs N-1 : '+delta(ca,sum(previousYear,'ca_ttc'))));
+  container.appendChild(headline);
+  buildTable(container,range,map);
+  container.appendChild(elem('p','sales-note','Source : LOCEAN_DATA_API / Jours. Les jours sans Z ne sont pas considérés comme un CA nul. Pour les semaines, N-1 compare les mêmes jours de la semaine, 52 semaines plus tôt.'));
+ }
  window.__loceanSalesLatest={period:period,anchor:key(anchor),rows:data.rows};
  window.dispatchEvent(new CustomEvent('locean-sales-update',{detail:window.__loceanSalesLatest}));
 }
