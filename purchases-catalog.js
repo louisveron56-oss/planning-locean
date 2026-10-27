@@ -1,7 +1,7 @@
 /* L'Océan — Catalogue privé Achats & Fournisseurs (lecture et import CSV). */
 (function(){
 'use strict';
-var all=[],ready=false,reference='',savedAt='',query='',category='Tous',offset=0,root;
+var all=[],ready=false,reference='',savedAt='',query='',category='Tous',offset=0,root,importBusy=false,selectedFile=null,importConfirmed=false;
 var euro=new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2});
 function e(tag,cls,text){var x=document.createElement(tag);if(cls)x.className=cls;if(text!==undefined)x.textContent=text;return x;}
 function append(p,tag,cls,text){var x=e(tag,cls,text);p.appendChild(x);return x;}
@@ -91,25 +91,40 @@ function render(){
  filter.addEventListener('change',function(){category=this.value;offset=0;renderTable();});
  var upload=append(root,'div','purchases-upload');
  var row=append(upload,'div','purchases-upload-row');
- var input=append(row,'input','purchases-file');input.type='file';input.accept='.csv,text/csv';input.setAttribute('aria-label','Sélectionner le catalogue CSV');
+ var input=append(row,'input','purchases-file');input.type='file';input.accept='.csv,text/csv,text/plain';input.setAttribute('aria-label','Sélectionner le catalogue CSV');input.addEventListener('change',function(){selectedFile=this.files&&this.files[0]||null;importConfirmed=false;var b=root.querySelector('.purchases-primary');if(b)b.textContent=ready?'Remplacer le catalogue privé':'Importer le catalogue privé';var st=root.querySelector('.purchases-state');if(st&&selectedFile)st.textContent='Fichier sélectionné : '+selectedFile.name+' · Cliquer sur Importer.';});
  var btn=append(row,'button','purchases-primary',ready?'Remplacer le catalogue privé':'Importer le catalogue privé');btn.type='button';
  var status=append(upload,'p','purchases-state',ready?'Catalogue privé chargé'+(savedAt?' · enregistré le '+new Date(savedAt).toLocaleDateString('fr-FR'):''):'Charge le CSV extrait de ton inventaire pour activer le catalogue.');
  append(upload,'p','purchases-disclaimer','Import réservé aux comptes autorisés. Les prix ne sont pas publiés dans GitHub. Les conditionnements absents de la source restent indiqués comme non précisés.');
- btn.addEventListener('click',async function(){
-  if(!input.files?.[0]){status.textContent='Sélectionne d’abord le CSV du catalogue.';return;}
-  if(!confirm('Importer les prix HT dans le stockage privé ? Cela remplacera la version précédente du catalogue.'))return;
-  btn.disabled=true;status.textContent='Vérification et import sécurisé…';
-  try{var text=await input.files[0].text(),items=fromCSV(text);
-   status.textContent=items.length+' références CSV vérifiées. Enregistrement privé en cours…';
+ btn.addEventListener('click',async function(event){
+  event.preventDefault();
+  if(importBusy)return;
+  var file=selectedFile||(input.files&&input.files[0]);
+  if(!file){status.textContent='Choisis d’abord le fichier CSV puis appuie sur Importer.';return;}
+  if(ready&&!importConfirmed){
+   importConfirmed=true;btn.textContent='Confirmer le remplacement';status.textContent='Un catalogue existe déjà. Appuie une seconde fois pour le remplacer. Les unités enrichies peuvent être perdues.';
+   return;
+  }
+  importBusy=true;btn.disabled=true;status.textContent='Lecture du fichier CSV sur ton appareil…';
+  try{
+   var raw=await file.text(),items=fromCSV(raw);
+   status.textContent=items.length+' références reconnues. Vérification de la session…';
+   // Send securely only after the CSV has been fully validated.
    var result=await request('POST',{establishment:'LOCEAN',products:items});
-   status.textContent=result.count+' références enregistrées dans le stockage privé.';await load();
-  }catch(err){showError(err);console.error('Prism catalogue import',err);}finally{btn.disabled=false;}
+   selectedFile=null;importConfirmed=false;
+   ready=true;reference='Inventaire L’Océan · septembre 2026';savedAt=result.savedAt||'';all=items;offset=0;
+   render();var success=root.querySelector('.purchases-state');
+   if(success)success.textContent='✓ '+result.count+' références enregistrées et disponibles dans le catalogue privé.';
+  }catch(err){
+   status.textContent='Import non terminé : '+(err.message||String(err));
+   console.error('Prism catalogue import',err);
+  }finally{importBusy=false;btn.disabled=false;}
  });
  append(root,'div','purchases-results');renderTable();
 }
 async function load(){
- try{var r=await request('GET');ready=r.ready;all=r.products||[];reference=r.reference||'';savedAt=r.savedAt||'';render();}
- catch(err){ready=false;all=[];render();showError(err);}
+ if(importBusy)return;
+ try{var r=await request('GET');if(importBusy)return;ready=r.ready;all=r.products||[];reference=r.reference||'';savedAt=r.savedAt||'';render();}
+ catch(err){if(importBusy)return;ready=false;all=[];render();showError(err);}
 }
 function install(){
  var page=document.getElementById('module-suppliers');if(!page)return;root=page.querySelector('.module-placeholder');if(!root)return;
