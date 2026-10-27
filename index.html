@@ -931,7 +931,7 @@ body.app-nav-ready > .module-page{
    V8.0 — AUTHENTIFICATION NETLIFY IDENTITY
    ========================================================== */
 .auth-gate{
-  position:fixed;inset:0;z-index:1000;background:#f4f2ed;
+  position:fixed;inset:0;z-index:10000;background:#f4f2ed;
   display:flex;align-items:center;justify-content:center;padding:24px;
 }
 .auth-gate.hidden{display:none}
@@ -946,42 +946,35 @@ body.app-nav-ready > .module-page{
   width:100%;min-height:48px;margin-top:20px;border:0;border-radius:12px;
   background:var(--navy);color:#fff;font:inherit;font-size:14px;font-weight:800;cursor:pointer
 }
-.auth-user{
-  display:none;align-items:center;gap:8px;margin-left:auto
-}
-.auth-user.visible{display:flex}
-.auth-user-email{font-size:8px;color:var(--g500);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.auth-logout{
-  border:1px solid var(--g200);background:#fff;border-radius:8px;padding:6px 8px;
-  color:var(--navy);font:inherit;font-size:8px;font-weight:750;cursor:pointer
-
-/* Masquer l'application RH avant connexion */
-body.auth-locked .app-sidebar,
-body.auth-locked .app-sidebar-backdrop,
-body.auth-locked .header,
-body.auth-locked #planningPage,
-body.auth-locked #teamPage,
-body.auth-locked .module-page,
-body.auth-locked .mobile-bottom-nav {
-  display: none !important;
-}
-
-/* Afficher l'écran de connexion */
-body.auth-locked .auth-gate {
-  display: flex !important;
-  visibility: visible;
-}
-
+/* Identité et déconnexion dans le pied du menu */
+.app-sidebar-foot .auth-user{display:none;flex-direction:column;align-items:stretch;gap:8px;
+  padding:12px 10px 2px;border-top:1px solid var(--app-sidebar-border);margin-top:9px}
+.app-sidebar-foot .auth-user.visible{display:flex}
+.app-sidebar-foot .auth-user-email{font-size:10px;color:var(--app-sidebar-muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.app-sidebar-foot .auth-logout{width:100%;text-align:left;padding:9px 10px;
+  font:inherit;font-size:12px;color:#e0e0df;background:transparent;
+  border:1px solid var(--app-sidebar-border);border-radius:8px;cursor:pointer}
+.app-sidebar-foot .auth-logout:hover{background:rgba(255,255,255,.08)}
+/* Écran neutre : aucune partie du logiciel ne s'affiche sans connexion. */
+body.auth-locked > .app-sidebar,
+body.auth-locked > .app-sidebar-backdrop,
+body.auth-locked > .header,
+body.auth-locked > #planningPage,
+body.auth-locked > #teamPage,
+body.auth-locked > .module-page,
+body.auth-locked > .mobile-bottom-nav,
+body.auth-locked > .modal-overlay,
+body.auth-locked > .print-doc {display:none!important}
+body.auth-locked #authGate{display:flex;visibility:visible}
+/* Pendant l'ouverture du widget Identity, on retire l'écran personnalisé. */
+body.auth-locked.auth-widget-open #authGate{display:none!important}
+.netlify-identity-widget{z-index:30000!important}
 @media(max-width:760px){
   .auth-card{padding:22px}
   .auth-title{font-size:24px}
   .auth-copy{font-size:14px}
   .auth-login{font-size:16px}
-}
-
-  .netlify-identity-widget {
-  position: fixed !important;
-  z-index: 30000 !important;
 }
 </style>
 <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
@@ -1049,6 +1042,10 @@ body.auth-locked .auth-gate {
   <div class="app-sidebar-foot">
     <button class="app-nav-item" data-page="improvements" onclick="navigateApp('improvements')"><span class="app-nav-icon">✦</span>Améliorations</button>
     <button class="app-nav-item" data-page="settings" onclick="navigateApp('settings')"><span class="app-nav-icon">⚙</span>Paramètres</button>
+    <div class="auth-user" id="authUser">
+      <span class="auth-user-email" id="authUserEmail"></span>
+      <button class="auth-logout" type="button" onclick="logoutIdentity()">↪ Se déconnecter</button>
+    </div>
   </div>
 </aside>
 
@@ -1746,7 +1743,8 @@ function setAuthUI(user){
   var gate=document.getElementById('authGate');
   var userBox=document.getElementById('authUser');
   var email=document.getElementById('authUserEmail');
-
+  document.body.classList.remove('auth-widget-open');
+  if(gate)gate.style.removeProperty('display');
   if(user){
     document.body.classList.remove('auth-locked');
     if(gate)gate.classList.add('hidden');
@@ -1760,14 +1758,24 @@ function setAuthUI(user){
   }
 }
 
-function openIdentityLogin(){
-  if(window.netlifyIdentity){
-    var gate = document.getElementById('authGate');
-    if(gate) gate.style.display = '';
-    window.netlifyIdentity.open('login');
+function showIdentityWidget(mode){
+  if(!window.netlifyIdentity){
+    console.error('Netlify Identity non chargé');
+    return;
+  }
+  document.body.classList.add('auth-widget-open');
+  try{
+    window.netlifyIdentity.open(mode||'login');
+  }catch(e){
+    document.body.classList.remove('auth-widget-open');
+    console.error('Impossible d’ouvrir la connexion Netlify:',e);
   }
 }
-  
+
+function openIdentityLogin(){
+  showIdentityWidget('login');
+}
+
 function logoutIdentity(){
   if(window.netlifyIdentity){
     window.netlifyIdentity.logout();
@@ -1801,42 +1809,22 @@ function identityHashType(){
 
 function initLoceanIdentity(){
   document.body.classList.add('auth-locked');
-
   var loginBtn=document.getElementById('authLoginBtn');
-  if(loginBtn){
-    loginBtn.addEventListener('click',openIdentityLogin);
-  }
+  if(loginBtn)loginBtn.addEventListener('click',openIdentityLogin);
 
   if(!window.netlifyIdentity){
     console.error('Netlify Identity non chargé');
     return;
   }
-
   netlifyIdentity.on('init',function(user){
     setAuthUI(user);
-
     var hashType=identityHashType();
-
-    // Le widget Netlify sait traiter les tokens présents dans le hash.
-    // On ouvre explicitement l'interface correspondante pour éviter
-    // d'afficher seulement notre écran "Connexion requise".
     if(!user&&hashType){
       setTimeout(function(){
-        try{
-          if(hashType==='invite'){
-            netlifyIdentity.open('signup');
-          }else if(hashType==='recovery'){
-            netlifyIdentity.open('login');
-          }else{
-            netlifyIdentity.open('signup');
-          }
-        }catch(e){
-          console.error('Ouverture Identity:',e);
-        }
+        showIdentityWidget(hashType==='recovery'?'login':'signup');
       },150);
     }
   });
-
   netlifyIdentity.on('login',function(user){
     setAuthUI(user);
     try{netlifyIdentity.close();}catch(e){}
@@ -1844,29 +1832,18 @@ function initLoceanIdentity(){
       history.replaceState(null,'',window.location.pathname+window.location.search);
     }
   });
-
-  netlifyIdentity.on('signup',function(user){
-    setAuthUI(user);
-  });
-
-  netlifyIdentity.on('logout',function(){
-    setAuthUI(null);
-  });
-
+  netlifyIdentity.on('signup',function(user){setAuthUI(user);});
+  netlifyIdentity.on('logout',function(){setAuthUI(null);});
   netlifyIdentity.on('error',function(err){
     console.error('Identity:',err);
+    document.body.classList.remove('auth-widget-open');
   });
-netlifyIdentity.on('close', function(){
-  if(!netlifyIdentity.currentUser()){
-    var gate = document.getElementById('authGate');
-    if(gate) gate.style.display = '';
-    setAuthUI(null);
-  }
-});
+  netlifyIdentity.on('close',function(){
+    document.body.classList.remove('auth-widget-open');
+    if(!netlifyIdentity.currentUser())setAuthUI(null);
+  });
   netlifyIdentity.init();
 }
-
-
 
 
 var CURRENT_PLANNING_DEPT='salle';
@@ -5157,10 +5134,6 @@ window.addEventListener('beforeunload',function(){
 </nav>
 
 
-<div class="auth-user" id="authUser">
-  <span class="auth-user-email" id="authUserEmail"></span>
-  <button class="auth-logout" type="button" onclick="logoutIdentity()">Déconnexion</button>
-</div>
 
 </body>
 </html>
