@@ -93,4 +93,5 @@ function install(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
 window.loadSalesDashboard=load;
 var insightsScript=document.createElement('script');insightsScript.src='./sales-insights.js';insightsScript.defer=true;document.head.appendChild(insightsScript);
+var performanceScript=document.createElement('script');performanceScript.src='./sales-performance.js';performanceScript.defer=true;document.head.appendChild(performanceScript);
 })();
