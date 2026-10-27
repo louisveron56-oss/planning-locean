@@ -85,18 +85,48 @@ async function loadDataset(sheet){
  finally{delete busy[sheet];if(current)render(current);}
 }
 function services(root,context){
- var c=cache.Services,section=node('section','sales-insight-section');
- section.appendChild(blockTitle('Répartition midi / soir','CA TTC issu de l’onglet Services'));
- if(!c){section.appendChild(node('p','sales-insight-muted','Chargement des services…'));}
+ var c=cache.Services,section=node('section','sales-insight-section sales-service-section');
+ section.appendChild(blockTitle('Performances des services','Chiffre d’affaires, couverts et ticket moyen — période sélectionnée'));
+ if(!c){section.appendChild(node('p','sales-insight-muted','Chargement des performances midi et soir…'));}
  else if(c.error){section.appendChild(node('p','sales-insight-muted','Services indisponibles : '+c.error));}
  else{
-  var range=startEnd(context.anchor,context.period),matches=c.rows.filter(r=>inPeriod(r,range)),totals={Midi:0,Soir:0},covers={Midi:0,Soir:0};
-  matches.forEach(function(r){var k=String(r.service||'').trim().toLowerCase();var label=k.includes('midi')?'Midi':k.includes('soir')?'Soir':null;if(label){totals[label]+=num(r.ca_ttc);covers[label]+=num(r.couverts);}});
-  var total=totals.Midi+totals.Soir;
-  if(!total)section.appendChild(node('p','sales-insight-muted','Aucun service renseigné pour cette période.'));
+  var range=startEnd(context.anchor,context.period),matches=c.rows.filter(r=>inPeriod(r,range));
+  var values={Midi:{ca:0,couverts:0,jours:new Set()},Soir:{ca:0,couverts:0,jours:new Set()}};
+  matches.forEach(function(r){
+   var type=String(r.service||'').trim().toLocaleLowerCase('fr');
+   var name=type.includes('midi')?'Midi':type.includes('soir')?'Soir':null;
+   if(!name)return;
+   var row=values[name];row.ca+=num(r.ca_ttc);row.couverts+=num(r.couverts);row.jours.add(dateValue(r.date));
+  });
+  var total=values.Midi.ca+values.Soir.ca;
+  if(!matches.length)section.appendChild(node('p','sales-insight-muted','Aucun service renseigné pour cette période.'));
   else{
-   bars(section,[{name:'Midi',value:totals.Midi},{name:'Soir',value:totals.Soir}]);
-   section.appendChild(node('p','sales-insight-muted','Midi : '+fmt.format(covers.Midi)+' couverts · Soir : '+fmt.format(covers.Soir)+' couverts'));
+   var cards=node('div','sales-service-cards');
+   ['Midi','Soir'].forEach(function(name){
+    var v=values[name],card=node('div','sales-service-card');
+    var top=node('div','sales-service-top');
+    top.appendChild(node('strong','',name==='Midi'?'☀  MIDI':'☾  SOIR'));
+    top.appendChild(node('span','',total?(new Intl.NumberFormat('fr-FR',{maximumFractionDigits:1}).format(v.ca/total*100)+' % du CA des services'):'—'));
+    card.appendChild(top);
+    var stats=node('div','sales-service-stats');
+    [['CA TTC',money.format(v.ca)],['Couverts',fmt.format(v.couverts)],['Ticket moyen',v.couverts?(new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v.ca/v.couverts)):'—']].forEach(function(pair){
+     var item=node('div','sales-service-stat');
+     item.appendChild(node('small','',pair[0]));
+     item.appendChild(node('strong','',pair[1]));
+     stats.appendChild(item);
+    });
+    card.appendChild(stats);
+    card.appendChild(node('p','sales-service-foot',v.jours.size+' journée(s) de service renseignée(s)'));
+    cards.appendChild(card);
+   });
+   section.appendChild(cards);
+   if(total){
+    var split=node('div','sales-service-split');
+    var mid=node('span','sales-service-mid');mid.style.width=(values.Midi.ca/total*100)+'%';
+    var night=node('span','sales-service-night');night.style.width=(values.Soir.ca/total*100)+'%';
+    split.appendChild(mid);split.appendChild(night);section.appendChild(split);
+   }
+   section.appendChild(node('p','sales-insight-muted','Ticket moyen = CA TTC du service ÷ nombre de couverts du service. Les ventes non rattachées à Midi ou Soir sont exclues de la répartition.'));
   }
  }
  root.appendChild(section);
@@ -123,7 +153,7 @@ function render(ctx){
  host.appendChild(panel);
 }
 function installStyles(){
- var css='.sales-insights{margin-top:24px;display:grid;gap:16px}.sales-insight-label{font-size:10px;font-weight:800;letter-spacing:.12em;color:#747b80}.sales-insight-section{padding:18px;border-radius:12px;background:white;border:1px solid #e6e6df;min-width:0}.sales-insight-heading{margin-bottom:18px}.sales-insight-heading h3{font-size:16px;color:#0A3D62;margin:0;font-weight:750}.sales-insight-heading p{font-size:11px;color:#78818a;margin:5px 0 0}.sales-insight-muted{font-size:11px;color:#7a8088;margin-top:12px}.sales-bars{display:grid;gap:10px}.sales-bar-row{display:grid;grid-template-columns:minmax(80px,150px) minmax(50px,1fr) minmax(68px,110px);gap:10px;align-items:center;min-width:0}.sales-bar-name{font-size:11px;color:#33414b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sales-bar-track{height:12px;background:#efeee9;border-radius:5px;overflow:hidden}.sales-bar-fill{height:100%;background:#0A3D62;border-radius:5px}.sales-bar-value{font-size:11px;font-weight:700;color:#263a48;text-align:right;font-variant-numeric:tabular-nums}@media(max-width:650px){.sales-insight-section{padding:12px}.sales-bar-row{grid-template-columns:minmax(65px,90px) minmax(40px,1fr) minmax(64px,90px);gap:6px}.sales-bar-name,.sales-bar-value{font-size:10px}}';
+ var css='.sales-service-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}.sales-service-card{border:1px solid #e6e8e5;border-radius:11px;background:#fafbf9;padding:16px;min-width:0}.sales-service-top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;color:#0A3D62;font-size:12px}.sales-service-top span{font-weight:500;color:#747c83;font-size:11px}.sales-service-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:18px 0 12px}.sales-service-stat{min-width:0;display:flex;flex-direction:column;gap:6px}.sales-service-stat small{font-size:10px;color:#777f87}.sales-service-stat strong{font-size:19px;letter-spacing:-.02em;color:#0A3D62;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.sales-service-foot{font-size:10px;color:#7b828b;margin:0}.sales-service-split{display:flex;overflow:hidden;height:9px;border-radius:9px;margin:14px 0;background:#eee}.sales-service-mid{background:#d8ad51}.sales-service-night{background:#0A3D62}@media(max-width:850px){.sales-service-cards{grid-template-columns:1fr}}@media(max-width:520px){.sales-service-stat strong{font-size:16px}}.sales-insights{margin-top:24px;display:grid;gap:16px}.sales-insight-label{font-size:10px;font-weight:800;letter-spacing:.12em;color:#747b80}.sales-insight-section{padding:18px;border-radius:12px;background:white;border:1px solid #e6e6df;min-width:0}.sales-insight-heading{margin-bottom:18px}.sales-insight-heading h3{font-size:16px;color:#0A3D62;margin:0;font-weight:750}.sales-insight-heading p{font-size:11px;color:#78818a;margin:5px 0 0}.sales-insight-muted{font-size:11px;color:#7a8088;margin-top:12px}.sales-bars{display:grid;gap:10px}.sales-bar-row{display:grid;grid-template-columns:minmax(80px,150px) minmax(50px,1fr) minmax(68px,110px);gap:10px;align-items:center;min-width:0}.sales-bar-name{font-size:11px;color:#33414b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sales-bar-track{height:12px;background:#efeee9;border-radius:5px;overflow:hidden}.sales-bar-fill{height:100%;background:#0A3D62;border-radius:5px}.sales-bar-value{font-size:11px;font-weight:700;color:#263a48;text-align:right;font-variant-numeric:tabular-nums}@media(max-width:650px){.sales-insight-section{padding:12px}.sales-bar-row{grid-template-columns:minmax(65px,90px) minmax(40px,1fr) minmax(64px,90px);gap:6px}.sales-bar-name,.sales-bar-value{font-size:10px}}';
  var style=node('style');style.textContent=css;document.head.appendChild(style);
 }
 installStyles();
