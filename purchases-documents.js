@@ -27,7 +27,7 @@ function uploadCard(){
  var buttons=add(block,'div','pd-upload-actions');
  var camera=add(buttons,'label','pd-action','📷 Prendre une photo');var photo=add(camera,'input','pd-hidden');photo.type='file';photo.accept='image/*';photo.setAttribute('capture','environment');
  var other=add(buttons,'label','pd-action pd-secondary','⇧ Importer PDF / image');var files=add(other,'input','pd-hidden');files.type='file';files.accept='application/pdf,image/jpeg,image/png,image/webp';files.multiple=false;
- add(block,'p','pd-help','PDF, JPEG, PNG ou WebP · 2,5 Mo maximum · Les prix ne sont jamais modifiés automatiquement.');
+ add(block,'p','pd-help','PDF, JPEG, PNG ou WebP · 2,5 Mo maximum · Les unités peuvent enrichir le catalogue après validation explicite. Aucun prix n’est modifié automatiquement.');
  add(block,'p','pd-status','');
  async function receive(file){
   if(!file)return;
@@ -73,22 +73,40 @@ function valueInput(p,label,value,type){
 }
 function lineInput(p,line,i){
  var row=add(p,'div','pd-line');add(row,'strong','','Ligne '+(i+1));
- var name=valueInput(row,'Produit',line.description||'');
- var qty=valueInput(row,'Quantité',line.quantity??'','number');qty.step='any';
- var unit=valueInput(row,'Unité / conditionnement',line.unit||'');
+ var name=valueInput(row,'Produit sur le BL',line.description||'');
+ var qty=valueInput(row,'Quantité livrée',line.quantity??'','number');qty.step='any';
+ var unit=valueInput(row,'Unité / conditionnement détecté',line.unit||'');
  var price=valueInput(row,'Prix HT indiqué',line.unitPriceHT??'','number');price.step='any';
  var ref=valueInput(row,'Référence fournisseur',line.reference||'');
- if(line.catalogIndex!==null&&line.catalogIndex!==undefined&&productCatalog[line.catalogIndex]){
-  var existing=productCatalog[line.catalogIndex];
-  var detail='Catalogue : '+existing.name+' · '+money(existing.price)+' HT';
-  if(line.unitPriceHT!==null&&line.unitPriceHT!==undefined){
-   var d=Number(line.unitPriceHT)-Number(existing.price);
-   detail+=' · écart indicatif '+(d>=0?'+':'')+money(d);
-  }
-  add(row,'small','pd-matched',detail);
+ // Sélection explicite : un libellé voisin ne suffit pas à changer le catalogue.
+ var wrap=add(row,'label','pd-field pd-catalog-link');add(wrap,'span','','Correspondance dans le catalogue');
+ var selector=add(wrap,'select','pd-catalog-select');
+ var none=add(selector,'option','','Aucune correspondance — ne rien modifier');none.value='';
+ productCatalog.forEach(function(product,index){
+  var opt=add(selector,'option','',product.name+' · '+product.category+' · '+(product.unit||'unité inconnue'));
+  opt.value=String(index);
+ });
+ if(Number.isInteger(line.catalogIndex)&&productCatalog[line.catalogIndex])selector.value=String(line.catalogIndex);
+ else selector.value='';
+ var updateRow=add(row,'label','pd-unit-update');
+ var checkbox=add(updateRow,'input','');checkbox.type='checkbox';
+ add(updateRow,'span','','Enregistrer cette unité dans la fiche produit après validation');
+ var info=add(row,'small','pd-matched','');
+ function change(){
+  var product=selector.value!==''?productCatalog[Number(selector.value)]:null;
+  var unfilled=product&&(!product.unit||product.unit.trim().toLowerCase()==='non précisée');
+  var offered=!!(product&&unfilled&&unit.value.trim()&&unit.value.trim().toLowerCase()!=='non précisée');
+  checkbox.disabled=!offered;
+  if(!offered)checkbox.checked=false;
+  updateRow.style.display=offered?'flex':'none';
+  if(product){
+   info.textContent='Catalogue : '+product.name+' · '+money(product.price)+' HT · '+(product.unit||'unité non précisée')+
+    (offered?' · Complément possible':' · Unité existante conservée');
+  }else info.textContent='Aucune fiche catalogue ne sera modifiée.';
  }
- var warning=add(row,'small','pd-warning','Attention : contrôler colis / unité / kilo avant toute comparaison de prix.');
- return ()=>({description:name.value.trim(),quantity:qty.value===''?null:Number(qty.value),unit:unit.value.trim(),unitPriceHT:price.value===''?null:Number(price.value),reference:ref.value.trim(),lineTotalHT:line.lineTotalHT??null,catalogIndex:line.catalogIndex??null,confidence:line.confidence||'low'});
+ selector.addEventListener('change',change);unit.addEventListener('input',change);change();
+ add(row,'small','pd-warning','Vérifier carton, bouteille, kilo ou litre. Les prix du catalogue ne seront jamais modifiés.');
+ return ()=>({data:{description:name.value.trim(),quantity:qty.value===''?null:Number(qty.value),unit:unit.value.trim(),unitPriceHT:price.value===''?null:Number(price.value),reference:ref.value.trim(),lineTotalHT:line.lineTotalHT??null,catalogIndex:selector.value===''?null:Number(selector.value),confidence:line.confidence||'low'},updateUnit:!checkbox.disabled&&checkbox.checked});
 }
 async function openOriginal(doc){
  try{var result=await call('GET','?id='+encodeURIComponent(doc.id)+'&original=1');
@@ -118,7 +136,7 @@ function renderDetail(){
   };
  }
  if(doc.analysisError)add(host,'p','pd-warning','Analyse précédente : '+doc.analysisError);
- if(doc.status==='validé')add(host,'p','pd-approved','✓ Document validé et classé. Aucun prix catalogue modifié.');
+ if(doc.status==='validé')add(host,'p','pd-approved','✓ Document validé et classé. '+(doc.catalogUnitsUpdated||0)+' unité(s) enrichie(s) dans le catalogue. Aucun prix modifié.');
  var form=add(host,'div','pd-review');
  var supplier=valueInput(form,'Fournisseur',doc.supplier||'');
  var date=valueInput(form,'Date du document',doc.date||'','date');
@@ -130,12 +148,12 @@ function renderDetail(){
  var lines=[],lineHost=add(host,'div','pd-lines');
  doc.lines.forEach((item,i)=>lines.push(lineInput(lineHost,item,i)));
  if(doc.status!=='validé'){
-  var note=add(host,'p','pd-help','Validation = archivage des données extraites, sans création de facture comptable, sans mouvement de stock et sans mise à jour automatique des prix.');
+  var note=add(host,'p','pd-help','Après validation, seules les unités explicitement cochées enrichissent les fiches dont l’unité est encore absente. Aucun mouvement de stock ni changement de prix.');
   var approve=add(host,'button','pd-action pd-approve','✓ Valider et classer');
   approve.onclick=async()=>{
    if(!supplier.value.trim()||!date.value){show('Indique le fournisseur et la date du document avant de valider.',true);return;}
-   if(!confirm('Valider les informations du document ? Cette action ne change aucun tarif.'))return;
-   approve.disabled=true;try{var r=await call('POST','',{action:'confirm',id:doc.id,supplier:supplier.value,date:date.value,documentNumber:number.value,kind:kind.value,lines:lines.map(f=>f())});current=r.document;await refresh();renderDetail();show('Document validé et classé.');}
+   var checkedLines=lines.map(f=>f());var proposals=checkedLines.map((row,lineIndex)=>row.updateUnit?{lineIndex:lineIndex,catalogIndex:row.data.catalogIndex}:null).filter(Boolean);if(!confirm('Valider ce document et enregistrer '+proposals.length+' unité(s) cochée(s) ? Aucun prix ne sera modifié.'))return;
+   approve.disabled=true;try{var r=await call('POST','',{action:'confirm',id:doc.id,supplier:supplier.value,date:date.value,documentNumber:number.value,kind:kind.value,lines:checkedLines.map(r=>r.data),catalogUnitUpdates:proposals});current=r.document;await refresh();renderDetail();show('Document validé · '+(r.document.catalogUnitsUpdated||0)+' unité(s) enregistrée(s). Aucun prix modifié.');}
    catch(err){show(err.message,true);}finally{approve.disabled=false;}
   };
  }else{
@@ -154,6 +172,6 @@ function install(){
 }
 var css=e('style');
 css.textContent='.pd-root{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:18px}.pd-root>section{grid-column:1/-1}.pd-card,.pd-list,.pd-detail{border:1px solid #e7e8e4;border-radius:11px;background:#fff;padding:17px;min-width:0}.pd-heading h3{font-size:16px;color:#0A3D62;margin:0 0 7px}.pd-heading p{font-size:12px;color:#71808b;line-height:1.5}.pd-upload-actions,.pd-detail-actions{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0}.pd-action{display:inline-flex;gap:6px;align-items:center;justify-content:center;border:0;border-radius:8px;background:#0A3D62;color:#fff;padding:11px 13px;font:650 12px system-ui;cursor:pointer}.pd-action:disabled{opacity:.5;cursor:wait}.pd-secondary{background:#f3f5f4;color:#0A3D62;border:1px solid #e0e5e3}.pd-hidden{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none}.pd-help,.pd-status{font-size:11px;color:#71808b;line-height:1.5;margin:10px 0 0}.pd-list-title,.pd-detail-title{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-bottom:12px}.pd-list-title h4,.pd-detail-title h4{margin:0;color:#0A3D62;font-size:14px}.pd-list-title span{color:#83919c;font-size:11px}.pd-doc{display:flex;align-items:center;justify-content:space-between;gap:7px;border:0;border-bottom:1px solid #f0f1ef;padding:12px 0;background:white;width:100%;text-align:left;cursor:pointer}.pd-doc-body{display:flex;flex-direction:column;gap:5px;min-width:0}.pd-doc-body strong{font-size:12px;color:#293f4e;overflow-wrap:anywhere}.pd-doc-body small{color:#7f8992;font-size:10px}.pd-doc-badge{font-size:10px;background:#f5eee0;border-radius:7px;color:#8a651c;padding:5px;white-space:nowrap}.pd-doc-badge.confirmed{background:#e6f1e9;color:#24603e}.pd-link{background:none;border:none;color:#0A3D62;cursor:pointer}.pd-review{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pd-field{display:flex;flex-direction:column;gap:5px;color:#5b6d7a;font-size:10px;min-width:0}.pd-field input,.pd-field select{width:100%;max-width:100%;min-width:0;padding:9px;border:1px solid #dce0df;border-radius:7px;color:#263c48;box-sizing:border-box;font-size:12px}.pd-line{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:12px;margin:10px 0;border:1px solid #e9ece8;border-radius:8px}.pd-line>strong,.pd-line>small{grid-column:1/-1}.pd-line>strong{color:#0A3D62;font-size:12px}.pd-lines{max-height:440px;overflow-y:auto}.pd-warning{font-size:11px;color:#a06a30}.pd-approved{font-size:11px;color:#24603e}.pd-detail h5{font-size:13px;margin:17px 0 0}.pd-approve{margin-top:12px}.pd-matched{font-size:10px;color:#206a48}@media(max-width:940px){.pd-root{grid-template-columns:1fr}.pd-review{grid-template-columns:1fr}}';
-document.head.appendChild(css);
+css.textContent+=' .pd-catalog-link{grid-column:1/-1}.pd-catalog-select{font-size:12px!important}.pd-unit-update{grid-column:1/-1;display:flex;align-items:center;gap:8px;background:#f8f3ed;padding:10px;border:1px solid #eae0d3;border-radius:8px;color:#332823;font-size:11px;cursor:pointer}.pd-unit-update input{width:17px;height:17px;accent-color:#806d61}.pd-unit-update span{flex:1}';document.head.appendChild(css);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
 })();
