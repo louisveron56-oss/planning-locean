@@ -15,8 +15,9 @@ async function auth(){
  return {user};
 }
 const shape=(doc)=>({id:doc.id,filename:doc.filename,mime:doc.mime,kind:doc.kind,establishment:doc.establishment,supplier:doc.supplier,date:doc.date,documentNumber:doc.documentNumber,createdAt:doc.createdAt,status:doc.status,lines:doc.lines||[],notes:doc.notes||"",analysisError:doc.analysisError||"",confirmedAt:doc.confirmedAt||"",linkedInvoice:doc.linkedInvoice||""});
+function optionalNumber(v){return v===null||v===undefined||v===""?null:Number.isFinite(Number(v))?Number(v):null;}
 function cleanLine(x){
- return {description:safe(x.description,250),reference:safe(x.reference,90),quantity:Number.isFinite(Number(x.quantity))?Number(x.quantity):null,unit:safe(x.unit,65),unitPriceHT:Number.isFinite(Number(x.unitPriceHT))?Number(x.unitPriceHT):null,lineTotalHT:Number.isFinite(Number(x.lineTotalHT))?Number(x.lineTotalHT):null,catalogIndex:Number.isInteger(x.catalogIndex)&&x.catalogIndex>=0?x.catalogIndex:null,confidence:["high","medium","low"].includes(x.confidence)?x.confidence:"low"};
+ return {description:safe(x.description,250),reference:safe(x.reference,90),quantity:optionalNumber(x.quantity),unit:safe(x.unit,65),unitPriceHT:optionalNumber(x.unitPriceHT),lineTotalHT:optionalNumber(x.lineTotalHT),catalogIndex:Number.isInteger(x.catalogIndex)&&x.catalogIndex>=0?x.catalogIndex:null,confidence:["high","medium","low"].includes(x.confidence)?x.confidence:"low"};
 }
 function normalize(s){return safe(s,250).toLocaleLowerCase("fr").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();}
 function matchCatalog(lines,products){
