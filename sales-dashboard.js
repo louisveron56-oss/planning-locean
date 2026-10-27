@@ -13,7 +13,8 @@
   var euro=new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0});
   var decimal=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2});
   function el(tag,cls,txt){var n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;}
-  function sum(rows,key){return rows.reduce(function(a,r){return a+(Number(r[key])||0);},0);}
+  function numeric(value){if(typeof value==='number')return Number.isFinite(value)?value:0;var s=String(value==null?'':value).replace(/[\s\u00a0\u202f€]/g,'').replace(',','.');return Number(s)||0;}
+  function sum(rows,key){return rows.reduce(function(a,r){return a+numeric(r[key]);},0);}
   function pct(now,prev){return prev?((now-prev)/prev*100):null;}
   function fmtPct(v){return v==null?'—':(v>0?'+':'')+decimal.format(v)+' %';}
   function makeCard(label,value,change){var c=el('div','future-panel');c.appendChild(el('div','fp-label',label));c.appendChild(el('div','fp-value',value));if(change!==undefined)c.appendChild(el('div','fp-sub',change));return c;}
@@ -27,7 +28,7 @@
     for(var i=0;i<7;i++){var day=new Date(start);day.setDate(start.getDate()+i);var key=iso(day),lastYear=new Date(day);lastYear.setDate(day.getDate()-364);var a=dayMap.get(key),b=dayMap.get(iso(lastYear));if(a)current.push(a);if(b)prior.push(b);days.push({key:key,day:day,a:a,b:b});}
     var ca=sum(current,'ca_ttc'),before=sum(prior,'ca_ttc'),covers=sum(current,'couverts'),oldCovers=sum(prior,'couverts');
     var avg=covers?sum(current,'ca_tables')/covers:0;
-    if(!avg)avg=covers?current.reduce(function(a,r){return a+(Number(r.ticket_moyen)||0)*(Number(r.couverts)||0);},0)/covers:0;
+    if(!avg)avg=covers?current.reduce(function(a,r){return a+(numeric(r.ticket_moyen))*(numeric(r.couverts));},0)/covers:0;
     container.style.display='block';container.style.textAlign='left';
     container.replaceChildren();
     container.appendChild(el('div','module-kicker','DONNÉES DE CAISSE · LECTURE SEULE'));
@@ -43,7 +44,7 @@
     var table=el('table','me-table'),thead=el('thead'),head=el('tr');
     ['Date','CA TTC','Couverts','Ticket moyen','CA N-1'].forEach(function(t){head.appendChild(el('th','',t));});thead.appendChild(head);table.appendChild(thead);
     var body=el('tbody');
-    days.forEach(function(x){var tr=el('tr');tr.appendChild(el('td','',x.day.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'})));tr.appendChild(el('td','',x.a?euro.format(Number(x.a.ca_ttc)||0):'Z absent'));tr.appendChild(el('td','',x.a?decimal.format(Number(x.a.couverts)||0):'—'));tr.appendChild(el('td','',x.a?decimal.format(Number(x.a.ticket_moyen)||0)+' €':'—'));tr.appendChild(el('td','',x.b?euro.format(Number(x.b.ca_ttc)||0):'—'));body.appendChild(tr);});
+    days.forEach(function(x){var tr=el('tr');tr.appendChild(el('td','',x.day.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'})));tr.appendChild(el('td','',x.a?euro.format(numeric(x.a.ca_ttc)):'Z absent'));tr.appendChild(el('td','',x.a?decimal.format(numeric(x.a.couverts)):'—'));tr.appendChild(el('td','',x.a?decimal.format(numeric(x.a.ticket_moyen))+' €':'—'));tr.appendChild(el('td','',x.b?euro.format(numeric(x.b.ca_ttc)):'—'));body.appendChild(tr);});
     table.appendChild(body);wrap.appendChild(table);card.appendChild(wrap);container.appendChild(card);
     container.appendChild(el('p','pointage-footnote','Source : Google Sheets LOCEAN_DATA_API, onglet Jours. Une journée absente est signalée et jamais assimilée à zéro. La comparaison N-1 porte sur les mêmes jours de semaine.'));
   }
