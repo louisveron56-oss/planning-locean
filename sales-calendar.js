@@ -23,9 +23,9 @@ function draw(){
  var popup=document.querySelector('#module-sales .sales-calendar-popup');if(!popup||!opened)return;
  popup.replaceChildren();
  var top=el('div','sales-calendar-head');
- top.appendChild(btn('‹',function(){view=new Date(view.getFullYear()+(mode==='year'?-1:0),view.getMonth()+(mode==='year'?0:mode==='month'?-12:-1),1,12);draw();},'sales-calendar-arrow'));
+ top.appendChild(btn('‹',function(){view=new Date(view.getFullYear()+(mode==='year'?-12:0),view.getMonth()+(mode==='year'?0:mode==='month'?-12:-1),1,12);draw();},'sales-calendar-arrow'));
  top.appendChild(el('strong','',mode==='month'||mode==='year'?String(view.getFullYear()):monthFmt.format(view)));
- top.appendChild(btn('›',function(){view=new Date(view.getFullYear()+(mode==='year'?1:0),view.getMonth()+(mode==='year'?0:mode==='month'?12:1),1,12);draw();},'sales-calendar-arrow'));
+ top.appendChild(btn('›',function(){view=new Date(view.getFullYear()+(mode==='year'?12:0),view.getMonth()+(mode==='year'?0:mode==='month'?12:1),1,12);draw();},'sales-calendar-arrow'));
  popup.appendChild(top);
  var tabs=el('div','sales-calendar-modes');
  modes.forEach(function(x){var b=btn(x[1],function(){mode=x[0];draw();},'sales-calendar-mode');if(x[0]===mode)b.classList.add('active');tabs.appendChild(b);});
