@@ -90,7 +90,8 @@ export default async function(request) {
 
     const fields = [
       "date", "etablissement", "ca_ttc", "ca_ht",
-      "ca_tables", "couverts", "ticket_moyen", "nb_tickets"
+      "ca_tables", "ca_comptoir", "couverts", "ticket_moyen", "nb_tickets",
+      "retours_nb", "retours_montant", "offerts_nb", "offerts_montant"
     ];
 
     const rows = values.map(row =>
