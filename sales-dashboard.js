@@ -61,6 +61,8 @@ function redraw(){
  container.appendChild(headline);
  buildTable(container,range,map);
  container.appendChild(elem('p','sales-note','Source : LOCEAN_DATA_API / Jours. Les jours sans Z ne sont jamais traités comme un CA nul. Pour les jours et semaines, N-1 signifie même jour de la semaine, 52 semaines plus tôt.'));
+ window.__loceanSalesLatest={period:period,anchor:key(anchor),rows:data.rows};
+ window.dispatchEvent(new CustomEvent('locean-sales-update',{detail:window.__loceanSalesLatest}));
 }
 async function load(force){
  if(loading||(!force&&ready))return;var holder=document.querySelector('#module-sales .module-placeholder');if(!holder)return;
@@ -90,4 +92,5 @@ function install(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
 window.loadSalesDashboard=load;
+var insightsScript=document.createElement('script');insightsScript.src='./sales-insights.js';insightsScript.defer=true;document.head.appendChild(insightsScript);
 })();
