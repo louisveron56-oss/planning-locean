@@ -53,9 +53,9 @@ function render(){
  var figures=el('div','sales-x-kpis');
  var salesTables=sum(rows,'ca_tables'),counter=sum(rows,'ca_comptoir'),tickets=sum(rows,'nb_tickets'),covers=sum(rows,'couverts');
  chip(figures,'Tickets enregistrés',integer.format(tickets),'D’après les Z de caisse');
- chip(figures,'CA salle',money.format(salesTables),sumCA?percent.format(salesTables/sumCA*100)+' % du CA total':'—');
- chip(figures,'CA comptoir',money.format(counter),sumCA?percent.format(counter/sumCA*100)+' % du CA total':'—');
- chip(figures,'Offerts et retours',money.format(sum(rows,'offerts_montant')+sum(rows,'retours_montant')),'Montants cumulés, hors déduction du CA');
+ chip(figures,'CA par ticket de caisse',tickets?money.format(sumCA/tickets):'—','CA TTC ÷ tickets enregistrés');
+ chip(figures,'Offerts',money.format(sum(rows,'offerts_montant')),'Montant total des offerts');
+ chip(figures,'Retours',money.format(sum(rows,'retours_montant')),'Montant total des retours');
  root.appendChild(figures);
  var pay=section('Modes de paiement','Répartition des encaissements de la période');
  if(!payments){pay.appendChild(el('p','sales-x-empty','Lecture des paiements en cours…'));}
