@@ -49,6 +49,7 @@ function renderGoal(holder){
  var button=append(row,'button','sales-goal-button','Enregistrer');button.type='button';
  button.addEventListener('click',function(){var proposed=Number(input.value);if(!Number.isFinite(proposed)||proposed<0)return;var obj=savedTargets();if(proposed>0)obj[month]=proposed;else delete obj[month];updateTargets(obj);redraw();});
  append(box,'p','sales-goal-notice','Objectif mémorisé uniquement sur cet appareil. Le seuil de rentabilité sera ajouté lorsque les charges fixes, variables et le prévisionnel auront été validés. Ce pourcentage mesure l’atteinte d’un objectif commercial, pas la rentabilité.');
+ var link=append(box,'button','sales-goal-button','Voir le Tableau de bord');link.type='button';link.style.marginTop='12px';link.addEventListener('click',function(){if(typeof window.navigateApp==='function')window.navigateApp('dashboard');});
  holder.appendChild(box);
 }
 function redraw(){
