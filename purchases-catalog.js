@@ -5,8 +5,34 @@ var all=[],ready=false,reference='',savedAt='',query='',category='Tous',offset=0
 var euro=new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2});
 function e(tag,cls,text){var x=document.createElement(tag);if(cls)x.className=cls;if(text!==undefined)x.textContent=text;return x;}
 function append(p,tag,cls,text){var x=e(tag,cls,text);p.appendChild(x);return x;}
-function userToken(){var u=window.netlifyIdentity&&window.netlifyIdentity.currentUser();return u?u.jwt():Promise.reject(Error('Connecte-toi pour accéder aux tarifs.'));}
-async function request(method,data){var token=await userToken(),res=await fetch('/.netlify/functions/purchases',{method,headers:{Authorization:'Bearer '+token,...(data?{'Content-Type':'application/json'}:{})},body:data?JSON.stringify(data):undefined,cache:'no-store'});var payload=await res.json();if(!res.ok)throw Error(payload.error||'Service indisponible');return payload;}
+async function userToken(){
+ var u=window.netlifyIdentity&&window.netlifyIdentity.currentUser();
+ if(!u)throw Error('Session : connecte-toi dans Prism avant d’importer le catalogue.');
+ try{
+  var jwt=await u.jwt();
+  if(typeof jwt==='string'&&jwt.split('.').length===3)return jwt;
+  throw Error('Jeton de session invalide');
+ }catch(err){
+  // Certains navigateurs iOS renvoient une DOMException peu explicite
+  // au rafraîchissement Identity. Un access token encore valide reste acceptable.
+  var cached=u.token;
+  if(cached&&cached.access_token&&Number(cached.expires_at||0)>Date.now()+30000&&cached.access_token.split('.').length===3)return cached.access_token;
+  throw Error('Session : impossible de renouveler la connexion sécurisée. Déconnecte-toi puis reconnecte-toi dans Prism. ('+(err.message||'erreur navigateur')+')');
+ }
+}
+async function request(method,data){
+ var token=await userToken(),url=new URL('/.netlify/functions/purchases',window.location.origin);
+ var response;
+ try{
+  response=await fetch(url.href,{method:method,headers:{'Authorization':'Bearer '+token,...(data?{'Content-Type':'application/json'}:{})},body:data?JSON.stringify(data):undefined,cache:'no-store',signal:AbortSignal.timeout(25000)});
+ }catch(err){
+  throw Error('Connexion Netlify : '+(err.name==='TimeoutError'?'délai dépassé':err.message||'requête refusée')+'. Vérifie le déploiement de test et ta connexion.');
+ }
+ var payload;
+ try{payload=await response.json();}catch(_){throw Error('Service Netlify : réponse non JSON (HTTP '+response.status+'). Vérifier le déploiement des fonctions.');}
+ if(!response.ok)throw Error('Serveur Netlify (HTTP '+response.status+') : '+(payload.error||'import refusé'));
+ return payload;
+}
 function normalize(s){return String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();}
 function numeric(v){var n=Number(String(v??'').trim().replace(/\s|\u00a0/g,'').replace(',','.'));return Number.isFinite(n)?n:NaN;}
 function csvRows(text){
@@ -74,9 +100,10 @@ function render(){
   if(!confirm('Importer les prix HT dans le stockage privé ? Cela remplacera la version précédente du catalogue.'))return;
   btn.disabled=true;status.textContent='Vérification et import sécurisé…';
   try{var text=await input.files[0].text(),items=fromCSV(text);
+   status.textContent=items.length+' références CSV vérifiées. Enregistrement privé en cours…';
    var result=await request('POST',{establishment:'LOCEAN',products:items});
    status.textContent=result.count+' références enregistrées dans le stockage privé.';await load();
-  }catch(err){showError(err);}finally{btn.disabled=false;}
+  }catch(err){showError(err);console.error('Prism catalogue import',err);}finally{btn.disabled=false;}
  });
  append(root,'div','purchases-results');renderTable();
 }
