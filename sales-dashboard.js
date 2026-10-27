@@ -5,9 +5,9 @@
   function dateKey(value){
     if(value==null)return null;
     var s=String(value).trim(),m;
-    if((m=s.match(/^(\\d{4})-(\\d{2})-(\\d{2})/)))return m[1]+'-'+m[2]+'-'+m[3];
-    if((m=s.match(/^(\\d{1,2})[\\/.-](\\d{1,2})[\\/.-](\\d{4})/)))return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
-    if(/^\\d{5}$/.test(s))return new Date((Number(s)-25569)*86400000).toISOString().slice(0,10);
+    if((m=s.match(/^(\d{4})-(\d{2})-(\d{2})/)))return m[1]+'-'+m[2]+'-'+m[3];
+    if((m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/)))return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+    if(/^\d{5}$/.test(s))return new Date((Number(s)-25569)*86400000).toISOString().slice(0,10);
     return null;
   }
   var euro=new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0});
