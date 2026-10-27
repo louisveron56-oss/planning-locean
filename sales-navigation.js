@@ -2,6 +2,7 @@
 (function(){
 'use strict';
 var selected='overview';
+function isDaily(){return !!document.querySelector('#module-sales .sales-tabs button.selected')&&[...document.querySelectorAll('#module-sales .sales-tabs button')].indexOf(document.querySelector('#module-sales .sales-tabs button.selected'))===0;}
 var tabs=[
  ['overview','Synthèse'],
  ['services','Services'],
@@ -49,7 +50,7 @@ function apply(){
   hidden(root.querySelector(selector),selected!=='overview');
  var insights=root.querySelector('.sales-insights');
  if(insights){
-  hidden(insights,!['overview','services','products'].includes(selected));
+  hidden(insights,!['overview','services','products'].includes(selected)||(selected==='overview'&&isDaily()));
   hidden(insights.querySelector('.sales-insight-label'),selected!=='overview');
   for(var section of insights.querySelectorAll('.sales-insight-section')){
    var title=section.querySelector('h3')?.textContent||'';
@@ -59,7 +60,7 @@ function apply(){
  }
  var performance=root.querySelector('.sales-extra');
  if(performance){
-  hidden(performance,!['overview','payments'].includes(selected));
+  hidden(performance,!['overview','payments'].includes(selected)||(selected==='overview'&&isDaily()));
   for(var element of performance.children){
    var heading=element.querySelector('h3')?.textContent||'';
    var group=heading.includes('Modes de paiement')?'payments':'overview';
