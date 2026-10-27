@@ -28,6 +28,7 @@
     var ca=sum(current,'ca_ttc'),before=sum(prior,'ca_ttc'),covers=sum(current,'couverts'),oldCovers=sum(prior,'couverts');
     var avg=covers?sum(current,'ca_tables')/covers:0;
     if(!avg)avg=covers?current.reduce(function(a,r){return a+(Number(r.ticket_moyen)||0)*(Number(r.couverts)||0);},0)/covers:0;
+    container.style.display='block';container.style.textAlign='left';
     container.replaceChildren();
     container.appendChild(el('div','module-kicker','DONNÉES DE CAISSE · LECTURE SEULE'));
     container.appendChild(el('h3','module-title','Les 7 derniers jours du fichier'));
