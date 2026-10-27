@@ -14,7 +14,7 @@ async function auth(){
  if(!allowed.includes(user.email.toLowerCase()))return {error:send({error:"Accès refusé"},403)};
  return {user};
 }
-const shape=(doc)=>({id:doc.id,filename:doc.filename,mime:doc.mime,kind:doc.kind,establishment:doc.establishment,supplier:doc.supplier,date:doc.date,documentNumber:doc.documentNumber,createdAt:doc.createdAt,status:doc.status,lines:doc.lines||[],notes:doc.notes||"",analysisError:doc.analysisError||"",confirmedAt:doc.confirmedAt||"",linkedInvoice:doc.linkedInvoice||""});
+const shape=(doc)=>({id:doc.id,filename:doc.filename,mime:doc.mime,kind:doc.kind,establishment:doc.establishment,supplier:doc.supplier,date:doc.date,documentNumber:doc.documentNumber,createdAt:doc.createdAt,status:doc.status,lines:doc.lines||[],notes:doc.notes||"",analysisError:doc.analysisError||"",confirmedAt:doc.confirmedAt||"",linkedInvoice:doc.linkedInvoice||"",catalogUnitsUpdated:doc.catalogUnitsUpdated||0});
 function optionalNumber(v){return v===null||v===undefined||v===""?null:Number.isFinite(Number(v))?Number(v):null;}
 function cleanLine(x){
  return {description:safe(x.description,250),reference:safe(x.reference,90),quantity:optionalNumber(x.quantity),unit:safe(x.unit,65),unitPriceHT:optionalNumber(x.unitPriceHT),lineTotalHT:optionalNumber(x.lineTotalHT),catalogIndex:Number.isInteger(x.catalogIndex)&&x.catalogIndex>=0?x.catalogIndex:null,confidence:["high","medium","low"].includes(x.confidence)?x.confidence:"low"};
@@ -106,7 +106,33 @@ export default async function(req){
    doc.supplier=safe(body.supplier);doc.date=/^\d{4}-\d{2}-\d{2}$/.test(body.date||"")?body.date:"";
    doc.documentNumber=safe(body.documentNumber,100);doc.lines=body.lines.map(cleanLine);
    doc.status="validé";doc.confirmedAt=new Date().toISOString();doc.confirmedBy=identity.user.email;
-   // L'archive est approuvée, mais les tarifs catalogue NE SONT JAMAIS modifiés ici.
+   // Enrichissement explicite des unités seulement : jamais de modification de prix.
+   // Validation par identité de produit, sans déduction d'un conditionnement ambigu.
+   let enriched=0;
+   const requested=Array.isArray(body.catalogUnitUpdates)?body.catalogUnitUpdates:[];
+   if(requested.length){
+    const catalogStore=catalog();
+    const saved=await catalogStore.get("ocean/latest",{type:"json",consistency:"strong"});
+    if(!saved||!Array.isArray(saved.products))return send({error:"Catalogue absent : import requis avant l'enrichissement des unités."},409);
+    const changed=new Set();
+    for(const proposal of requested){
+     const lineIndex=Number(proposal.lineIndex),catalogIndex=Number(proposal.catalogIndex);
+     if(!Number.isInteger(lineIndex)||!Number.isInteger(catalogIndex)||lineIndex<0||lineIndex>=doc.lines.length||catalogIndex<0||catalogIndex>=saved.products.length)continue;
+     const line=doc.lines[lineIndex],product=saved.products[catalogIndex];
+     const unit=safe(line.unit,65);
+     if(!unit||unit.toLowerCase()==="non précisée"||changed.has(catalogIndex))continue;
+     // Do not overwrite any existing meaningful unit, even when BL differs.
+     if(product.unit&&product.unit.trim()&&product.unit.trim().toLowerCase()!=="non précisée")continue;
+     // The UI must have explicitly selected the product for this BL line.
+     if(line.catalogIndex!==catalogIndex)continue;
+     product.unit=unit;
+     product.unitSource="BL validé · "+doc.id;
+     product.unitUpdatedAt=new Date().toISOString();
+     changed.add(catalogIndex);enriched++;
+    }
+    if(enriched){saved.savedAt=new Date().toISOString();await catalogStore.setJSON("ocean/latest",saved);}
+   }
+   doc.catalogUnitsUpdated=enriched;
    await db.setJSON("docs/"+doc.id,doc);
   }else return send({error:"Action inconnue"},400);
   const list=await db.get("index",{type:"json",consistency:"strong"})||[];
