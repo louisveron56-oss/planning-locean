@@ -24,6 +24,7 @@ function mount(){
   var items=e('div','prism-functional-items');items.hidden=true;
   items.id='prism-functional-'+i;header.setAttribute('aria-controls',items.id);header.onclick=()=>toggle(header,items);
   g[2].forEach(function(pair){
+   if(i===0&&pair[0]==='costs')items.appendChild(e('div','prism-functional-subheading','RENTABILITÉ'));
    var btn=map.get(pair[0]);if(!btn)return;
    var icon=btn.querySelector('.app-nav-icon')?.textContent||'·';
    btn.replaceChildren(e('span','app-nav-icon',icon),document.createTextNode(pair[1]));
@@ -65,7 +66,7 @@ function init(){
 var style=e('style');style.textContent=
 '.prism-functional-nav{display:flex;flex-direction:column;gap:6px;padding:8px 0}.prism-home-link{font-weight:750!important;margin:3px 8px 13px!important;padding:13px 12px!important}.prism-functional-group{margin:0 6px 3px}.prism-functional-toggle{display:flex;align-items:center;gap:9px;width:100%;min-height:43px;background:transparent;color:#EAE0D3;border:0;text-align:left;padding:10px 9px;border-radius:8px;cursor:pointer}.prism-functional-toggle:hover,.prism-functional-toggle[aria-expanded=true]{background:rgba(234,224,211,.1)}'
 +'.prism-functional-symbol{min-width:22px;text-align:center;font-size:16px;color:#d8c6b6}.prism-functional-label{flex:1;font-size:10px;letter-spacing:.055em;font-weight:750}.prism-functional-chevron{font-size:18px;color:#d8c6b6}.prism-functional-toggle[aria-expanded=true] .prism-functional-chevron{transform:rotate(180deg)}.prism-functional-items{padding:0 0 5px 12px}.prism-functional-items[hidden]{display:none!important}.prism-functional-items .app-nav-item{font-size:12px!important;min-height:36px!important}'
-+'.prism-mobile-toggle{display:block;background:transparent;color:inherit;border:0;font-size:12px;font-weight:750;text-align:left;padding:14px 8px;width:100%}.prism-mobile-items[hidden]{display:none!important}.prism-mobile-items .oce-menu-link{padding-left:20px!important}.prism-mobile-group{padding:0 4px}';
++'.prism-functional-subheading{color:#d1b6a0;font-size:9px;font-weight:750;letter-spacing:.08em;padding:12px 10px 5px}.prism-mobile-toggle{display:block;background:transparent;color:inherit;border:0;font-size:12px;font-weight:750;text-align:left;padding:14px 8px;width:100%}.prism-mobile-items[hidden]{display:none!important}.prism-mobile-items .oce-menu-link{padding-left:20px!important}.prism-mobile-group{padding:0 4px}';
 document.head.appendChild(style);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
