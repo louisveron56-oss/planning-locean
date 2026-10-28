@@ -3,6 +3,7 @@
 'use strict';
 var ready=false,loading=false;
 function e(tag,cls,value){var x=document.createElement(tag);if(cls)x.className=cls;if(value!==undefined)x.textContent=value;return x;}
+async function token(){var user=window.netlifyIdentity&&window.netlifyIdentity.currentUser();if(!user)throw Error('Connexion requise');return user.jwt();}
 function key(value){return String(value||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();}
 function euro(v){return new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format(v);}
 async function render(){
