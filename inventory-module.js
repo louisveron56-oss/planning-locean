@@ -42,7 +42,7 @@ async function exportAll(){
 function home(){
  root.replaceChildren();
  let h=add(root,'div','pi-title');add(h,'h3','','Inventaires de L’Océan');add(h,'p','','Comptage mobile par zone · jauge des bouteilles entamées · valorisation HT');
- let actions=add(root,'div','pi-actions');btn(actions,'+ Nouvel inventaire',()=>{current={zone:'Bar',date:today(),label:'',notes:'',status:'draft',version:0,lines:[]};rows=[];edit();},'pi-main');btn(actions,'Actualiser',load);
+ let actions=add(root,'div','pi-actions');btn(actions,'+ Nouvel inventaire',()=>{current={zone:'Bar',date:today(),label:'',notes:'',status:'draft',version:0,zoneComplete:false,lines:[]};rows=[];edit();},'pi-main');btn(actions,'Actualiser',load);
  btn(actions,'Exporter tous les inventaires validés (CSV)',exportAll);
  add(root,'p','pi-status','Comptage assisté et contrôlé. La reconnaissance photographique reste une étape expérimentale.');
  let list=add(root,'section','pi-section');add(list,'h4','','Historique des comptages');
@@ -167,11 +167,13 @@ function edit(){
  let listing=add(root,'section','pi-section');add(listing,'h4','','Produits de cette zone');
  let holder=add(listing,'div','pi-list'),total=add(root,'div','pi-total','');
  let message=add(root,'p','pi-status','');
+ let completeness=add(root,'label','pi-confirm pi-zone-complete'),completeCheck=add(completeness,'input');completeCheck.type='checkbox';completeCheck.checked=!!current.zoneComplete;completeCheck.disabled=locked;
+ add(completeness,'span','','Je confirme que tous les produits présents dans cette zone ont été comptés, y compris les réserves ou cartons non visibles.');
  let controls=add(root,'div','pi-actions'),save,validate;
  if(!locked){save=btn(controls,'Enregistrer le brouillon',saveDraft,'pi-main');validate=btn(controls,'Valider et verrouiller',validateDraft);}
  if(current.id)btn(controls,locked?'Exporter le comptage validé (CSV)':'Exporter le brouillon (CSV)',()=>{collect();let data=rows.map(l=>({...l,quantity:n(l.sealed)+n(l.open)*n(l.openPct)/100,valueHT:(n(l.sealed)+n(l.open)*n(l.openPct)/100)*n(l.unitPriceHT)}));exportCsv({...current,lines:data});});
  function collect(){
-  current.zone=zone.value;current.date=date.value;current.label=label.value;current.notes=notes.value;
+  current.zone=zone.value;current.date=date.value;current.label=label.value;current.notes=notes.value;current.zoneComplete=completeCheck.checked;
   holder.querySelectorAll('[data-product-id]').forEach(block=>{
    let row=rows.find(x=>x.productId===block.dataset.productId);if(!row)return;
    block.querySelectorAll('[data-key]').forEach(input=>{let key=input.dataset.key;row[key]=key==='unitConfirmed'?input.checked:key==='note'?input.value:n(input.value);});
@@ -207,7 +209,7 @@ function edit(){
  }
  async function saveDraft(){
   if(busy)return;collect();busy=true;save.disabled=true;validate.disabled=true;status('Enregistrement du brouillon…');
-  try{let r=await request('inventory',{action:'save',id:current.id,version:current.version,zone:current.zone,date:current.date,label:current.label,notes:current.notes,lines:rows});current=r.session;rows=current.lines.map(x=>({...x}));sessions=r.summary;edit();status('Brouillon enregistré.');}
+  try{let r=await request('inventory',{action:'save',id:current.id,version:current.version,zone:current.zone,date:current.date,label:current.label,notes:current.notes,zoneComplete:current.zoneComplete,lines:rows});current=r.session;rows=current.lines.map(x=>({...x}));sessions=r.summary;edit();status('Brouillon enregistré.');}
   catch(err){status(err.message,true);busy=false;save.disabled=false;validate.disabled=false;return;}busy=false;
  }
  async function validateDraft(){
@@ -215,11 +217,12 @@ function edit(){
   collect();
   if(!current.id){status('Enregistre le brouillon avant validation.',true);return;}
   if(rows.some(x=>!x.unitConfirmed)){status('Confirme toutes les unités et prix.',true);return;}
+  if(!current.zoneComplete){status('Confirme que la zone a été entièrement comptée.',true);return;}
   if(!confirm('Valider définitivement cet inventaire ?'))return;
   busy=true;validate.disabled=true;if(save)save.disabled=true;
   try{
    // Toujours enregistrer les derniers changements avant verrouillage définitif.
-   let draft=await request('inventory',{action:'save',id:current.id,version:current.version,zone:current.zone,date:current.date,label:current.label,notes:current.notes,lines:rows});
+   let draft=await request('inventory',{action:'save',id:current.id,version:current.version,zone:current.zone,date:current.date,label:current.label,notes:current.notes,zoneComplete:current.zoneComplete,lines:rows});
    current=draft.session;sessions=draft.summary;rows=current.lines.map(x=>({...x}));
    let r=await request('inventory',{action:'validate',id:current.id,version:current.version});
    current=r.session;sessions=r.summary;rows=current.lines.map(x=>({...x}));edit();
