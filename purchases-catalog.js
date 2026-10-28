@@ -56,6 +56,119 @@ function fromCSV(text){
  return products;
 }
 function showError(err){var status=root&&root.querySelector('.purchases-state');if(status)status.textContent=err.message||String(err);}
+
+function validHistory(p){return (p.priceHistory||[]).filter(h=>!h.invalidatedAt&&Number.isFinite(Number(h.price))).sort((a,b)=>String(a.at).localeCompare(String(b.at)));}
+function priceChange(p){
+ var entries=validHistory(p).filter(h=>normalize(h.unit)===normalize(p.unit));
+ if(entries.length<2)return null;
+ var prev=entries[entries.length-2],last=entries[entries.length-1];
+ if(Number(prev.price)<=0)return null;
+ return (Number(last.price)/Number(prev.price)-1)*100;
+}
+function badge(p){
+ var change=priceChange(p),tag=e('span','purchases-delta');
+ if(change===null){tag.textContent='—';tag.title='Pas encore de variation tarifaire comparable';return tag;}
+ tag.textContent=(change>0?'+':'')+change.toLocaleString('fr-FR',{maximumFractionDigits:1})+' %';
+ tag.classList.add(change>0?'is-up':change<0?'is-down':'is-flat');
+ tag.title='Évolution par rapport au prix précédent, à conditionnement identique';
+ return tag;
+}
+function openProduct(id,editFirst){
+ var product=all.find(p=>p.id===id);if(!product)return;
+ var overlay=e('div','purchases-detail-overlay'),panel=e('section','purchases-detail-panel');
+ overlay.appendChild(panel);document.body.appendChild(overlay);
+ panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-label','Fiche produit : '+product.name);
+ var prevFocus=document.activeElement;
+ function close(){overlay.remove();document.removeEventListener('keydown',esc);if(prevFocus?.isConnected)prevFocus.focus();}
+ function esc(ev){if(ev.key==='Escape')close();}
+ document.addEventListener('keydown',esc);overlay.addEventListener('click',ev=>{if(ev.target===overlay)close();});
+ var header=append(panel,'div','purchases-detail-header'),title=append(header,'div','purchases-detail-titles');
+ append(title,'small','',product.category+' · Fiche produit');append(title,'h3','',product.name);
+ var exit=append(header,'button','purchases-detail-close','Fermer ×');exit.type='button';exit.onclick=close;
+ var tabs=append(panel,'div','purchases-detail-tabs');
+ var infoBtn=append(tabs,'button','','Historique des prix'),editBtn=append(tabs,'button','','Modifier le produit');
+ infoBtn.type=editBtn.type='button';
+ var content=append(panel,'div','purchases-detail-content'),notice=append(panel,'p','purchases-detail-notice','');
+ function setNotice(message,error){notice.textContent=message;notice.style.color=error?'#a6382e':'#28704b';}
+ function chartView(period){
+  var container=e('div','purchases-price-chart');
+  var h=validHistory(product).filter(x=>normalize(x.unit)===normalize(product.unit));
+  if(!h.length){append(container,'p','purchases-empty','Aucune variation de prix historisée pour ce conditionnement. Les premières observations commencent à leur date réelle d’enregistrement.');return container;}
+  var months=period==='month',data=new Map();
+  h.forEach(x=>{var date=String(x.at).slice(0,months?7:4);if(date)data.set(date,x);});
+  var points=[...data].map(([date,x])=>({date,price:Number(x.price)}));
+  if(points.length<2){append(container,'p','purchases-empty','Une seule période tarifaire enregistrée. La courbe apparaîtra après les prochaines évolutions.');}
+  var width=620,height=235,left=62,right=22,top=22,bottom=43;
+  var vals=points.map(x=>x.price),min=Math.min(...vals),max=Math.max(...vals);
+  if(max===min){min=Math.max(0,min*.85);max=max?max*1.15:1;}
+  else{var pad=(max-min)*.18;min=Math.max(0,min-pad);max+=pad;}
+  var ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');
+  svg.setAttribute('viewBox','0 0 '+width+' '+height);svg.setAttribute('role','img');svg.setAttribute('aria-label','Évolution du prix HT par '+(months?'mois':'année'));
+  function line(x1,y1,x2,y2,color,sw){var l=document.createElementNS(ns,'line');[['x1',x1],['y1',y1],['x2',x2],['y2',y2],['stroke',color],['stroke-width',sw]].forEach(([k,v])=>l.setAttribute(k,v));svg.appendChild(l);}
+  function txt(x,y,t,anchor){var n=document.createElementNS(ns,'text');n.setAttribute('x',x);n.setAttribute('y',y);n.setAttribute('fill','#746659');n.setAttribute('font-size','11');n.setAttribute('text-anchor',anchor||'start');n.textContent=t;svg.appendChild(n);}
+  for(var tick=0;tick<=4;tick++){var v=min+(max-min)*(4-tick)/4,y=top+(height-top-bottom)*tick/4;line(left,y,width-right,y,'#e8dfd5',1);txt(left-9,y+4,euro.format(v),'end');}
+  function xPos(i){return left+(width-left-right)*(points.length===1?.5:i/(points.length-1));}
+  function yPos(v){return top+(max-v)/(max-min)*(height-top-bottom);}
+  var path=document.createElementNS(ns,'path'),d=points.map((p,i)=>(i?'L':'M')+xPos(i)+' '+yPos(p.price)).join(' ');
+  path.setAttribute('d',d);path.setAttribute('fill','none');path.setAttribute('stroke','#845a43');path.setAttribute('stroke-width','3');path.setAttribute('stroke-linejoin','round');svg.appendChild(path);
+  points.forEach((p,i)=>{var circle=document.createElementNS(ns,'circle');circle.setAttribute('cx',xPos(i));circle.setAttribute('cy',yPos(p.price));circle.setAttribute('r','4');circle.setAttribute('fill','#845a43');svg.appendChild(circle);if(points.length<=9||i===0||i===points.length-1)txt(xPos(i),height-17,p.date,'middle');});
+  container.appendChild(svg);return container;
+ }
+ function history(){
+  content.replaceChildren();
+  var summary=append(content,'div','purchases-detail-summary');
+  [['Prix HT courant',euro.format(product.price)],['Conditionnement',product.unit||'Non précisé'],['Évolution',badge(product).textContent]].forEach(([label,value])=>{var card=append(summary,'div','purchases-detail-stat');append(card,'small','',label);append(card,'strong','',value);});
+  var heading=append(content,'div','purchases-history-heading');append(heading,'h4','','Historique tarifaire');
+  var period=append(heading,'select','purchases-detail-select');
+  [['month','Par mois'],['year','Par année']].forEach(([id,text])=>{var opt=append(period,'option','',text);opt.value=id;});
+  var chart=append(content,'div','purchases-history-plot');function draw(){chart.replaceChildren(chartView(period.value));}period.onchange=draw;draw();
+  append(content,'p','purchases-help','Chaque point représente le dernier prix HT validé de la période, à conditionnement identique. Les erreurs écartées ne sont pas tracées.');
+  var rows=append(content,'div','purchases-history-entries');append(rows,'h4','','Journal des prix');
+  var list=(product.priceHistory||[]).slice().sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+  if(!list.length)append(rows,'p','purchases-empty','Aucun historique pour l’instant. La première modification enregistrera le prix de départ puis le nouveau prix.');
+  list.forEach(x=>{
+   var row=append(rows,'div','purchases-history-row'+(x.invalidatedAt?' is-invalid':'')),info=append(row,'div','purchases-history-info');
+   append(info,'strong','',euro.format(Number(x.price))+' / '+(x.unit||'unité non renseignée'));
+   append(info,'small','',new Date(x.at).toLocaleDateString('fr-FR')+' · '+(x.reason||x.source||'Prix enregistré'));
+   if(x.invalidatedAt){append(info,'small','','Écarté : '+x.invalidatedReason);return;}
+   var latest=validHistory(product).at(-1)?.id===x.id;
+   if(!latest){
+    var invalid=append(row,'button','purchases-history-invalid','Écarter');invalid.type='button';
+    invalid.onclick=async()=>{
+     var reason=prompt('Pourquoi ce prix est-il erroné ? Il restera dans le journal mais sera exclu des statistiques.');
+     if(reason===null)return;if(reason.trim().length<8){setNotice('Indique une raison d’au moins 8 caractères.',true);return;}
+     invalid.disabled=true;
+     try{var result=await request('PATCH',{establishment:'LOCEAN',action:'invalidate-price',productId:id,entryId:x.id,reason});
+      product=result.product;all=all.map(p=>p.id===id?product:p);renderTable();history();setNotice('Prix écarté de la courbe. Correction conservée dans le journal.');
+     }catch(err){setNotice(err.message,true);invalid.disabled=false;}
+    };
+   }
+  });
+ }
+ function edit(){
+  content.replaceChildren();var form=append(content,'form','purchases-edit-form');
+  function field(label,name,type,value){var wrap=append(form,'label','purchases-edit-field');append(wrap,'span','',label);var input=append(wrap,'input','purchases-edit-input');input.name=name;input.type=type;input.required=name!=='inventoryQuantity';input.value=value??'';return input;}
+  var name=field('Nom du produit','name','text',product.name);
+  var categoryField=append(form,'label','purchases-edit-field');append(categoryField,'span','','Famille');
+  var categorySelect=append(categoryField,'select','purchases-edit-input');categorySelect.name='category';['Bar','Cuisine','Hygiène'].forEach(cat=>{var o=append(categorySelect,'option','',cat);o.value=cat;o.selected=product.category===cat;});
+  var price=field('Prix d’achat HT (€)','price','number',product.price);price.min='0';price.step='0.0001';
+  var unit=field('Unité / conditionnement','unit','text',product.unit);
+  var qty=field('Quantité d’inventaire','inventoryQuantity','number',product.inventoryQuantity);qty.min='0';qty.step='any';
+  var reason=field('Motif de modification (conseillé)','reason','text','');
+  append(form,'p','purchases-help','Les variations de prix et de conditionnement sont historisées. Une correction n’efface jamais la valeur initiale.');
+  var save=append(form,'button','purchases-save','Enregistrer les modifications');save.type='submit';
+  form.onsubmit=async event=>{
+   event.preventDefault();save.disabled=true;setNotice('Enregistrement sécurisé en cours…');
+   try{
+    var res=await request('PATCH',{establishment:'LOCEAN',action:'update',productId:id,changes:{name:name.value.trim(),category:categorySelect.value,price:price.value,unit:unit.value.trim(),inventoryQuantity:qty.value},reason:reason.value.trim()});
+    product=res.product;all=all.map(p=>p.id===id?product:p);renderTable();title.querySelector('h3').textContent=product.name;setActive('history');setNotice('Produit mis à jour et historique conservé.');
+   }catch(err){save.disabled=false;setNotice(err.message,true);}
+  };
+ }
+ function setActive(which){infoBtn.classList.toggle('active',which==='history');editBtn.classList.toggle('active',which==='edit');which==='edit'?edit():history();}
+ infoBtn.onclick=()=>setActive('history');editBtn.onclick=()=>setActive('edit');setActive(editFirst?'edit':'history');exit.focus();
+}
+
 function renderTable(){
  var host=root.querySelector('.purchases-results');host.replaceChildren();
  if(!ready){append(host,'p','purchases-empty','Aucun catalogue privé importé pour L’Océan. Le fichier reste sur ton appareil jusqu’à validation de l’import.');return;}
@@ -63,21 +176,22 @@ function renderTable(){
  var heading=append(host,'div','purchases-count',matches.length+' référence(s) · prix d’achat HT · '+(reference||'inventaire'));
  var wrapper=append(host,'div','purchases-scroll'),table=append(wrapper,'table','purchases-table');
  var thead=append(table,'thead'),tr=append(thead,'tr');
- ['Produit','Pôle','Prix HT','Unité / conditionnement','Source'].forEach(v=>append(tr,'th','',v));
+ ['Produit','Pôle','Prix HT','Évolution','Unité / conditionnement','Modifier'].forEach(v=>append(tr,'th','',v));
  var tbody=append(table,'tbody');
  var mobileCards=append(host,'div','purchases-mobile-cards');
  matches.slice(offset,offset+50).forEach(function(p){
-  var row=append(tbody,'tr');append(row,'td','purchases-name',p.name);append(row,'td','',p.category);
+  var row=append(tbody,'tr');var nameCell=append(row,'td','purchases-name');var productLink=append(nameCell,'button','purchases-product-link',p.name);productLink.type='button';productLink.onclick=()=>openProduct(p.id,false);append(row,'td','',p.category);
   append(row,'td','purchases-price',euro.format(p.price));
-  append(row,'td','',p.unit||'Non précisée');append(row,'td','purchases-source',(p.source||'Feuil4')+(p.sourceRow?' · ligne '+p.sourceRow:''));
+  var diff=append(row,'td','');diff.appendChild(badge(p));
+  append(row,'td','',p.unit||'Non précisée');var editCell=append(row,'td','');var editAction=append(editCell,'button','purchases-edit-trigger','Modifier');editAction.type='button';editAction.onclick=()=>openProduct(p.id,true);
   var tile=append(mobileCards,'article','purchases-mobile-item');
   var top=append(tile,'div','purchases-mobile-top');
-  append(top,'strong','purchases-mobile-name',p.name);
+  var mobileLink=append(top,'button','purchases-product-link purchases-mobile-name',p.name);mobileLink.type='button';mobileLink.onclick=()=>openProduct(p.id,false);
   append(top,'span','purchases-mobile-category',p.category);
   var cells=append(tile,'div','purchases-mobile-fields');
   var cost=append(cells,'div','purchases-mobile-field');append(cost,'small','','Prix d’achat HT');append(cost,'b','',euro.format(p.price));
   var units=append(cells,'div','purchases-mobile-field');append(units,'small','','Conditionnement');append(units,'span','',p.unit||'Non précisée');
-  var foot=append(tile,'div','purchases-mobile-source',(p.source||'Feuil4')+(p.sourceRow?' · ligne '+p.sourceRow:''));
+  var foot=append(tile,'div','purchases-mobile-source');foot.appendChild(badge(p));var editMobile=append(foot,'button','purchases-edit-trigger','Modifier');editMobile.type='button';editMobile.onclick=()=>openProduct(p.id,true);
  });
  if(!matches.length)append(host,'p','purchases-empty','Aucune référence trouvée.');
  if(matches.length>50){var nav=append(host,'div','purchases-pages');var prev=append(nav,'button','','← Précédent');prev.disabled=offset===0;prev.onclick=()=>{offset=Math.max(0,offset-50);renderTable();};
@@ -120,7 +234,7 @@ function render(){
    // Send securely only after the CSV has been fully validated.
    var result=await request('POST',{establishment:'LOCEAN',products:items});
    selectedFile=null;importConfirmed=false;
-   ready=true;reference='Inventaire L’Océan · septembre 2026';savedAt=result.savedAt||'';all=items;offset=0;
+   ready=true;reference='Inventaire L’Océan · septembre 2026';savedAt=result.savedAt||'';all=result.products||items;offset=0;
    render();var success=root.querySelector('.purchases-state');
    if(success)success.textContent='✓ '+result.count+' références enregistrées et disponibles dans le catalogue privé.';
   }catch(err){
@@ -145,6 +259,13 @@ function install(){
 }
 var css=e('style');
 css.textContent='.purchases-root{padding:0!important;max-width:100%!important}.purchases-heading h3{font-size:20px;color:#0A3D62;margin:5px 0}.purchases-heading p,.purchases-disclaimer{font-size:11px;color:#71808b;line-height:1.6}.purchases-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;margin:22px 0}.purchases-stat{border:1px solid #e6e8e6;border-radius:10px;padding:15px;background:white;display:flex;flex-direction:column;gap:5px}.purchases-stat small{color:#78818c}.purchases-stat strong{font-size:25px;color:#0A3D62}.purchases-tools{display:flex;gap:10px;margin-bottom:15px}.purchases-search,.purchases-filter,.purchases-file{border:1px solid #dce0de;border-radius:8px;padding:11px;font-size:12px;background:#fff}.purchases-search{flex:1;min-width:0}.purchases-upload{padding:14px 17px;background:#f8f9f7;border:1px solid #e6e8e5;border-radius:10px;margin:12px 0 20px}.purchases-upload-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.purchases-file{max-width:340px}.purchases-primary{background:#0A3D62;color:#fff;border:0;border-radius:8px;padding:12px 14px;cursor:pointer;font-size:12px}.purchases-primary:disabled{opacity:.6}.purchases-state{font-size:12px;color:#314a5d;margin:11px 0 0}.purchases-results{margin-top:10px}.purchases-count{font-size:11px;color:#70808a;margin-bottom:9px}.purchases-scroll{overflow-x:auto;border:1px solid #e5e8e6;border-radius:10px;background:#fff}.purchases-table{width:100%;border-collapse:collapse;text-align:left;font-size:12px}.purchases-table th{background:#f4f6f5;color:#62707b;font-weight:700;font-size:10px;white-space:nowrap}.purchases-table th,.purchases-table td{padding:12px 13px;border-bottom:1px solid #eceeeb}.purchases-name{font-weight:650;color:#233e51}.purchases-price{font-weight:700;color:#0A3D62;white-space:nowrap}.purchases-source{font-size:10px;color:#8b949b}.purchases-empty{font-size:12px;color:#71808b;padding:15px}.purchases-pages{display:flex;gap:15px;align-items:center;justify-content:center;margin:15px}.purchases-pages button{border:1px solid #ddd;background:#fff;border-radius:7px;padding:8px 11px;cursor:pointer}@media(max-width:650px){.purchases-stats{gap:7px}.purchases-tools{flex-direction:column}.purchases-upload-row{align-items:stretch}.purchases-file{max-width:100%}}';
-css.textContent+="\n.purchases-mobile-cards{display:none}\n@media(max-width:760px){\n #module-suppliers .purchases-scroll{display:none!important}\n #module-suppliers .purchases-mobile-cards{display:flex;flex-direction:column;gap:10px;width:100%;box-sizing:border-box}\n #module-suppliers .purchases-results{min-width:0}\n #module-suppliers .purchases-mobile-item{background:#FFFCF7;border:1px solid #D7C8B8;border-radius:14px;padding:15px;min-width:0;box-shadow:0 3px 12px rgba(51,40,35,.035)}\n #module-suppliers .purchases-mobile-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}\n #module-suppliers .purchases-mobile-name{font-size:15px;line-height:1.35;color:#2B211D;overflow-wrap:anywhere;flex:1;min-width:0}\n #module-suppliers .purchases-mobile-category{font-size:10px;font-weight:750;color:#655448;background:#EDE1D3;border-radius:99px;padding:5px 9px;white-space:nowrap}\n #module-suppliers .purchases-mobile-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:13px;padding-top:12px;border-top:1px solid #EAE0D3}\n #module-suppliers .purchases-mobile-field{display:flex;flex-direction:column;gap:6px;min-width:0}\n #module-suppliers .purchases-mobile-field small{font-size:10px;color:#786A5D}\n #module-suppliers .purchases-mobile-field b{font-size:19px;color:#332823;letter-spacing:-.03em}\n #module-suppliers .purchases-mobile-field span{font-size:12px;color:#42362D;overflow-wrap:anywhere;line-height:1.45}\n #module-suppliers .purchases-mobile-source{margin-top:12px;font-size:10px;color:#806D61}\n #module-suppliers .purchases-count{font-size:12px;line-height:1.5;color:#52453A;margin:15px 0 12px}\n}\n";document.head.appendChild(css);
+css.textContent+="\n.purchases-mobile-cards{display:none}\n@media(max-width:760px){\n #module-suppliers .purchases-scroll{display:none!important}\n #module-suppliers .purchases-mobile-cards{display:flex;flex-direction:column;gap:10px;width:100%;box-sizing:border-box}\n #module-suppliers .purchases-results{min-width:0}\n #module-suppliers .purchases-mobile-item{background:#FFFCF7;border:1px solid #D7C8B8;border-radius:14px;padding:15px;min-width:0;box-shadow:0 3px 12px rgba(51,40,35,.035)}\n #module-suppliers .purchases-mobile-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}\n #module-suppliers .purchases-mobile-name{font-size:15px;line-height:1.35;color:#2B211D;overflow-wrap:anywhere;flex:1;min-width:0}\n #module-suppliers .purchases-mobile-category{font-size:10px;font-weight:750;color:#655448;background:#EDE1D3;border-radius:99px;padding:5px 9px;white-space:nowrap}\n #module-suppliers .purchases-mobile-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:13px;padding-top:12px;border-top:1px solid #EAE0D3}\n #module-suppliers .purchases-mobile-field{display:flex;flex-direction:column;gap:6px;min-width:0}\n #module-suppliers .purchases-mobile-field small{font-size:10px;color:#786A5D}\n #module-suppliers .purchases-mobile-field b{font-size:19px;color:#332823;letter-spacing:-.03em}\n #module-suppliers .purchases-mobile-field span{font-size:12px;color:#42362D;overflow-wrap:anywhere;line-height:1.45}\n #module-suppliers .purchases-mobile-source{margin-top:12px;font-size:10px;color:#806D61}\n #module-suppliers .purchases-count{font-size:12px;line-height:1.5;color:#52453A;margin:15px 0 12px}\n}\n";
+css.textContent += '\n/* Fiche produit et historique de prix — responsive Prism */\n'
++'.purchases-product-link{background:none;border:0;padding:0;text-align:left;cursor:pointer;font:inherit;font-weight:700;color:#4e3327;text-decoration:underline;text-decoration-color:#c9b7a9;text-underline-offset:3px}.purchases-product-link:hover{color:#946045}.purchases-edit-trigger{border:1px solid #d4c3b2;background:#fffaf5;color:#513c30;font-size:11px;font-weight:750;border-radius:8px;padding:8px 11px;cursor:pointer}.purchases-mobile-source{display:flex;align-items:center;justify-content:space-between;gap:10px}.purchases-delta{display:inline-block;border-radius:6px;padding:5px 7px;background:#f2ede7;color:#786c61;font-size:11px;font-weight:750;white-space:nowrap}.purchases-delta.is-up{background:#fbefeb;color:#a54737}.purchases-delta.is-down{background:#e9f5ed;color:#287a51}.purchases-delta.is-flat{background:#f2ede7;color:#7a6d61}'
++'.purchases-detail-overlay{position:fixed;inset:0;z-index:100002;background:rgba(35,25,20,.7);display:flex;justify-content:center;align-items:center;padding:15px;box-sizing:border-box}.purchases-detail-panel{background:#fffdf9;color:#332823;width:min(100%,740px);max-height:94dvh;overflow-y:auto;border-radius:16px;padding:22px;box-shadow:0 14px 55px rgba(0,0,0,.24)}.purchases-detail-header{display:flex;gap:12px;justify-content:space-between;align-items:start}.purchases-detail-titles{min-width:0}.purchases-detail-titles small{font-size:11px;color:#847467}.purchases-detail-titles h3{font-size:21px;color:#332823;margin:5px 0 12px;overflow-wrap:anywhere}.purchases-detail-close{border:1px solid #e0d2c3;background:#f5eee7;color:#45362c;border-radius:8px;padding:9px 12px;cursor:pointer;white-space:nowrap}.purchases-detail-tabs{display:flex;gap:8px;border-bottom:1px solid #e9ded1;padding-bottom:11px;margin:9px 0 17px}.purchases-detail-tabs button{border:1px solid #dfd0c1;background:transparent;color:#55473c;border-radius:7px;padding:10px;font-size:12px;cursor:pointer}.purchases-detail-tabs button.active{background:#332823;color:white;border-color:#332823}'
++'.purchases-detail-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.purchases-detail-stat{display:flex;flex-direction:column;gap:6px;background:#f5eee6;border-radius:9px;padding:12px;min-width:0}.purchases-detail-stat small{font-size:11px;color:#796b60}.purchases-detail-stat strong{font-size:15px;color:#332823;overflow-wrap:anywhere}.purchases-history-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:21px 0 8px}.purchases-history-heading h4,.purchases-history-entries h4{font-size:13px;color:#332823;margin:0}.purchases-detail-select{border:1px solid #dacbbd;border-radius:7px;background:white;padding:8px;color:#332823}.purchases-price-chart{background:#fff;border:1px solid #e9ded2;border-radius:10px;padding:9px;min-height:155px}.purchases-price-chart svg{display:block;width:100%;height:auto}.purchases-help{font-size:11px;color:#89776a;line-height:1.6;margin:10px 0}.purchases-history-entries{margin:21px 0 0}.purchases-history-row{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid #eee5dc}.purchases-history-info{display:flex;flex-direction:column;gap:5px;min-width:0}.purchases-history-info strong{font-size:12px}.purchases-history-info small{font-size:11px;color:#7f7064}.purchases-history-row.is-invalid{opacity:.6}.purchases-history-row.is-invalid strong{text-decoration:line-through}.purchases-history-invalid{border:1px solid #e3b9b3;background:#fff6f5;color:#9c4338;border-radius:7px;font-size:11px;padding:8px 11px;cursor:pointer;white-space:nowrap}'
++'.purchases-edit-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.purchases-edit-field{display:flex;flex-direction:column;gap:6px;min-width:0}.purchases-edit-field span{font-size:11px;font-weight:700;color:#6a594e}.purchases-edit-input{width:100%;box-sizing:border-box;background:#fff;color:#332823;border:1px solid #d9c8b7;border-radius:7px;font-size:13px;padding:11px}.purchases-save{border:0;border-radius:8px;background:#332823;color:white;padding:12px 16px;cursor:pointer;font-weight:700;font-size:12px}.purchases-save:disabled{opacity:.5}.purchases-detail-notice{font-size:12px;min-height:16px;margin:15px 0 0}'
++'@media(max-width:600px){.purchases-detail-panel{padding:15px}.purchases-detail-titles h3{font-size:18px}.purchases-detail-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.purchases-edit-form{grid-template-columns:1fr}.purchases-detail-tabs button{font-size:11px}}';
+document.head.appendChild(css);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
 })();
