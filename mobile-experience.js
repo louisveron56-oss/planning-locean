@@ -27,6 +27,22 @@ function setup(){
  });
  var home=document.querySelector('#appSidebar .prism-home-link');
  if(home){var homeButton=el('button','oce-menu-link prism-mobile-home','▤   Tableau de bord');homeButton.type='button';homeButton.onclick=function(){close();window.navigateApp('dashboard');};body.prepend(homeButton);}
+ // Accès directs aux documents, indépendants des rubriques repliables.
+ function purchaseShortcut(id,label,icon){
+  var link=el('button','oce-menu-link prism-mobile-purchase');
+  link.type='button';link.dataset.page=id;
+  link.appendChild(el('span','oce-menu-symbol',icon));
+  link.appendChild(el('span','',label));
+  link.onclick=function(){
+   close();
+   var desktop=document.querySelector('#appSidebar .app-nav-item[data-page="'+id+'"]');
+   if(desktop)desktop.click();
+   else if(typeof window.navigateApp==='function')window.navigateApp(id);
+  };
+  body.insertBefore(link,body.querySelector('.prism-mobile-group'));
+ }
+ purchaseShortcut('delivery-notes','Bons de livraison','☷');
+ purchaseShortcut('purchase-invoices','Factures','▤');
  // Enrichir le menu mobile lorsque les routes fournisseurs/BL/factures sont ajoutées.
  var nativeNav=document.querySelector('#appSidebar .prism-native-nav');
  if(nativeNav){
