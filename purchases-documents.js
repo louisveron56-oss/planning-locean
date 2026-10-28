@@ -213,7 +213,7 @@ function renderReconciliation(host,doc){
    add(row,'strong','','BL '+(item.blNumber||'sans numéro')+' · '+item.description+' · '+item.issueType.replaceAll('_',' '));
    add(row,'small','',(item.note||'')+' · État : '+item.status);
   }else{
-   add(row,'strong','','Écart de quantités · '+item.key.replaceAll('|',' · '));
+   add(row,'strong','','Écart de quantités · '+(item.description||item.key));
    add(row,'small','','Facturé : '+item.quantityBilled+' · Reçu sur BL liés : '+item.quantityReceived);
    add(row,'small','',item.note);
   }
