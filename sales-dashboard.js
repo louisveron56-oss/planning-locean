@@ -61,7 +61,18 @@ function redraw(){
  nav.appendChild(button('›',function(){anchor=nextPeriod(anchor,period,1);redraw();}));
  var picker=elem('input','sales-date');picker.type='date';picker.value=key(anchor);picker.title='Choisir une date';picker.addEventListener('change',function(){if(picker.value){anchor=fromKey(picker.value);redraw();}});nav.appendChild(picker);controls.appendChild(nav);container.appendChild(controls);
  var grid=elem('div','sales-stats');
- grid.appendChild(card('Chiffre d’affaires TTC',euro.format(ca),previousYear.length?'N-1 : '+euro.format(sum(previousYear,'ca_ttc'))+' · '+delta(ca,sum(previousYear,'ca_ttc')):'N-1 : données indisponibles'));
+ var caCard=card('Chiffre d’affaires TTC',euro.format(ca),'');
+ var caCompare=caCard.querySelector('.sales-card-sub');caCompare.replaceChildren();
+ var priorLabel=elem('span','sales-n1-label','N-1');
+ caCompare.appendChild(priorLabel);
+ if(previousYear.length){
+  var priorValue=sum(previousYear,'ca_ttc');
+  caCompare.appendChild(elem('span','sales-n1-amount',euro.format(priorValue)));
+  var n1delta=elem('span','sales-n1-delta',delta(ca,priorValue));
+  n1delta.classList.add(ca>priorValue?'is-positive':ca<priorValue?'is-negative':'is-neutral');
+  caCompare.appendChild(n1delta);
+ }else caCompare.appendChild(elem('span','sales-n1-missing','Non disponible'));
+ grid.appendChild(caCard);
  grid.appendChild(card('CA HT',euro.format(sum(current,'ca_ht')),'Période choisie'));
  grid.appendChild(card('Couverts',integer.format(covers),'N-1 : '+delta(covers,sum(previousYear,'couverts'))));
  grid.appendChild(card('Ticket moyen pondéré',decimals.format(weighted)+' €','Selon couverts et ticket moyen de chaque jour'));
