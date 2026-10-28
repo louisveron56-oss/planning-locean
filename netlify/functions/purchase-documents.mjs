@@ -14,7 +14,7 @@ async function auth(){
  if(!allowed.includes(user.email.toLowerCase()))return {error:send({error:"Accès refusé"},403)};
  return {user};
 }
-const shape=(doc)=>({id:doc.id,filename:doc.filename,mime:doc.mime,kind:doc.kind,establishment:doc.establishment,supplier:doc.supplier,date:doc.date,documentNumber:doc.documentNumber,createdAt:doc.createdAt,status:doc.status,lines:doc.lines||[],notes:doc.notes||"",analysisError:doc.analysisError||"",confirmedAt:doc.confirmedAt||"",linkedInvoice:doc.linkedInvoice||"",linkedBLs:doc.linkedBLs||[],disputes:doc.disputes||[],priceChanges:doc.priceChanges||[],referencedBLs:doc.referencedBLs||[],catalogUnitsUpdated:doc.catalogUnitsUpdated||0});
+const shape=(doc)=>({id:doc.id,filename:doc.filename,mime:doc.mime,kind:doc.kind,establishment:doc.establishment,supplier:doc.supplier,date:doc.date,documentNumber:doc.documentNumber,createdAt:doc.createdAt,status:doc.status,lines:doc.lines||[],notes:doc.notes||"",analysisError:doc.analysisError||"",confirmedAt:doc.confirmedAt||"",linkedInvoice:doc.linkedInvoice||"",linkedBLs:doc.linkedBLs||[],reconciliation:doc.reconciliation||[],disputes:doc.disputes||[],priceChanges:doc.priceChanges||[],referencedBLs:doc.referencedBLs||[],catalogUnitsUpdated:doc.catalogUnitsUpdated||0});
 function optionalNumber(v){return v===null||v===undefined||v===""?null:Number.isFinite(Number(v))?Number(v):null;}
 function cleanLine(x){
  return {description:safe(x.description,250),reference:safe(x.reference,90),quantity:optionalNumber(x.quantity),unit:safe(x.unit,65),unitPriceHT:optionalNumber(x.unitPriceHT),lineTotalHT:optionalNumber(x.lineTotalHT),catalogIndex:Number.isInteger(x.catalogIndex)&&x.catalogIndex>=0?x.catalogIndex:null,confidence:["high","medium","low"].includes(x.confidence)?x.confidence:"low",receivedQuantity:optionalNumber(x.receivedQuantity),issueType:["manquant","casse","non_livre","double","mauvaise_reference","autre"].includes(x.issueType)?x.issueType:"",issueNote:safe(x.issueNote,220)};
@@ -61,6 +61,26 @@ function priceHistory(current,others){
   result.push({catalogIndex:product,description:line.description,unit:line.unit,previous:last.price,current:Number(line.unitPriceHT),percent,previousDate:last.date,previousDocumentId:last.id});
  }
  return result;
+}
+function reconciliation(invoice,bills){
+ const outcome=[];
+ for(const bl of bills){
+  for(const dispute of bl.disputes||[]){
+   outcome.push({kind:"litige",blId:bl.id,blNumber:bl.documentNumber,description:dispute.description,issueType:dispute.issueType,status:dispute.status,expected:dispute.expected,received:dispute.received,note:dispute.note});
+  }
+ }
+ const billed=new Map(),received=new Map();
+ function quantityKey(line){return line.catalogIndex!==null&&line.catalogIndex!==undefined?"product:"+line.catalogIndex+"|"+normalize(line.unit):line.reference?"ref:"+normalize(line.reference)+"|"+normalize(line.unit):"name:"+normalize(line.description)+"|"+normalize(line.unit);}
+ for(const line of invoice.lines||[])if(line.quantity!==null){const key=quantityKey(line);billed.set(key,(billed.get(key)||0)+Number(line.quantity));}
+ for(const bl of bills)for(const line of bl.lines||[]){
+  const qty=line.receivedQuantity!==null&&line.receivedQuantity!==undefined?line.receivedQuantity:line.issueType==="non_livre"?0:line.issueType?null:line.quantity;
+  if(qty===null)continue;
+  const key=quantityKey(line);received.set(key,(received.get(key)||0)+Number(qty));
+ }
+ for(const [key,total] of billed)if(received.has(key)&&Math.abs(total-received.get(key))>0.001){
+  outcome.push({kind:"quantité",key,quantityBilled:total,quantityReceived:received.get(key),note:"Écart constaté sur les lignes comparables. Vérifier les éventuelles livraisons complémentaires et les conditionnements."});
+ }
+ return outcome.slice(0,100);
 }
 async function analyze(doc,body){
  if(!process.env.GEMINI_API_KEY)return {error:"GEMINI_API_KEY non configurée dans Netlify"};
@@ -206,12 +226,13 @@ export default async function(req){
     const recent=await Promise.all(index.filter(x=>x.status==="validé"&&(x.kind==="facture"||x.kind==="BL")).slice(0,150).map(x=>db.get("docs/"+x.id,{type:"json",consistency:"strong"})));
     doc.priceChanges=priceHistory(doc,recent.filter(Boolean));
     const ids=Array.isArray(body.linkedBLs)?body.linkedBLs.filter(x=>typeof x==="string").slice(0,30):[];
-    doc.linkedBLs=[];
+    doc.linkedBLs=[];const linkedBills=[];
     for(const bl of recent.filter(x=>x&&x.kind==="BL"&&ids.includes(x.id))){
      if(matchScore(doc,bl)<25)continue;
-     doc.linkedBLs.push(bl.id);
+     doc.linkedBLs.push(bl.id);linkedBills.push(bl);
      bl.linkedInvoice=doc.id;await db.setJSON("docs/"+bl.id,bl);
     }
+    doc.reconciliation=reconciliation(doc,linkedBills);
    }
    doc.catalogUnitsUpdated=enriched;
    await db.setJSON("docs/"+doc.id,doc);
