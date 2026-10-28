@@ -983,6 +983,40 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
   .auth-copy{font-size:14px}
   .auth-login{font-size:16px}
 }
+
+/* Commandes du planning sous le bandeau de marque : jamais superposées à L’OCÉAN. */
+#planningPage .planning-toolbar{
+ display:flex;align-items:center;justify-content:flex-end;
+ width:100%;margin:0 0 15px;padding:12px 14px;
+ border:1px solid #e3d6c9;border-radius:12px;
+ background:#fffcf8;color:#332823;box-sizing:border-box;
+}
+#planningPage .planning-toolbar .hright{
+ display:flex!important;flex:1;align-items:center;justify-content:flex-end;
+ gap:9px;flex-wrap:wrap;visibility:visible!important;min-width:0;
+}
+#planningPage .planning-toolbar input[type=date]{
+ background:#fff!important;color:#332823!important;
+ border:1px solid #d8c7b8!important;border-radius:8px;
+ padding:9px 11px;font-size:12px;
+}
+#planningPage .planning-toolbar input[type=date]::-webkit-calendar-picker-indicator{
+ filter:none;opacity:.8;
+}
+#planningPage .planning-toolbar .week-range{color:#68584c!important;font-size:12px}
+#planningPage .planning-toolbar #saveStatus{color:#7a6c61!important;font-size:11px!important}
+#planningPage .planning-toolbar .btn-ghost{
+ background:#fff!important;color:#423227!important;
+ border:1px solid #d8c7b8!important;padding:9px 12px;
+}
+#planningPage .planning-toolbar .btn-gold{
+ background:#ad7859!important;color:#fff!important;padding:9px 12px;
+}
+@media(max-width:760px){
+ #planningPage .planning-toolbar{padding:10px;margin-bottom:12px}
+ #planningPage .planning-toolbar .hright{justify-content:center;gap:7px}
+ #planningPage .planning-toolbar .week-range{white-space:normal}
+}
 </style>
 <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
 </head>
@@ -1092,6 +1126,11 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
     <span class="brand-name">L'OCÉAN</span>
     <span class="brand-sub">— Planning équipe</span>
   </div>
+
+</header>
+
+<main class="main" id="planningPage">
+  <div class="planning-toolbar no-print" aria-label="Outils du planning">
   <div class="hright">
     <input type="date" id="weekDate">
     <span class="week-range" id="weekRange"></span>
@@ -1106,9 +1145,7 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
       ✨ Planning IA
     </button>
   </div>
-</header>
-
-<main class="main" id="planningPage">
+  </div>
   <div class="dept-tabs no-print" id="planningDeptTabs">
     <button class="dept-tab active" data-dept="salle" onclick="setPlanningDept('salle')">Salle</button>
     <button class="dept-tab" data-dept="cuisine" onclick="setPlanningDept('cuisine')">Cuisine</button>
@@ -2857,7 +2894,6 @@ function hideFutureModules(){
 
 function setHeaderMode(page){
   var sub=document.querySelector('.brand-sub');
-  var hright=document.querySelector('.hright');
   if(!sub)return;
 
   var labels={
@@ -2882,8 +2918,6 @@ function setHeaderMode(page){
   };
   sub.textContent=labels[page]||'— Outil interne';
 
-  /* Les contrôles de semaine/impression/IA ne concernent que le planning. */
-  if(hright) hright.style.visibility=(page==='planning'?'visible':'hidden');
 }
 
 function navigateApp(page){
