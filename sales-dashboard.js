@@ -142,6 +142,7 @@ var calendarScript=document.createElement('script');calendarScript.src='./sales-
 var eventsScript=document.createElement('script');eventsScript.src='./sales-events.js';eventsScript.defer=true;document.head.appendChild(eventsScript);
 var catalogNavScript=document.createElement('script');catalogNavScript.src='./products-suppliers-navigation.js';catalogNavScript.defer=true;document.head.appendChild(catalogNavScript);
 var purchasesScript=document.createElement('script');purchasesScript.src='./purchases-catalog.js';purchasesScript.defer=true;document.head.appendChild(purchasesScript);
+var inventoryScript=document.createElement('script');inventoryScript.src='./inventory-module.js';inventoryScript.defer=true;document.head.appendChild(inventoryScript);
 var documentsScript=document.createElement('script');documentsScript.src='./purchases-documents.js';documentsScript.defer=true;document.head.appendChild(documentsScript);
 var purchaseWorkflowsScript=document.createElement('script');purchaseWorkflowsScript.src='./purchase-workflows.js';purchaseWorkflowsScript.defer=true;document.head.appendChild(purchaseWorkflowsScript);
 var supplierHistoryScript=document.createElement('script');supplierHistoryScript.src='./supplier-history.js';supplierHistoryScript.defer=true;document.head.appendChild(supplierHistoryScript);
