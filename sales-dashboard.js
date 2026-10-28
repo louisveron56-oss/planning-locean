@@ -146,6 +146,7 @@ var purchaseWorkflowsScript=document.createElement('script');purchaseWorkflowsSc
 var supplierHistoryScript=document.createElement('script');supplierHistoryScript.src='./supplier-history.js';supplierHistoryScript.defer=true;document.head.appendChild(supplierHistoryScript);
 var invoiceExportScript=document.createElement('script');invoiceExportScript.src='./invoice-export.js';invoiceExportScript.defer=true;document.head.appendChild(invoiceExportScript);
 var functionalNavigationScript=document.createElement('script');functionalNavigationScript.src='./prism-functional-navigation.js';functionalNavigationScript.defer=true;document.head.appendChild(functionalNavigationScript);
+var homeDashboardScript=document.createElement('script');homeDashboardScript.src='./prism-home-dashboard.js';homeDashboardScript.defer=true;document.head.appendChild(homeDashboardScript);
 var mobileUXScript=document.createElement('script');mobileUXScript.src='./mobile-experience.js';mobileUXScript.async=false;document.head.appendChild(mobileUXScript);
 var prismThemeScript=document.createElement('script');prismThemeScript.src='./prism-theme.js';prismThemeScript.async=false;document.head.appendChild(prismThemeScript);
 })();
