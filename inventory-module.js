@@ -33,8 +33,8 @@ async function exportAll(){
   const columns=['Établissement','Date','Zone','Inventaire','Produit','Famille','Unité','Quantité équivalente','Prix HT / unité','Valeur HT','Validation'];
   const table=[columns];
   records.forEach(({session:s})=>s.lines.forEach(l=>table.push(['L’OCÉAN',s.date,s.zone,s.id,l.name,l.category,l.unit,l.quantity,l.unitPriceHT,l.valueHT,s.validatedAt||''])));
-  const escape=v=>'"'+String(v??'').replace(/"/g,'""').replace(/[\\r\\n]/g,' ')+'"';
-  const blob=new Blob(['\\uFEFF'+table.map(x=>x.map(escape).join(';')).join('\\r\\n')],{type:'text/csv;charset=utf-8'});
+  const escape=v=>'"'+String(v??'').replace(/"/g,'""').replace(/[\r\n]/g,' ')+'"';
+  const blob=new Blob(['\uFEFF'+table.map(x=>x.map(escape).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob),a=el('a');a.href=url;a.download='Prism_inventaires_valides_LOCEAN.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
   status(valid.length+' inventaire(s) validé(s) exporté(s).');
  }catch(err){status(err.message,true);}
