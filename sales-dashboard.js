@@ -29,10 +29,21 @@ function buildTable(root,range,map){
  if(t==='year'){for(var i=0;i<12;i++){var d=new Date(range.start.getFullYear(),i,1,12);groups.push({label:d.toLocaleDateString('fr-FR',{month:'long'}),range:rangeFor(d,'month'),base:d});}}
  else if(t==='month'){for(var d=new Date(range.start);d<=range.end;d=shift(d,7)){var r=rangeFor(d,'week'),begin=r.start<range.start?range.start:r.start,finish=r.end>range.end?range.end:r.end;groups.push({label:begin.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+' – '+finish.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}),range:{start:begin,end:finish},base:begin});}}
  else {for(var d=new Date(range.start);d<=range.end;d=shift(d,1)){groups.push({label:d.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'}),range:{start:d,end:d},base:d});}}
+ var mobileList=elem('div','sales-mobile-periods');
  groups.forEach(function(g){var current=records(map,g.range),compare=records(map,{start:yearPrior(g.range.start,t==='month'?'month':t==='year'?'year':'day'),end:yearPrior(g.range.end,t==='month'?'month':t==='year'?'year':'day')});
  var n=sum(current,'couverts'),weighted=n?current.reduce(function(a,r){return a+number(r.ticket_moyen)*number(r.couverts);},0)/n:0;
  var tr=elem('tr');[g.label,current.length?euro.format(sum(current,'ca_ttc')):'Z absent',current.length?euro.format(sum(current,'ca_ht')):'—',current.length?integer.format(n):'—',current.length?decimals.format(weighted)+' €':'—',compare.length?euro.format(sum(compare,'ca_ttc')):'—'].forEach(function(v){tr.appendChild(elem('td','',v));});body.appendChild(tr);
- });table.appendChild(body);var wrap=elem('div','sales-table-wrap');wrap.appendChild(table);root.appendChild(wrap);
+ var item=elem('article','sales-mobile-month');
+ var heading=elem('div','sales-mobile-month-heading');
+ heading.appendChild(elem('strong','',g.label));
+ heading.appendChild(elem('span','',current.length?'CA TTC':'Sans Z'));
+ item.appendChild(heading);
+ item.appendChild(elem('div','sales-mobile-month-main',current.length?euro.format(sum(current,'ca_ttc')):'Z absent'));
+ var meta=elem('div','sales-mobile-month-meta');
+ meta.appendChild(elem('span','',current.length?'HT '+euro.format(sum(current,'ca_ht')):'HT —'));
+ meta.appendChild(elem('span','',current.length?integer.format(n)+' couverts':'Couverts —'));
+ item.appendChild(meta);mobileList.appendChild(item);
+ });table.appendChild(body);var wrap=elem('div','sales-table-wrap');wrap.appendChild(table);root.appendChild(wrap);root.appendChild(mobileList);
 }
 function redraw(){
  if(!data)return;
