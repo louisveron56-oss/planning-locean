@@ -126,6 +126,7 @@ var goalsScript=document.createElement('script');goalsScript.src='./sales-weathe
 var navigationScript=document.createElement('script');navigationScript.src='./sales-navigation.js';navigationScript.defer=true;document.head.appendChild(navigationScript);
 var calendarScript=document.createElement('script');calendarScript.src='./sales-calendar.js';calendarScript.defer=true;document.head.appendChild(calendarScript);
 var eventsScript=document.createElement('script');eventsScript.src='./sales-events.js';eventsScript.defer=true;document.head.appendChild(eventsScript);
+var catalogNavScript=document.createElement('script');catalogNavScript.src='./products-suppliers-navigation.js';catalogNavScript.defer=true;document.head.appendChild(catalogNavScript);
 var purchasesScript=document.createElement('script');purchasesScript.src='./purchases-catalog.js';purchasesScript.defer=true;document.head.appendChild(purchasesScript);
 var documentsScript=document.createElement('script');documentsScript.src='./purchases-documents.js';documentsScript.defer=true;document.head.appendChild(documentsScript);
 var mobileUXScript=document.createElement('script');mobileUXScript.src='./mobile-experience.js';mobileUXScript.async=false;document.head.appendChild(mobileUXScript);
