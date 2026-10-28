@@ -142,6 +142,7 @@ var purchasesScript=document.createElement('script');purchasesScript.src='./purc
 var documentsScript=document.createElement('script');documentsScript.src='./purchases-documents.js';documentsScript.defer=true;document.head.appendChild(documentsScript);
 var purchaseWorkflowsScript=document.createElement('script');purchaseWorkflowsScript.src='./purchase-workflows.js';purchaseWorkflowsScript.defer=true;document.head.appendChild(purchaseWorkflowsScript);
 var supplierHistoryScript=document.createElement('script');supplierHistoryScript.src='./supplier-history.js';supplierHistoryScript.defer=true;document.head.appendChild(supplierHistoryScript);
+var invoiceExportScript=document.createElement('script');invoiceExportScript.src='./invoice-export.js';invoiceExportScript.defer=true;document.head.appendChild(invoiceExportScript);
 var mobileUXScript=document.createElement('script');mobileUXScript.src='./mobile-experience.js';mobileUXScript.async=false;document.head.appendChild(mobileUXScript);
 var prismThemeScript=document.createElement('script');prismThemeScript.src='./prism-theme.js';prismThemeScript.async=false;document.head.appendChild(prismThemeScript);
 })();
