@@ -21,28 +21,12 @@ function setup(){
    var b=el('button','oce-menu-link');b.type='button';b.dataset.page=sourceButton.dataset.page;
    var symbol=sourceButton.querySelector('.app-nav-icon')?.textContent||'•';
    b.appendChild(el('span','oce-menu-symbol',symbol));b.appendChild(el('span','',sourceButton.textContent.replace(symbol,'').replace(/bientôt/gi,'').trim()));
-   b.addEventListener('click',function(){close();window.navigateApp(sourceButton.dataset.page);});list.appendChild(b);
+   b.addEventListener('click',function(){close();var desktop=document.querySelector('#appSidebar .app-nav-item[data-page="'+sourceButton.dataset.page+'"]');if(desktop)desktop.click();else window.navigateApp(sourceButton.dataset.page);});list.appendChild(b);
   });
   section.append(toggle,list);body.appendChild(section);
  });
  var home=document.querySelector('#appSidebar .prism-home-link');
  if(home){var homeButton=el('button','oce-menu-link prism-mobile-home','▤   Tableau de bord');homeButton.type='button';homeButton.onclick=function(){close();window.navigateApp('dashboard');};body.prepend(homeButton);}
- // Accès directs aux documents, indépendants des rubriques repliables.
- function purchaseShortcut(id,label,icon){
-  var link=el('button','oce-menu-link prism-mobile-purchase');
-  link.type='button';link.dataset.page=id;
-  link.appendChild(el('span','oce-menu-symbol',icon));
-  link.appendChild(el('span','',label));
-  link.onclick=function(){
-   close();
-   var desktop=document.querySelector('#appSidebar .app-nav-item[data-page="'+id+'"]');
-   if(desktop)desktop.click();
-   else if(typeof window.navigateApp==='function')window.navigateApp(id);
-  };
-  body.insertBefore(link,body.querySelector('.prism-mobile-group'));
- }
- purchaseShortcut('delivery-notes','Bons de livraison','☷');
- purchaseShortcut('purchase-invoices','Factures','▤');
  // Enrichir le menu mobile lorsque les routes fournisseurs/BL/factures sont ajoutées.
  var nativeNav=document.querySelector('#appSidebar .prism-native-nav');
  if(nativeNav){
@@ -56,7 +40,7 @@ function setup(){
       item=el('button','oce-menu-link');item.type='button';item.dataset.page=button.dataset.page;
       var symbol=button.querySelector('.app-nav-icon')?.textContent||'•';
       item.appendChild(el('span','oce-menu-symbol',symbol));item.appendChild(el('span','',button.textContent.replace(symbol,'').trim()));
-      item.onclick=function(){close();window.navigateApp(button.dataset.page);};
+      item.onclick=function(){close();var desktop=document.querySelector('#appSidebar .app-nav-item[data-page="'+button.dataset.page+'"]');if(desktop)desktop.click();else window.navigateApp(button.dataset.page);};
      }
      if(list.children[i]!==item)list.insertBefore(item,list.children[i]||null);
     });
