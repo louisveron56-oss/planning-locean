@@ -71,9 +71,9 @@ function ratio(){
   linkButton.disabled=true;linkStatus.textContent='Lecture des données de vente et des factures…';
   try{
    const [sales,archive]=await Promise.all([request('sales'),request('purchase-documents')]);
-   const parseDate=v=>{const x=String(v||'').trim(),y=x.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);if(y)return y[1]+'-'+y[2]+'-'+y[3];const d=x.match(/^(\\d{1,2})[/. -](\\d{1,2})[/. -](\\d{4})/);return d?d[3]+'-'+d[2].padStart(2,'0')+'-'+d[1].padStart(2,'0'):'';};
+   const parseDate=v=>{const x=String(v||'').trim(),y=x.match(/^(\d{4})-(\d{2})-(\d{2})/);if(y)return y[1]+'-'+y[2]+'-'+y[3];const d=x.match(/^(\d{1,2})[/. -](\d{1,2})[/. -](\d{4})/);return d?d[3]+'-'+d[2].padStart(2,'0')+'-'+d[1].padStart(2,'0'):'';};
    let daily=(sales.rows||[]).filter(x=>{const d=parseDate(x.date);return d>a.date&&d<=b.date;});
-   let validCa=daily.map(x=>Number(String(x.ca_ht||'').replace(/\\s/g,'').replace(',','.'))).filter(Number.isFinite);
+   let validCa=daily.map(x=>Number(String(x.ca_ht||'').replace(/\s/g,'').replace(',','.'))).filter(Number.isFinite);
    const ca=validCa.reduce((sum,v)=>sum+v,0);
    const allInvoices=(archive.documents||[]).filter(x=>x.kind==='facture'&&x.status==='validé'&&x.date>a.date&&x.date<=b.date);
    const max=30,subset=allInvoices.slice(0,max);
