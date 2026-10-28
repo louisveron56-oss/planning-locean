@@ -1,7 +1,7 @@
 /* L'Océan — Catalogue privé Achats & Fournisseurs (lecture et import CSV). */
 (function(){
 'use strict';
-var all=[],ready=false,reference='',savedAt='',query='',category='Tous',offset=0,root,importBusy=false,selectedFile=null,importConfirmed=false;
+var all=[],ready=false,reference='',savedAt='',query='',category='Tous',subcategory='Tous',offset=0,root,importBusy=false,selectedFile=null,importConfirmed=false;
 var euro=new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2});
 function e(tag,cls,text){var x=document.createElement(tag);if(cls)x.className=cls;if(text!==undefined)x.textContent=text;return x;}
 function append(p,tag,cls,text){var x=e(tag,cls,text);p.appendChild(x);return x;}
@@ -34,6 +34,13 @@ async function request(method,data){
  return payload;
 }
 function normalize(s){return String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();}
+const SUBCATS={
+ Bar:['Vins rouges','Vins blancs','Vins rosés','Champagnes & effervescents','Spiritueux','Bières & cidres','Softs & eaux','Cafés, thés & boissons chaudes','Sirops & ingrédients bar','Autres boissons'],
+ Cuisine:['Viandes & volailles','Poissons & fruits de mer','Fruits & légumes','Crèmerie & fromages','Épicerie salée','Épicerie sucrée','Surgelés','Pain & boulangerie','Autres cuisine'],
+ Hygiène:['Entretien','Consommables & emballages','Hygiène corporelle','Autres hygiène']
+};
+const LOCATIONS=['Bar','Cave','Réserve','Cuisine','Chambre froide','Autre'];
+function productMatches(p){return (category==='Tous'||p.category===category)&&(subcategory==='Tous'||(subcategory==='À classer'?!p.subcategory:p.subcategory===subcategory))&&normalize(p.name).includes(normalize(query));}
 function numeric(v){var n=Number(String(v??'').trim().replace(/\s|\u00a0/g,'').replace(',','.'));return Number.isFinite(n)?n:NaN;}
 function csvRows(text){
  text=String(text||'').replace(/^\uFEFF/,'');var lines=[],line=[],value='',quoted=false;
@@ -83,7 +90,7 @@ function openProduct(id,editFirst){
  function esc(ev){if(ev.key==='Escape')close();}
  document.addEventListener('keydown',esc);overlay.addEventListener('click',ev=>{if(ev.target===overlay)close();});
  var header=append(panel,'div','purchases-detail-header'),title=append(header,'div','purchases-detail-titles');
- append(title,'small','',product.category+' · Fiche produit');append(title,'h3','',product.name);
+ append(title,'small','',product.category+' · '+(product.subcategory||'À classer')+' · Fiche produit');append(title,'h3','',product.name);
  var exit=append(header,'button','purchases-detail-close','Fermer ×');exit.type='button';exit.onclick=close;
  var tabs=append(panel,'div','purchases-detail-tabs');
  var infoBtn=append(tabs,'button','','Historique des prix'),editBtn=append(tabs,'button','','Modifier le produit');
@@ -159,6 +166,14 @@ function openProduct(id,editFirst){
   var name=field('Nom du produit','name','text',product.name);
   var categoryField=append(form,'label','purchases-edit-field');append(categoryField,'span','','Famille');
   var categorySelect=append(categoryField,'select','purchases-edit-input');categorySelect.name='category';['Bar','Cuisine','Hygiène'].forEach(cat=>{var o=append(categorySelect,'option','',cat);o.value=cat;o.selected=product.category===cat;});
+  var subField=append(form,'label','purchases-edit-field');append(subField,'span','','Sous-catégorie');
+  var subSelect=append(subField,'select','purchases-edit-input');
+  function fillSubs(){subSelect.replaceChildren();var blank=append(subSelect,'option','','À classer');blank.value='';(SUBCATS[categorySelect.value]||[]).forEach(x=>{var o=append(subSelect,'option','',x);o.value=x;});subSelect.value=product.subcategory||'';}
+  categorySelect.onchange=fillSubs;fillSubs();
+  var locationsWrap=append(form,'div','purchases-edit-field purchases-edit-locations');
+  append(locationsWrap,'span','','Emplacements de stockage (plusieurs possibles)');
+  var checks=append(locationsWrap,'div','purchases-location-checks');
+  var locationControls=LOCATIONS.map(z=>{var lab=append(checks,'label','purchases-location-choice');var box=append(lab,'input');box.type='checkbox';box.value=z;box.checked=(product.locations||[]).includes(z);append(lab,'span','',z);return box;});
   var price=field('Prix d’achat HT (€)','price','number',product.price);price.min='0';price.step='0.0001';
   var unit=field('Unité / conditionnement','unit','text',product.unit);
   var qty=field('Quantité d’inventaire','inventoryQuantity','number',product.inventoryQuantity);qty.min='0';qty.step='any';
@@ -168,8 +183,8 @@ function openProduct(id,editFirst){
   form.onsubmit=async event=>{
    event.preventDefault();save.disabled=true;setNotice('Enregistrement sécurisé en cours…');
    try{
-    var res=await request('PATCH',{establishment:'LOCEAN',action:'update',productId:id,changes:{name:name.value.trim(),category:categorySelect.value,price:price.value,unit:unit.value.trim(),inventoryQuantity:qty.value},reason:reason.value.trim()});
-    product=res.product;all=all.map(p=>p.id===id?product:p);renderTable();title.querySelector('h3').textContent=product.name;setActive('history');setNotice('Produit mis à jour et historique conservé.');
+    var res=await request('PATCH',{establishment:'LOCEAN',action:'update',productId:id,changes:{name:name.value.trim(),category:categorySelect.value,subcategory:subSelect.value,locations:locationControls.filter(x=>x.checked).map(x=>x.value),price:price.value,unit:unit.value.trim(),inventoryQuantity:qty.value},reason:reason.value.trim()});
+    product=res.product;all=all.map(p=>p.id===id?product:p);render();title.querySelector('h3').textContent=product.name;setActive('history');setNotice('Produit mis à jour et historique conservé.');
    }catch(err){save.disabled=false;setNotice(err.message,true);}
   };
  }
@@ -180,22 +195,22 @@ function openProduct(id,editFirst){
 function renderTable(){
  var host=root.querySelector('.purchases-results');host.replaceChildren();
  if(!ready){append(host,'p','purchases-empty','Aucun catalogue privé importé pour L’Océan. Le fichier reste sur ton appareil jusqu’à validation de l’import.');return;}
- var matches=all.filter(x=>(category==='Tous'||x.category===category)&&normalize(x.name).includes(normalize(query)));
+ var matches=all.filter(productMatches);
  var heading=append(host,'div','purchases-count',matches.length+' référence(s) · prix d’achat HT · '+(reference||'inventaire'));
  var wrapper=append(host,'div','purchases-scroll'),table=append(wrapper,'table','purchases-table');
  var thead=append(table,'thead'),tr=append(thead,'tr');
- ['Produit','Pôle','Prix HT','Évolution','Unité / conditionnement','Modifier'].forEach(v=>append(tr,'th','',v));
+ ['Produit','Catégorie','Prix HT','Évolution','Conditionnement','Modifier'].forEach(v=>append(tr,'th','',v));
  var tbody=append(table,'tbody');
  var mobileCards=append(host,'div','purchases-mobile-cards');
  matches.slice(offset,offset+50).forEach(function(p){
-  var row=append(tbody,'tr');var nameCell=append(row,'td','purchases-name');var productLink=append(nameCell,'button','purchases-product-link',p.name);productLink.type='button';productLink.onclick=()=>openProduct(p.id,false);append(row,'td','',p.category);
+  var row=append(tbody,'tr');var nameCell=append(row,'td','purchases-name');var productLink=append(nameCell,'button','purchases-product-link',p.name);productLink.type='button';productLink.onclick=()=>openProduct(p.id,false);append(row,'td','',p.subcategory||'À classer');
   append(row,'td','purchases-price',euro.format(p.price));
   var diff=append(row,'td','');diff.appendChild(badge(p));
   append(row,'td','',p.unit||'Non précisée');var editCell=append(row,'td','');var editAction=append(editCell,'button','purchases-edit-trigger','Modifier');editAction.type='button';editAction.onclick=()=>openProduct(p.id,true);
   var tile=append(mobileCards,'article','purchases-mobile-item');
   var top=append(tile,'div','purchases-mobile-top');
   var mobileLink=append(top,'button','purchases-product-link purchases-mobile-name',p.name);mobileLink.type='button';mobileLink.onclick=()=>openProduct(p.id,false);
-  append(top,'span','purchases-mobile-category',p.category);
+  append(top,'span','purchases-mobile-category',p.subcategory||'À classer');
   var cells=append(tile,'div','purchases-mobile-fields');
   var cost=append(cells,'div','purchases-mobile-field');append(cost,'small','','Prix d’achat HT');append(cost,'b','',euro.format(p.price));
   var units=append(cells,'div','purchases-mobile-field');append(units,'small','','Conditionnement');append(units,'span','',p.unit||'Non précisée');
@@ -210,16 +225,33 @@ function render(){
  root.replaceChildren();
  var title=append(root,'div','purchases-heading');
  append(title,'h3','','Catalogue des prix d’achat — L’Océan');
- append(title,'p','','Référentiel HT négocié · inventaire de septembre 2026 · consultation sécurisée');
+ append(title,'p','','Référentiel de gestion · familles, catégories et emplacements · prix HT historisés');
  var stats=append(root,'div','purchases-stats');
  ['Bar','Cuisine','Hygiène'].forEach(function(cat){var box=append(stats,'div','purchases-stat');
  append(box,'small','',cat);append(box,'strong','',ready?String(all.filter(x=>x.category===cat).length):'—');});
+ var shelf=append(root,'div','purchases-category-shelf');
+ ['Tous','Bar','Cuisine','Hygiène'].forEach(function(cat){
+  var card=append(shelf,'button','purchases-category-card'+(category===cat?' active':''));card.type='button';
+  append(card,'strong','',cat==='Tous'?'Tous les produits':cat);
+  append(card,'small','',ready?String(all.filter(x=>cat==='Tous'||x.category===cat).length)+' références':'—');
+  card.onclick=function(){category=cat;subcategory='Tous';offset=0;render();};
+ });
+ var subs=append(root,'div','purchases-subcategory-nav');
+ var subopts=category==='Tous'?[]:SUBCATS[category]||[];
+ ['Tous',...subopts,'À classer'].forEach(function(label){
+  if(category==='Tous'&&label!=='Tous')return;
+  var count=all.filter(x=>(category==='Tous'||x.category===category)&&(label==='Tous'||(label==='À classer'?!x.subcategory:x.subcategory===label))).length;
+  var chip=append(subs,'button','purchases-subcategory-chip'+(subcategory===label?' active':''),label+(label==='Tous'?'':' · '+count));
+  chip.type='button';chip.onclick=function(){subcategory=label;offset=0;render();};
+ });
+ var unclassified=all.filter(x=>!x.subcategory).length;
+ if(ready&&unclassified)append(root,'p','purchases-classification-note',unclassified+' produit(s) encore à classer. Les références existantes n’ont pas été recatégorisées automatiquement : ouvre Modifier pour choisir leur catégorie.');
  var tools=append(root,'div','purchases-tools');
  var search=append(tools,'input','purchases-search');search.type='search';search.placeholder='Rechercher un produit…';search.value=query;search.setAttribute('aria-label','Rechercher une référence');
  search.addEventListener('input',function(){query=this.value;offset=0;renderTable();});
  var filter=append(tools,'select','purchases-filter');
  ['Tous','Bar','Cuisine','Hygiène'].forEach(function(label){var opt=append(filter,'option','',label);opt.value=label;opt.selected=category===label;});
- filter.addEventListener('change',function(){category=this.value;offset=0;renderTable();});
+ filter.addEventListener('change',function(){category=this.value;subcategory='Tous';offset=0;render();});
  var upload=append(root,'div','purchases-upload');
  var row=append(upload,'div','purchases-upload-row');
  var input=append(row,'input','purchases-file');input.type='file';input.accept='.csv,text/csv,text/plain';input.setAttribute('aria-label','Sélectionner le catalogue CSV');input.addEventListener('change',function(){selectedFile=this.files&&this.files[0]||null;importConfirmed=false;var b=root.querySelector('.purchases-primary');if(b)b.textContent=ready?'Remplacer le catalogue privé':'Importer le catalogue privé';var st=root.querySelector('.purchases-state');if(st&&selectedFile)st.textContent='Fichier sélectionné : '+selectedFile.name+' · Cliquer sur Importer.';});
@@ -274,6 +306,7 @@ css.textContent += '\n/* Fiche produit et historique de prix — responsive Pris
 +'.purchases-detail-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.purchases-detail-stat{display:flex;flex-direction:column;gap:6px;background:#f5eee6;border-radius:9px;padding:12px;min-width:0}.purchases-detail-stat small{font-size:11px;color:#796b60}.purchases-detail-stat strong{font-size:15px;color:#332823;overflow-wrap:anywhere}.purchases-history-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:21px 0 8px}.purchases-history-heading h4,.purchases-history-entries h4{font-size:13px;color:#332823;margin:0}.purchases-detail-select{border:1px solid #dacbbd;border-radius:7px;background:white;padding:8px;color:#332823}.purchases-price-chart{background:#fff;border:1px solid #e9ded2;border-radius:10px;padding:9px;min-height:155px}.purchases-price-chart svg{display:block;width:100%;height:auto}.purchases-help{font-size:11px;color:#89776a;line-height:1.6;margin:10px 0}.purchases-history-entries{margin:21px 0 0}.purchases-history-row{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid #eee5dc}.purchases-history-info{display:flex;flex-direction:column;gap:5px;min-width:0}.purchases-history-info strong{font-size:12px}.purchases-history-info small{font-size:11px;color:#7f7064}.purchases-history-row.is-invalid{opacity:.6}.purchases-history-row.is-invalid strong{text-decoration:line-through}.purchases-history-invalid{border:1px solid #e3b9b3;background:#fff6f5;color:#9c4338;border-radius:7px;font-size:11px;padding:8px 11px;cursor:pointer;white-space:nowrap}'
 +'.purchases-edit-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.purchases-edit-field{display:flex;flex-direction:column;gap:6px;min-width:0}.purchases-edit-field span{font-size:11px;font-weight:700;color:#6a594e}.purchases-edit-input{width:100%;box-sizing:border-box;background:#fff;color:#332823;border:1px solid #d9c8b7;border-radius:7px;font-size:13px;padding:11px}.purchases-save{border:0;border-radius:8px;background:#332823;color:white;padding:12px 16px;cursor:pointer;font-weight:700;font-size:12px}.purchases-save:disabled{opacity:.5}.purchases-detail-notice{font-size:12px;min-height:16px;margin:15px 0 0}'
 +'@media(max-width:600px){.purchases-detail-panel{padding:15px}.purchases-detail-titles h3{font-size:18px}.purchases-detail-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.purchases-edit-form{grid-template-columns:1fr}.purchases-detail-tabs button{font-size:11px}}';
+css.textContent+='\n.purchases-category-shelf{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:14px 0 10px}.purchases-category-card{background:#fffcf7;border:1px solid #ded0c1;border-radius:12px;padding:14px 12px;display:flex;flex-direction:column;align-items:flex-start;gap:7px;text-align:left;color:#332823;cursor:pointer}.purchases-category-card strong{font-size:13px}.purchases-category-card small{font-size:11px;color:#78695c}.purchases-category-card.active{border-color:#71503b;background:#eee1d2;box-shadow:inset 0 0 0 1px #71503b}.purchases-subcategory-nav{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin:10px 0 15px}.purchases-subcategory-chip{border:1px solid #d9c8b9;color:#554235;background:#fffdf9;border-radius:99px;padding:8px 11px;font-size:11px;cursor:pointer}.purchases-subcategory-chip.active{background:#332823;color:#fff;border-color:#332823}.purchases-classification-note{font-size:11px;color:#76634e;margin:4px 0 13px}.purchases-edit-locations{grid-column:1/-1}.purchases-location-checks{display:flex;flex-wrap:wrap;gap:8px}.purchases-location-choice{display:flex;align-items:center;gap:6px;background:#f5eee6;border:1px solid #e3d7c9;border-radius:8px;padding:8px 10px;font-size:11px;color:#4b3a30}.purchases-location-choice input{accent-color:#6b4b36}@media(max-width:760px){.purchases-category-shelf{grid-template-columns:repeat(2,minmax(0,1fr))}.purchases-category-card{padding:12px}.purchases-subcategory-chip{padding:9px 11px}}';
 document.head.appendChild(css);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
 })();
