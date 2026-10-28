@@ -1002,46 +1002,65 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
   </div>
 
   <div class="app-sidebar-scroll">
-    <div class="app-nav-group">
-      <div class="app-nav-label">RH</div>
-      <button class="app-nav-item" data-page="team" onclick="navigateApp('team')"><span class="app-nav-icon">◉</span>Équipe</button>
-      <button class="app-nav-item active" data-page="planning" onclick="navigateApp('planning')"><span class="app-nav-icon">▦</span>Planning</button>
-      <button class="app-nav-item" data-page="pointage" onclick="navigateApp('pointage')"><span class="app-nav-icon">◷</span>Pointage</button>
-    </div>
+    <nav class="prism-native-nav" aria-label="Navigation des fonctions">
+      <button class="app-nav-item prism-home-link" data-page="dashboard" onclick="navigateApp('dashboard')"><span class="app-nav-icon">▤</span>Tableau de bord</button>
 
-    <div class="app-nav-group">
-      <div class="app-nav-label">Opérationnel</div>
-      <button class="app-nav-item" data-page="stocks" onclick="navigateApp('stocks')"><span class="app-nav-icon">⬡</span>Stocks <span class="app-nav-badge">bientôt</span></button>
-      <button class="app-nav-item" data-page="inventory" onclick="navigateApp('inventory')"><span class="app-nav-icon">☷</span>Inventaire</button>
-      <button class="app-nav-item" data-page="suppliers" onclick="navigateApp('suppliers')"><span class="app-nav-icon">▣</span>Fournisseurs</button>
-    </div>
+      <details class="prism-nav-section">
+        <summary><span class="prism-nav-symbol">◫</span><span>ANALYSE & PERFORMANCE</span><span class="prism-nav-chevron">⌄</span></summary>
+        <div class="app-nav-group">
+          <div class="app-nav-label">Analyse & Performance</div>
+          <button class="app-nav-item" data-page="sales" onclick="navigateApp('sales')"><span class="app-nav-icon">↗</span>Ventes</button>
+          <button class="app-nav-item" data-page="teamperf" onclick="navigateApp('teamperf')"><span class="app-nav-icon">◎</span>Performance équipe</button>
+          <div class="prism-nav-subheading">RENTABILITÉ</div>
+          <button class="app-nav-item" data-page="costs" onclick="navigateApp('costs')"><span class="app-nav-icon">≋</span>Coûts matière</button>
+          <button class="app-nav-item" data-page="foodcost" onclick="navigateApp('foodcost')"><span class="app-nav-icon">⌁</span>Analyse food cost</button>
+          <button class="app-nav-item" data-page="reports" onclick="navigateApp('reports')"><span class="app-nav-icon">⇧</span>Rapports</button>
+        </div>
+      </details>
 
-    <div class="app-nav-group">
-      <div class="app-nav-label">Menu & Food Cost</div>
-      <button class="app-nav-item" data-page="menu" onclick="navigateApp('menu')"><span class="app-nav-icon">⌘</span>Menu & Recettes</button>
-      <button class="app-nav-item" data-page="costs" onclick="navigateApp('costs')"><span class="app-nav-icon">≋</span>Coûts matière</button>
-      <button class="app-nav-item" data-page="menuengineering" onclick="navigateApp('menuengineering')"><span class="app-nav-icon">◫</span>Menu Engineering</button>
-      <button class="app-nav-item" data-page="foodcost" onclick="navigateApp('foodcost')"><span class="app-nav-icon">⌁</span>Analyse food cost</button>
-    </div>
+      <details class="prism-nav-section">
+        <summary><span class="prism-nav-symbol">▤</span><span>ACHATS & STOCKS</span><span class="prism-nav-chevron">⌄</span></summary>
+        <div class="app-nav-group">
+          <div class="app-nav-label">Achats & Stocks</div>
+          <button class="app-nav-item" data-page="suppliers" onclick="navigateApp('suppliers')"><span class="app-nav-icon">▣</span>Produits</button>
+          <button class="app-nav-item" data-page="inventory" onclick="navigateApp('inventory')"><span class="app-nav-icon">☷</span>Inventaires</button>
+          <button class="app-nav-item" data-page="stocks" onclick="navigateApp('stocks')"><span class="app-nav-icon">⬡</span>Stocks <span class="app-nav-badge">bientôt</span></button>
+        </div>
+      </details>
 
-    <div class="app-nav-group">
-      <div class="app-nav-label">Ventes</div>
-      <button class="app-nav-item" data-page="posimport" onclick="navigateApp('posimport')"><span class="app-nav-icon">⇩</span>Import caisse</button>
-      <button class="app-nav-item" data-page="sales" onclick="navigateApp('sales')"><span class="app-nav-icon">↗</span>Analyse des ventes</button>
-      <button class="app-nav-item" data-page="teamperf" onclick="navigateApp('teamperf')"><span class="app-nav-icon">◎</span>Performance équipe</button>
-    </div>
+      <details class="prism-nav-section">
+        <summary><span class="prism-nav-symbol">◉</span><span>ÉQUIPE & RH</span><span class="prism-nav-chevron">⌄</span></summary>
+        <div class="app-nav-group">
+          <div class="app-nav-label">Équipe & RH</div>
+          <button class="app-nav-item" data-page="planning" onclick="navigateApp('planning')"><span class="app-nav-icon">▦</span>Planning</button>
+          <button class="app-nav-item" data-page="pointage" onclick="navigateApp('pointage')"><span class="app-nav-icon">◷</span>Pointage</button>
+          <button class="app-nav-item" data-page="team" onclick="navigateApp('team')"><span class="app-nav-icon">◉</span>Collaborateurs</button>
+        </div>
+      </details>
 
-    <div class="app-nav-group">
-      <div class="app-nav-label">Pilotage</div>
-      <button class="app-nav-item" data-page="dashboard" onclick="navigateApp('dashboard')"><span class="app-nav-icon">▤</span>Tableau de bord</button>
-      <button class="app-nav-item" data-page="reports" onclick="navigateApp('reports')"><span class="app-nav-icon">⇧</span>Rapports & exports</button>
-      <button class="app-nav-item" data-page="alltools" onclick="navigateApp('alltools')"><span class="app-nav-icon">▦</span>Tous les outils</button>
-    </div>
+      <details class="prism-nav-section">
+        <summary><span class="prism-nav-symbol">⌘</span><span>CARTE & RECETTES</span><span class="prism-nav-chevron">⌄</span></summary>
+        <div class="app-nav-group">
+          <div class="app-nav-label">Carte & Recettes</div>
+          <button class="app-nav-item" data-page="menu" onclick="navigateApp('menu')"><span class="app-nav-icon">⌘</span>Recettes & fiches techniques</button>
+          <button class="app-nav-item" data-page="menuengineering" onclick="navigateApp('menuengineering')"><span class="app-nav-icon">◫</span>Menu Engineering</button>
+        </div>
+      </details>
+
+      <details class="prism-nav-section">
+        <summary><span class="prism-nav-symbol">⚙</span><span>ADMINISTRATION</span><span class="prism-nav-chevron">⌄</span></summary>
+        <div class="app-nav-group">
+          <div class="app-nav-label">Administration</div>
+          <button class="app-nav-item" data-page="posimport" onclick="navigateApp('posimport')"><span class="app-nav-icon">⇩</span>Import caisse</button>
+          <button class="app-nav-item" data-page="settings" onclick="navigateApp('settings')"><span class="app-nav-icon">⚙</span>Paramètres</button>
+          <button class="app-nav-item" data-page="improvements" onclick="navigateApp('improvements')"><span class="app-nav-icon">✦</span>Améliorations</button>
+          <button class="app-nav-item" data-page="alltools" onclick="navigateApp('alltools')"><span class="app-nav-icon">▦</span>Tous les outils · Archive</button>
+        </div>
+      </details>
+    </nav>
   </div>
 
   <div class="app-sidebar-foot">
-    <button class="app-nav-item" data-page="improvements" onclick="navigateApp('improvements')"><span class="app-nav-icon">✦</span>Améliorations</button>
-    <button class="app-nav-item" data-page="settings" onclick="navigateApp('settings')"><span class="app-nav-icon">⚙</span>Paramètres</button>
     <div class="auth-user" id="authUser">
       <span class="auth-user-email" id="authUserEmail"></span>
       <button class="auth-logout" type="button" onclick="logoutIdentity()">↪ Se déconnecter</button>
