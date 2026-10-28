@@ -32,6 +32,18 @@ function run(){
  }
  menu('Bons de livraison','delivery-notes','BL','☷');
  menu('Factures','purchase-invoices','facture','▤');
+ // Move the shared document controls out of the products catalogue as soon as they mount.
+ function relocate(){
+  var source=document.querySelector('#module-suppliers .pd-root');
+  if(!source)return false;
+  bl.querySelector('.module-shell').appendChild(source);
+  window.dispatchEvent(new CustomEvent('locean-purchase-section',{detail:{kind:'BL'}}));
+  return true;
+ }
+ if(!relocate()){
+  var observer=new MutationObserver(function(){if(relocate())observer.disconnect();});
+  observer.observe(catalog,{childList:true,subtree:true});
+ }
  // Limit the legacy catalog page to its original product catalogue.
  // If a user returns to Products, the document UI remains in the last dedicated document page.
 }
