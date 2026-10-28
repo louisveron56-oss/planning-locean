@@ -45,7 +45,7 @@ function apply(){
   button.setAttribute('aria-current',active?'page':'false');
  }
  // Le sélecteur de dates reste visible dans tous les sous-onglets.
- for(var selector of ['.sales-stats','.sales-summary','.sales-table-wrap','.sales-note'])
+ for(var selector of ['.sales-stats','.sales-summary','.sales-table-wrap','.sales-mobile-periods','.sales-note'])
   hidden(root.querySelector(selector),selected!=='overview');
  var insights=root.querySelector('.sales-insights');
  if(insights){
