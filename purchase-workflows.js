@@ -28,7 +28,8 @@ function run(){
    if(source)document.querySelector('#module-'+id+' .module-shell').appendChild(source);
    window.dispatchEvent(new CustomEvent('locean-purchase-section',{detail:{kind:kind}}));
   });
-  base.appendChild(button);
+  // Conserver l'ordre Produits, Fournisseurs, BL, Factures, Inventaires, Stocks.
+  base.insertBefore(button,base.querySelector('[data-page="inventory"]')||null);
  }
  menu('Bons de livraison','delivery-notes','BL','☷');
  menu('Factures','purchase-invoices','facture','▤');
