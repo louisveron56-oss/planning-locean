@@ -49,7 +49,7 @@ export default async function(req){
    if(existing?.status==="validated")return respond({error:"Inventaire validé : modification interdite. Crée un inventaire correctif."},409);
    if(existing&&p.version!==existing.version)return respond({error:"Inventaire modifié dans une autre session. Recharge avant d'enregistrer."},409);
    const products=(await catalog().get("ocean/latest",{type:"json",consistency:"strong"}))?.products||[];
-   function legacyId(x){const key=[x.category,x.name,x.sourceRow||""].map(v=>clean(v).normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase()).join("|");let h=2166136261;for(let i=0;i<key.length;i++)h=Math.imul(h^key.charCodeAt(i),16777619);return "prd-"+(h>>>0).toString(36);}
+   function legacyId(x){const key=[x.category,x.name,x.sourceRow||""].map(v=>clean(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()).join("|");let h=2166136261;for(let i=0;i<key.length;i++)h=Math.imul(h^key.charCodeAt(i),16777619);return "prd-"+(h>>>0).toString(36);}
    const byId=new Map(products.map(x=>[String(x.id||legacyId(x)),x]));
    const seen=new Set(),lines=[];
    for(const row of p.lines){
