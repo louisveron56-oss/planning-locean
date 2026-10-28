@@ -2854,6 +2854,7 @@ function setHeaderMode(page){
 }
 
 function navigateApp(page){
+  if(page==='sales')window.dispatchEvent(new CustomEvent('prism-open-sales'));
   if(page==='improvements')setTimeout(renderImprovements,0);
   if(page==='planning')setTimeout(renderMobilePlanning,0);
   updateMobileBottomNav(page);
@@ -2899,8 +2900,7 @@ function navigateApp(page){
 document.addEventListener('DOMContentLoaded',function(){
   initLoceanIdentity();
   loadImprovements();
-  setAppNavActive('planning');
-  setHeaderMode('planning');
+  navigateApp('dashboard');
   updateDeptTabs('planningDeptTabs',CURRENT_PLANNING_DEPT);
   updateDeptTabs('teamDeptTabs',CURRENT_TEAM_DEPT);
   updateDeptTabs('pointageDeptTabs',CURRENT_POINTAGE_DEPT);
