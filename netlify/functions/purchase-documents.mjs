@@ -28,7 +28,7 @@ function matchCatalog(lines,products){
   return clean;
  });
 }
-function supplierKey(x){return normalize(x).replace(/\\b(sarl|sas|sa|eurl|societe)\\b/g,"").trim();}
+function supplierKey(x){return normalize(x).replace(/\b(sarl|sas|sa|eurl|societe)\b/g,"").trim();}
 function matchScore(invoice,bl){
  if(supplierKey(invoice.supplier)!==supplierKey(bl.supplier)||!supplierKey(invoice.supplier))return 0;
  let score=25;
@@ -78,7 +78,7 @@ function reconciliation(invoice,bills){
   const key=quantityKey(line);received.set(key,(received.get(key)||0)+Number(qty));
  }
  for(const [key,total] of billed)if(received.has(key)&&Math.abs(total-received.get(key))>0.001){
-  outcome.push({kind:"quantité",key,quantityBilled:total,quantityReceived:received.get(key),note:"Écart constaté sur les lignes comparables. Vérifier les éventuelles livraisons complémentaires et les conditionnements."});
+  outcome.push({kind:"quantité",key,description:(invoice.lines||[]).find(line=>quantityKey(line)===key)?.description||key,quantityBilled:total,quantityReceived:received.get(key),note:"Écart constaté sur les lignes comparables. Vérifier les éventuelles livraisons complémentaires et les conditionnements."});
  }
  return outcome.slice(0,100);
 }
