@@ -89,7 +89,7 @@ function edit(){
   const photoSection=add(searchbox,'div','pi-photo');
   const photoLabel=add(photoSection,'label','pi-photo-picker','📷 Photographier une étagère (test IA)');
   const photoInput=add(photoLabel,'input','pi-photo-input');photoInput.type='file';photoInput.accept='image/*';photoInput.setAttribute('capture','environment');
-  const photoFeedback=add(photoSection,'p','pi-hint','La photo permet de proposer un comptage des bouteilles visibles. Aucune quantité n’est ajoutée sans confirmation.');
+  const photoFeedback=add(photoSection,'p','pi-hint','La photo est envoyée au service d’analyse IA (Gemini), sans archivage automatique. Seules les bouteilles visibles sont proposées ; aucune quantité n’est ajoutée sans confirmation.');
   const photoResults=add(photoSection,'div','pi-photo-results');
   photoInput.onchange=async()=>{
    const file=photoInput.files?.[0];if(!file)return;
@@ -135,7 +135,7 @@ function edit(){
  let message=add(root,'p','pi-status','');
  let controls=add(root,'div','pi-actions'),save,validate;
  if(!locked){save=btn(controls,'Enregistrer le brouillon',saveDraft,'pi-main');validate=btn(controls,'Valider et verrouiller',validateDraft);}
- if(current.id)btn(controls,'Exporter en CSV pour la comptabilité',()=>{collect();let data=rows.map(l=>({...l,quantity:n(l.sealed)+n(l.open)*n(l.openPct)/100,valueHT:(n(l.sealed)+n(l.open)*n(l.openPct)/100)*n(l.unitPriceHT)}));exportCsv({...current,lines:data});});
+ if(current.id)btn(controls,locked?'Exporter le comptage validé (CSV)':'Exporter le brouillon (CSV)',()=>{collect();let data=rows.map(l=>({...l,quantity:n(l.sealed)+n(l.open)*n(l.openPct)/100,valueHT:(n(l.sealed)+n(l.open)*n(l.openPct)/100)*n(l.unitPriceHT)}));exportCsv({...current,lines:data});});
  function collect(){
   current.zone=zone.value;current.date=date.value;current.label=label.value;current.notes=notes.value;
   holder.querySelectorAll('[data-product-id]').forEach(block=>{
@@ -157,7 +157,7 @@ function edit(){
    let slider=add(percent,'input','pi-range');slider.type='range';slider.min='0';slider.max='100';slider.step='5';slider.value=row.openPct;slider.dataset.key='openPct';slider.disabled=locked;
    let output=add(percent,'output','',slider.value+' %');slider.oninput=()=>{output.textContent=slider.value+' %';refreshTotal();};
    count('Prix HT / unité inventoriée','unitPriceHT','0.0001');
-   let checkbox=add(article,'label','pi-confirm'),check=add(checkbox,'input');check.type='checkbox';check.dataset.key='unitConfirmed';check.checked=row.unitConfirmed;check.disabled=locked;
+   let checkbox=add(article,'label','pi-confirm'),check=add(checkbox,'input');check.type='checkbox';check.dataset.key='unitConfirmed';check.checked=row.unitConfirmed;check.disabled=locked;check.onchange=refreshTotal;
    add(checkbox,'span','','J’ai vérifié le prix HT par unité : attention aux cartons et conditionnements.');
    let note=field(article,'Commentaire','text',row.note);note.dataset.key='note';note.disabled=locked;
   });refreshTotal();
