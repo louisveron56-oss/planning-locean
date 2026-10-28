@@ -145,7 +145,7 @@ export default async function(req){
     return send({matches:index.filter(x=>x.kind==="BL"&&x.status==="validé").slice(0,200)});
    }
    const index=await db.get("index",{type:"json",consistency:"strong"})||[];
-   return send({documents:index.slice(0,150)});
+   return send({documents:index.filter(x=>x.establishment==="LOCEAN").slice(0,500)});
   }
   if(method!=="POST")return send({error:"Méthode non autorisée"},405);
   const raw=await req.text();
