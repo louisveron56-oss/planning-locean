@@ -43,10 +43,12 @@ function modal(opts){
   var previousSupplier=supplier.input.value,names=[...new Map(all.map(d=>[norm(d.supplier),d.supplier])).entries()].sort((a,b)=>a[1].localeCompare(b[1],'fr'));
   supplier.input.replaceChildren();names.forEach(([k,name])=>{var o=el('option','',name);o.value=k;supplier.input.appendChild(o);});
   if(names.some(x=>x[0]===previousSupplier))supplier.input.value=previousSupplier;
-  if(opts?.supplier&&names.some(x=>x[0]===norm(opts.supplier)))supplier.input.value=norm(opts.supplier);
+  if(opts?.supplier&&!supplier.input.dataset.initialized&&names.some(x=>x[0]===norm(opts.supplier)))supplier.input.value=norm(opts.supplier);
+  supplier.input.dataset.initialized='1';
   invoice.input.replaceChildren();
   all.filter(d=>scope.input.value!=='supplier'||norm(d.supplier)===supplier.input.value).sort((a,b)=>String(b.date).localeCompare(String(a.date))).forEach(d=>{var o=el('option','',(d.date||'Sans date')+' · '+d.supplier+' · '+(d.documentNumber||d.filename));o.value=d.id;invoice.input.appendChild(o);});
-  if(opts?.id&&all.some(d=>d.id===opts.id))invoice.input.value=opts.id;
+  if(opts?.id&&!invoice.input.dataset.initialized&&all.some(d=>d.id===opts.id))invoice.input.value=opts.id;
+  invoice.input.dataset.initialized='1';
   supplier.wrap.hidden=scope.input.value!=='supplier';invoice.wrap.hidden=scope.input.value!=='single';dates.hidden=scope.input.value==='single';
  }
  scope.input.onchange=options;supplier.input.onchange=options;
