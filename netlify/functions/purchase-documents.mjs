@@ -37,13 +37,38 @@ async function analyze(doc,body){
  // Honor a configured model, but migrate the retired default/legacy override.
  const configured=(process.env.PURCHASES_GEMINI_MODEL||"").trim().replace(/^models\//,"");
  const model=!configured||configured==="gemini-2.5-flash"?"gemini-3.8-flash":configured;
- const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent",{
-  method:"POST",headers:{"x-goog-api-key":process.env.GEMINI_API_KEY,"Content-Type":"application/json"},
-  body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt},{inline_data:{mime_type:doc.mime,data:parts[1]}}]}],generationConfig:{responseMimeType:"application/json",maxOutputTokens:6000,temperature:0}}),
-  signal:AbortSignal.timeout(45000)
- });
- let payload;try{payload=await response.json();}catch(_){throw Error("Réponse Gemini invalide");}
- if(!response.ok)throw Error("Gemini : "+response.status+" "+safe(payload.error?.message,180));
+ // Retry transient overloads, then fall back to the lighter multimodal model.
+ // Keep requests sequential to avoid multiplying load and costs.
+ const fallback="gemini-3.5-flash-lite";
+ const attempts=[model,model,...(model===fallback?[]:[fallback])];
+ const requestBody=JSON.stringify({contents:[{role:"user",parts:[{text:prompt},{inline_data:{mime_type:doc.mime,data:parts[1]}}]}],generationConfig:{responseMimeType:"application/json",maxOutputTokens:6000,temperature:0}});
+ let payload=null,modelUsed=model,lastError="";
+ const transientCodes=new Set([429,500,502,503,504]);
+ for(let i=0;i<attempts.length;i++){
+  const candidate=attempts[i];
+  try{
+   const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(candidate)+":generateContent",{
+    method:"POST",headers:{"x-goog-api-key":process.env.GEMINI_API_KEY,"Content-Type":"application/json"},
+    body:requestBody,signal:AbortSignal.timeout(i===0?14500:11000)
+   });
+   const responseData=await response.json().catch(()=>null);
+   if(response.ok){
+    if(!responseData)throw Error("Réponse Gemini invalide");
+    payload=responseData;modelUsed=candidate;break;
+   }
+   const explanation=safe(responseData?.error?.message,160);
+   lastError="Gemini : "+response.status+" "+explanation;
+   if(!transientCodes.has(response.status)){
+    // Bad key, permissions, request schema, or model missing: no blind retry.
+    throw Error(lastError);
+   }
+  }catch(err){
+   if(err.message?.startsWith("Gemini : ")&&!/Gemini : (429|500|502|503|504)\b/.test(err.message))throw err;
+   lastError=err.name==="TimeoutError"?"Délai de réponse Gemini dépassé":safe(err.message,200);
+  }
+  if(i<attempts.length-1)await new Promise(resolve=>setTimeout(resolve,i===0?650:1200));
+ }
+ if(!payload)throw Error("Service de lecture IA momentanément indisponible après plusieurs tentatives (modèle principal et secours). Tu peux relancer « Lire avec l’IA » sans réimporter la facture. Détail : "+safe(lastError,110));
  const output=(payload.candidates||[]).flatMap(x=>x.content?.parts||[]).map(x=>x.text||"").join("");
  if(!output)throw Error("Gemini n'a renvoyé aucun résultat exploitable.");
  let parsed;try{parsed=JSON.parse(output);}catch(_){throw Error("Résultat Gemini incomplet : réessayer ou corriger manuellement.");}
