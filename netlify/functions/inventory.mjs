@@ -61,7 +61,7 @@ export default async function(req){
    }
    const now=new Date().toISOString(),session={
     id:existing?.id||crypto.randomUUID(),establishment:"LOCEAN",zone:p.zone,date:p.date,
-    label:clean(p.label,100),notes:clean(p.notes,500),status:"draft",version:(existing?.version||0)+1,
+    label:clean(p.label,100),notes:clean(p.notes,500),status:"draft",zoneComplete:p.zoneComplete===true,version:(existing?.version||0)+1,
     lines,createdAt:existing?.createdAt||now,updatedAt:now,createdBy:existing?.createdBy||auth.user.email,
     updatedBy:auth.user.email,validatedAt:null,validatedBy:null,
     valueHT:Math.round(lines.reduce((n,l)=>n+l.valueHT,0)*100)/100,
@@ -82,6 +82,7 @@ export default async function(req){
    if(existing.status==="validated")return respond({error:"Inventaire déjà validé"},409);
    if(existing.version!==p.version)return respond({error:"Inventaire modifié : recharge avant de valider"},409);
    if(!existing.lines.length)return respond({error:"Ajoute au moins une ligne"},400);
+   if(!existing.zoneComplete)return respond({error:"Confirme que le comptage de la zone est complet avant validation."},400);
    if(existing.unconfirmedUnits)return respond({error:"Confirme les unités et prix de toutes les lignes avant de valider"},400);
    const now=new Date().toISOString(),session={...existing,status:"validated",version:existing.version+1,validatedAt:now,validatedBy:auth.user.email,updatedAt:now};
    await db.setJSON("session/"+session.id,session);
