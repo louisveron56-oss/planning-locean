@@ -1,7 +1,7 @@
 /* L'Océan — analyses des ventes, sans modifier les données Google Sheets. */
 (function(){
 'use strict';
-var data=null,loading=false,period='week',anchor=new Date(),ready=false;
+var data=null,loading=false,period='day',anchor=new Date(),ready=false;
 var euro=new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0});
 var integer=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0});
 var decimals=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2});
@@ -45,6 +45,8 @@ function buildTable(root,range,map){
  item.appendChild(meta);mobileList.appendChild(item);
  });table.appendChild(body);var wrap=elem('div','sales-table-wrap');wrap.appendChild(table);root.appendChild(wrap);root.appendChild(mobileList);
 }
+function salesDailyReset(){period='day';anchor=new Date();if(data?.rows){var valid=data.rows.map(r=>dateKey(r.date)).filter(Boolean).sort();if(valid.length&&key(anchor)>valid[valid.length-1])anchor=fromKey(valid[valid.length-1]);}if(ready)redraw();}
+window.addEventListener('prism-open-sales',salesDailyReset);
 function redraw(){
  if(!data)return;
  var container=document.querySelector('#module-sales .module-placeholder');if(!container)return;
@@ -55,7 +57,7 @@ function redraw(){
  var ca=sum(current,'ca_ttc'),covers=sum(current,'couverts'),weighted=covers?current.reduce(function(a,r){return a+number(r.ticket_moyen)*number(r.couverts);},0)/covers:0;
  container.style.display='block';container.style.textAlign='left';container.style.alignItems='stretch';container.replaceChildren();
  var controls=elem('div','sales-controls'),tabs=elem('div','sales-tabs');
- [['day','Jour'],['week','Semaine'],['month','Mois'],['year','Année']].forEach(function(entry){var b=button(entry[1],function(){period=entry[0];redraw();});if(period===entry[0])b.classList.add('selected');tabs.appendChild(b);});controls.appendChild(tabs);
+ [['day','Jour'],['month','Mois'],['year','Année']].forEach(function(entry){var b=button(entry[1],function(){period=entry[0];redraw();});if(period===entry[0])b.classList.add('selected');tabs.appendChild(b);});controls.appendChild(tabs);
  var nav=elem('div','sales-period-nav');nav.appendChild(button('‹',function(){anchor=nextPeriod(anchor,period,-1);redraw();}));
  nav.appendChild(elem('strong','sales-period-title',periodLabel(range,period)));
  nav.appendChild(button('›',function(){anchor=nextPeriod(anchor,period,1);redraw();}));
