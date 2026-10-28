@@ -156,8 +156,8 @@ function edit(){
   };
   search.oninput=()=>{
    suggestions.replaceChildren();let q=search.value.trim().toLocaleLowerCase('fr');if(q.length<2)return;
-   products.filter(p=>p.name.toLocaleLowerCase('fr').includes(q)&&!rows.some(x=>x.productId===p.id)).slice(0,12).forEach(p=>{
-    btn(suggestions,p.name+' · '+(p.unit||'unité non précisée'),()=>{
+   products.filter(p=>(p.name+' '+(p.subcategory||'')).toLocaleLowerCase('fr').includes(q)&&!rows.some(x=>x.productId===p.id)).sort((a,b)=>Number((b.locations||[]).includes(zone.value))-Number((a.locations||[]).includes(zone.value))).slice(0,12).forEach(p=>{
+    btn(suggestions,p.name+' · '+(p.subcategory||p.category)+' · '+(p.locations||[]).join(', ')+(p.unit?' · '+p.unit:''),()=>{
      collect();rows.push({productId:p.id,name:p.name,unit:p.unit,category:p.category,sealed:0,open:0,openPct:0,unitPriceHT:n(p.price),unitConfirmed:false,note:''});
      search.value='';suggestions.replaceChildren();drawRows();
     },'pi-suggestion');
