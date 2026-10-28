@@ -1768,7 +1768,14 @@ function setAuthUI(user){
     document.body.classList.remove('auth-locked');
     if(gate)gate.classList.add('hidden');
     if(userBox)userBox.classList.add('visible');
-    if(email)email.textContent=user.email||'Utilisateur';
+    if(email){
+      var profile=user.user_metadata||{},displayName=String(profile.full_name||profile.name||profile.first_name||'').trim();
+      var accountEmail=String(user.email||'').trim().toLowerCase();
+      if(accountEmail==='veron-l@hotmail.fr')displayName='Louis';
+      if(!displayName)displayName=accountEmail.split('@')[0]||'Utilisateur';
+      email.textContent=displayName.split(/\s+/)[0];
+      email.title='Compte connecté';
+    }
   }else{
     document.body.classList.add('auth-locked');
     if(gate)gate.classList.remove('hidden');
