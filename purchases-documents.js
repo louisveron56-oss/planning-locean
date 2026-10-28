@@ -72,9 +72,9 @@ function valueInput(p,label,value,type){
  var wrap=add(p,'label','pd-field');add(wrap,'span','',label);var input=add(wrap,'input','');input.type=type||'text';input.value=value??'';return input;
 }
 function productWords(value){
- var norm=String(value||'').toLocaleLowerCase('fr').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+ var norm=String(value||'').toLocaleLowerCase('fr').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
  var noise=new Set(['de','du','des','la','le','les','en','au','aux','a','et','avec','pour','kg','kgs','g','gr','l','cl','ml','pc','pcs','unite','unites','frais','fraiche','frais','qualite','origine']);
- return norm.split(/\\s+/).filter(x=>x.length>1&&!noise.has(x));
+ return norm.split(/\s+/).filter(x=>x.length>1&&!noise.has(x));
 }
 function suggestCatalog(label,reference,limit){
  var words=productWords(label),ref=String(reference||'').trim().toLowerCase();
