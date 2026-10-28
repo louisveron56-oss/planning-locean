@@ -2,7 +2,7 @@ import { getUser } from "@netlify/identity";
 import { getStore } from "@netlify/blobs";
 const reply=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
 const normalize=s=>String(s??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
-function productId(p){const key=[p.category,p.name,p.sourceRow||""].map(x=>normalize(x)).join("|");let h=2166136261;for(let i=0;i<key.length;i++)h=Math.imul(h^key.charCodeAt(i),16777619);return "prd-"+(h>>>0).toString(36);}
+function productId(p){const key=[p.category,p.name,p.sourceRow||""].map(x=>String(x??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim()).join("|");let h=2166136261;for(let i=0;i<key.length;i++)h=Math.imul(h^key.charCodeAt(i),16777619);return "prd-"+(h>>>0).toString(36);}
 function score(a,b){
  const x=normalize(a),y=normalize(b);if(!x||!y)return 0;
  if(x===y)return 1;
