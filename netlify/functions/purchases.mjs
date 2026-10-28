@@ -39,7 +39,7 @@ export default async function(req){
     const quantity=changes.inventoryQuantity===""||changes.inventoryQuantity===null?null:Number(changes.inventoryQuantity);
     if(quantity!==null&&(!Number.isFinite(quantity)||quantity<0))return send({error:"Quantité d'inventaire invalide"},400);
     const changedPrice=Number(p.price)!==price||!sameUnit(p.unit,unit);
-    const initial=history.length?history:[entry(Number(p.price),p.unit,"Valeur initiale enregistrée au catalogue",actor,saved.savedAt||now,"import")];
+    const initial=history.length?history:[entry(Number(p.price),p.unit,"Valeur initiale enregistrée au catalogue",actor,saved.importedAt||saved.savedAt||now,"import")];
     const updated={...p,name,category,unit,price,inventoryQuantity:quantity,priceHistory:changedPrice?[...initial,entry(price,unit,normalize(payload.reason,200)||"Modification manuelle",actor)]:history};
     products[index]=updated;
     await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
@@ -69,12 +69,12 @@ export default async function(req){
    const p={name,category,price,inventoryQuantity:Number.isFinite(Number(rawProduct.inventoryQuantity))?Number(rawProduct.inventoryQuantity):null,unit:normalize(rawProduct.unit,120),source:normalize(rawProduct.source),sourceRow:normalize(rawProduct.sourceRow,60)};
    p.id=idFor(p);const old=previous.get(p.id);p.priceHistory=historyOf(old||{});
    if(old&&(Number(old.price)!==price||!sameUnit(old.unit,p.unit))){
-    if(!p.priceHistory.length)p.priceHistory.push(entry(old.price,old.unit,"Valeur précédente du catalogue",actor,saved.savedAt||now,"import"));
+    if(!p.priceHistory.length)p.priceHistory.push(entry(old.price,old.unit,"Valeur précédente du catalogue",actor,saved.importedAt||saved.savedAt||now,"import"));
     p.priceHistory.push(entry(price,p.unit,"Remplacement du catalogue CSV",actor,now,"import"));
    }
    products.push(p);
   }
-  const record={reference:"Inventaire L’Océan · septembre 2026",savedAt:now,products};
+  const record={reference:"Inventaire L’Océan · septembre 2026",savedAt:now,importedAt:now,products};
   await db.setJSON("ocean/latest",record);
   return send({ok:true,count:products.length,savedAt:now,products});
  }catch(error){console.error("Catalogue achats",error);return send({error:"Stockage du catalogue indisponible"},503);}
