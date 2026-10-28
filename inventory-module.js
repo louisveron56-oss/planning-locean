@@ -64,6 +64,40 @@ function ratio(){
  for(let sel of [start,end]){add(sel,'option','','Choisir une date et une zone').value='';valid.forEach(x=>{let opt=add(sel,'option','',x.date+' · '+x.zone+' · '+money.format(x.valueHT));opt.value=x.id;});}
  let buying=field(grid,'Achats HT sur la période','number'),revenue=field(grid,'CA HT du même périmètre','number');for(let x of [buying,revenue]){x.min='0';x.step='.01';}
  let answer=add(section,'div','pi-result','Sélectionne deux inventaires validés, puis saisis tes achats et le CA HT.');
+ let linkBox=add(section,'div','pi-linkbox');
+ let linkButton=btn(linkBox,'Consulter les données liées (caisse + factures)',async()=>{
+  const a=valid.find(x=>x.id===start.value),b=valid.find(x=>x.id===end.value);
+  if(!a||!b||a.date>=b.date){linkStatus.textContent='Choisis d’abord deux inventaires dans l’ordre chronologique.';return;}
+  linkButton.disabled=true;linkStatus.textContent='Lecture des données de vente et des factures…';
+  try{
+   const [sales,archive]=await Promise.all([request('sales'),request('purchase-documents')]);
+   const parseDate=v=>{const x=String(v||'').trim(),y=x.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);if(y)return y[1]+'-'+y[2]+'-'+y[3];const d=x.match(/^(\\d{1,2})[/. -](\\d{1,2})[/. -](\\d{4})/);return d?d[3]+'-'+d[2].padStart(2,'0')+'-'+d[1].padStart(2,'0'):'';};
+   let daily=(sales.rows||[]).filter(x=>{const d=parseDate(x.date);return d>a.date&&d<=b.date;});
+   let validCa=daily.map(x=>Number(String(x.ca_ht||'').replace(/\\s/g,'').replace(',','.'))).filter(Number.isFinite);
+   const ca=validCa.reduce((sum,v)=>sum+v,0);
+   const allInvoices=(archive.documents||[]).filter(x=>x.kind==='facture'&&x.status==='validé'&&x.date>a.date&&x.date<=b.date);
+   const max=30,subset=allInvoices.slice(0,max);
+   let fetched=await Promise.allSettled(subset.map(x=>request('purchase-documents?id='+encodeURIComponent(x.id))));
+   let amounts=0,completeInvoices=0,missing=0;
+   fetched.forEach(result=>{
+    if(result.status!=='fulfilled'){missing++;return;}
+    const lines=result.value.document?.lines||[];
+    if(!lines.length){missing++;return;}
+    const vals=lines.map(x=>x.lineTotalHT===null||x.lineTotalHT===undefined||x.lineTotalHT===''?NaN:Number(x.lineTotalHT));
+    if(vals.some(v=>!Number.isFinite(v))){missing++;return;}
+    amounts+=vals.reduce((sum,n)=>sum+n,0);completeInvoices++;
+   });
+   linkStatus.replaceChildren();
+   add(linkStatus,'strong','','Données retrouvées du '+a.date+' au '+b.date+' :');
+   add(linkStatus,'p','',daily.length+' lignes de caisse · CA HT total L’Océan : '+(validCa.length?money.format(ca):'indisponible'));
+   add(linkStatus,'p','',allInvoices.length+' factures validées archivées · '+completeInvoices+' facture(s) à lignes HT complètes : '+money.format(amounts));
+   add(linkStatus,'p','pi-hint','Attention : le CA est celui de tout L’Océan, alors que les inventaires sélectionnés concernent '+a.zone+'. Les achats identifiés peuvent être incomplets (factures absentes, lignes HT manquantes ou limites de lecture). Ces totaux ne sont pas injectés automatiquement dans le ratio.');
+   if(missing||allInvoices.length>max)add(linkStatus,'p','pi-hint','Couverture incomplète : '+missing+' facture(s) non calculables et '+Math.max(0,allInvoices.length-max)+' hors lecture.');
+  }catch(err){linkStatus.textContent='Données liées indisponibles : '+err.message;}
+  finally{linkButton.disabled=false;}
+ },'pi-btn');
+ let linkStatus=add(linkBox,'div','pi-linked-result','Les totaux disponibles peuvent aider à renseigner les achats et le CA HT, après vérification du périmètre.');
+
  function calc(){
   let a=valid.find(x=>x.id===start.value),b=valid.find(x=>x.id===end.value);
   if(!a||!b){answer.textContent='Sélectionne deux inventaires validés.';return;}
