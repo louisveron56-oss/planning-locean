@@ -5,6 +5,14 @@ const send=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:
 const store=()=>getStore({name:"locean-private-purchase-catalog",consistency:"strong"});
 const normalize=(x,max=250)=>String(x??"").trim().slice(0,max);
 const priceNumber=(v)=>Number.isFinite(Number(v))&&Number(v)>=0&&Number(v)<=100000?Number(v):null;
+const subcategories={
+ "Bar":["Vins rouges","Vins blancs","Vins rosés","Champagnes & effervescents","Spiritueux","Bières & cidres","Softs & eaux","Cafés, thés & boissons chaudes","Sirops & ingrédients bar","Autres boissons"],
+ "Cuisine":["Viandes & volailles","Poissons & fruits de mer","Fruits & légumes","Crèmerie & fromages","Épicerie salée","Épicerie sucrée","Surgelés","Pain & boulangerie","Autres cuisine"],
+ "Hygiène":["Entretien","Consommables & emballages","Hygiène corporelle","Autres hygiène"]
+};
+const zones=["Bar","Cave","Réserve","Cuisine","Chambre froide","Autre"];
+const subtype=(category,x)=>subcategories[category]?.includes(x)?x:"";
+const locations=(x)=>Array.isArray(x)?[...new Set(x.map(v=>normalize(v,60)).filter(v=>zones.includes(v)))].slice(0,6):[];
 const fingerprint=(p)=>[p.category,p.name,p.sourceRow||""].map(v=>normalize(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()).join("|");
 function idFor(p){const key=fingerprint(p);let h=2166136261;for(let i=0;i<key.length;i++)h=Math.imul(h^key.charCodeAt(i),16777619);return "prd-"+(h>>>0).toString(36);}
 function entry(price,unit,reason,actor,at=new Date().toISOString(),source="manuel"){
@@ -40,7 +48,7 @@ export default async function(req){
     if(quantity!==null&&(!Number.isFinite(quantity)||quantity<0))return send({error:"Quantité d'inventaire invalide"},400);
     const changedPrice=Number(p.price)!==price||!sameUnit(p.unit,unit);
     const initial=history.length?history:[entry(Number(p.price),p.unit,"Valeur initiale enregistrée au catalogue",actor,saved.importedAt||saved.savedAt||now,"import")];
-    const updated={...p,name,category,unit,price,inventoryQuantity:quantity,priceHistory:changedPrice?[...initial,entry(price,unit,normalize(payload.reason,200)||"Modification manuelle",actor)]:history};
+    const updated={...p,name,category,subcategory:subtype(category,normalize(changes.subcategory,90)),locations:locations(changes.locations),unit,price,inventoryQuantity:quantity,priceHistory:changedPrice?[...initial,entry(price,unit,normalize(payload.reason,200)||"Modification manuelle",actor)]:history};
     products[index]=updated;
     await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
     return send({ok:true,product:updated,savedAt:now});
@@ -67,7 +75,7 @@ export default async function(req){
    const name=normalize(rawProduct.name),category=normalize(rawProduct.category,60),price=priceNumber(rawProduct.price);
    if(!name||!["Bar","Cuisine","Hygiène"].includes(category)||price===null)return send({error:"Référence invalide dans le catalogue"},400);
    const p={name,category,price,inventoryQuantity:Number.isFinite(Number(rawProduct.inventoryQuantity))?Number(rawProduct.inventoryQuantity):null,unit:normalize(rawProduct.unit,120),source:normalize(rawProduct.source),sourceRow:normalize(rawProduct.sourceRow,60)};
-   p.id=idFor(p);const old=previous.get(p.id);p.priceHistory=historyOf(old||{});
+   p.id=idFor(p);const old=previous.get(p.id);p.subcategory=subtype(category,old?.subcategory);p.locations=locations(old?.locations);p.priceHistory=historyOf(old||{});
    if(old&&(Number(old.price)!==price||!sameUnit(old.unit,p.unit))){
     if(!p.priceHistory.length)p.priceHistory.push(entry(old.price,old.unit,"Valeur précédente du catalogue",actor,saved.importedAt||saved.savedAt||now,"import"));
     p.priceHistory.push(entry(price,p.unit,"Remplacement du catalogue CSV",actor,now,"import"));
