@@ -10,6 +10,25 @@
 +".header .prism-tagline,.header .brand-sub{display:none!important}\n"
 +"@media(max-width:760px){.header .brand{top:25px!important;transform:translateX(-50%)!important;max-width:calc(100% - 118px)!important}.header .brand-name{font-size:clamp(20px,5.4vw,28px)!important;letter-spacing:.035em!important}.header .prism-wordmark{width:auto!important}}\n"
 +"@media(min-width:761px){.header .brand{top:50%!important}}\n";
+style.textContent += "\n/* Prism : bandeau légèrement plus haut, titre Didot plus discret et sidebar fonctionnelle native. */\n"
++"@media(min-width:761px){body.app-nav-ready>.header,.header{height:68px!important;min-height:68px!important}body.app-nav-ready>.header .brand-name,.header .brand-name{font-size:clamp(22px,2.05vw,29px)!important;letter-spacing:.055em!important}}\n"
++"@media(max-width:760px){body.app-nav-ready>.header,.header{min-height:76px!important;padding-top:10px!important}.header .brand{top:29px!important}.header .brand-name{font-size:clamp(19px,4.8vw,25px)!important;letter-spacing:.035em!important}}\n"
++"#appSidebar .prism-native-nav{display:flex;flex-direction:column;gap:5px;padding:10px 0 14px}\n"
++"#appSidebar .prism-home-link{font-weight:750!important;margin:0 8px 12px!important;padding:13px 12px!important;border-radius:10px!important}\n"
++"#appSidebar .prism-nav-section{display:block;margin:0 7px 3px;border:0;min-width:0}\n"
++"#appSidebar .prism-nav-section>summary{display:flex;align-items:center;gap:10px;list-style:none;cursor:pointer;color:#EAE0D3;padding:12px 10px;min-height:43px;box-sizing:border-box;border-radius:9px;user-select:none}\n"
++"#appSidebar .prism-nav-section>summary::-webkit-details-marker{display:none}\n"
++"#appSidebar .prism-nav-section>summary:hover,#appSidebar .prism-nav-section[open]>summary{background:rgba(234,224,211,.11)}\n"
++"#appSidebar .prism-nav-section>summary>span:nth-child(2){flex:1;font-size:10px;font-weight:800;letter-spacing:.055em;line-height:1.35}\n"
++"#appSidebar .prism-nav-symbol{min-width:23px;text-align:center;font-size:17px;color:#d8c6b6}\n"
++"#appSidebar .prism-nav-chevron{font-size:18px;color:#d8c6b6;transition:transform .18s}\n"
++"#appSidebar .prism-nav-section[open] .prism-nav-chevron{transform:rotate(180deg)}\n"
++"#appSidebar .prism-nav-section .app-nav-group{margin:0;padding:2px 0 7px 12px;border:0}\n"
++"#appSidebar .prism-nav-section .app-nav-label{display:none!important}\n"
++"#appSidebar .prism-nav-section .app-nav-item{font-size:12px!important;min-height:36px!important;padding-top:8px!important;padding-bottom:8px!important}\n"
++"#appSidebar .prism-nav-subheading{font-size:9px;font-weight:750;letter-spacing:.08em;color:#d1b6a0;padding:13px 12px 5px}\n"
++"#appSidebar .app-sidebar-scroll{scrollbar-width:thin}\n"
++"@media(max-width:760px){#appSidebar .prism-native-nav{display:none!important}}\n";
 document.head.appendChild(style);
  function label(){
   var sidebar=document.getElementById('appSidebar');
