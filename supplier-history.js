@@ -39,7 +39,7 @@ async function render(){
  finally{loading=false;}
 }
 function init(){
- var page=document.getElementById('module-supplier-directory');if(!page)return;
+ var page=document.getElementById('module-supplier-directory');if(!page){var obs=new MutationObserver(function(){if(document.getElementById('module-supplier-directory')){obs.disconnect();init();}});obs.observe(document.body,{childList:true,subtree:true});return;}
  new MutationObserver(function(){if(page.classList.contains('open'))render();}).observe(page,{attributes:true,attributeFilter:['class']});
  if(page.classList.contains('open'))render();
 }
