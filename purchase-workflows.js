@@ -28,8 +28,15 @@ function run(){
    if(source)document.querySelector('#module-'+id+' .module-shell').appendChild(source);
    window.dispatchEvent(new CustomEvent('locean-purchase-section',{detail:{kind:kind}}));
   });
-  // Conserver l'ordre Produits, Fournisseurs, BL, Factures, Inventaires, Stocks.
-  base.insertBefore(button,base.querySelector('[data-page="inventory"]')||null);
+  // Raccourci de premier niveau : visible même quand les groupes sont repliés.
+  var mainNav=document.querySelector('#appSidebar .prism-native-nav');
+  if(mainNav){
+   var firstGroup=mainNav.querySelector('.prism-nav-section');
+   mainNav.insertBefore(button,firstGroup);
+   button.classList.add('prism-purchase-shortcut');
+  }else{
+   base.insertBefore(button,base.querySelector('[data-page="inventory"]')||null);
+  }
  }
  menu('Bons de livraison','delivery-notes','BL','☷');
  menu('Factures','purchase-invoices','facture','▤');
