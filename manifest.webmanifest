@@ -8,15 +8,15 @@
   "theme_color": "#332823",
   "icons": [
     {
+      "src": "/prism-ios-icon-v3.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
       "src": "/prism-app-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/prism-touch-v2.png?v=2",
-      "sizes": "180x180",
-      "type": "image/png",
       "purpose": "any"
     }
   ]
