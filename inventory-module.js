@@ -86,6 +86,40 @@ function edit(){
  if(!locked){
   let search=field(searchbox,'Rechercher et ajouter un produit du catalogue','search',''),suggestions=add(searchbox,'div','pi-suggestions');
   search.placeholder='Au moins 2 caractères';
+  const photoSection=add(searchbox,'div','pi-photo');
+  const photoLabel=add(photoSection,'label','pi-photo-picker','📷 Photographier une étagère (test IA)');
+  const photoInput=add(photoLabel,'input','pi-photo-input');photoInput.type='file';photoInput.accept='image/*';photoInput.setAttribute('capture','environment');
+  const photoFeedback=add(photoSection,'p','pi-hint','La photo permet de proposer un comptage des bouteilles visibles. Aucune quantité n’est ajoutée sans confirmation.');
+  const photoResults=add(photoSection,'div','pi-photo-results');
+  photoInput.onchange=async()=>{
+   const file=photoInput.files?.[0];if(!file)return;
+   photoResults.replaceChildren();photoFeedback.textContent='Lecture de l’étagère en cours…';
+   try{
+    const bitmap=await createImageBitmap(file),ratio=Math.min(1,1400/Math.max(bitmap.width,bitmap.height));
+    const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*ratio));canvas.height=Math.max(1,Math.round(bitmap.height*ratio));canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();
+    const uri=canvas.toDataURL('image/jpeg',.75);
+    if(uri.length>2400000)throw Error('Photo encore trop volumineuse. Réessaie une photo plus rapprochée.');
+    const result=await request('inventory-photo',{mime:'image/jpeg',dataUri:uri});
+    const items=result.items||[];photoFeedback.textContent=result.warning||'Confirme chaque suggestion avant le comptage.';
+    if(!items.length){add(photoResults,'p','pi-hint','Aucune bouteille reconnue avec suffisamment de certitude. Utilise la recherche manuelle.');return;}
+    items.forEach(item=>{
+     const box=add(photoResults,'div','pi-photo-result');
+     add(box,'strong','',item.label+' · '+item.count+' visible(s) · confiance '+item.confidence);
+     const matching=add(box,'select','pi-input');add(matching,'option','','Choisir une correspondance').value='';
+     (item.matches||[]).forEach(match=>{let opt=add(matching,'option','',match.name+' ('+match.score+' %)');opt.value=match.id;});
+     const confirm=btn(box,'Ajouter au comptage',()=>{
+      const p=products.find(p=>p.id===matching.value);
+      if(!p){photoFeedback.textContent='Choisis d’abord un produit du catalogue.';return;}
+      collect();let existing=rows.find(x=>x.productId===p.id);
+      if(existing)existing.sealed=n(existing.sealed)+item.count;
+      else rows.push({productId:p.id,name:p.name,unit:p.unit,category:p.category,sealed:item.count,open:0,openPct:0,unitPriceHT:n(p.price),unitConfirmed:false,note:'Précomptage photo : '+item.label+' (à vérifier sur place)'});
+      box.remove();drawRows();photoFeedback.textContent='Suggestion ajoutée. Vérifie la quantité réelle et le prix HT par unité.';
+     },'pi-btn');
+     confirm.title='Valider uniquement les bouteilles réellement comptées';
+    });
+   }catch(err){photoFeedback.textContent='Photo non analysée : '+(err.message||'Erreur')+'. Le comptage manuel reste disponible.';}
+   finally{photoInput.value='';}
+  };
   search.oninput=()=>{
    suggestions.replaceChildren();let q=search.value.trim().toLocaleLowerCase('fr');if(q.length<2)return;
    products.filter(p=>p.name.toLocaleLowerCase('fr').includes(q)&&!rows.some(x=>x.productId===p.id)).slice(0,12).forEach(p=>{
@@ -171,6 +205,7 @@ function init(){
 }
 let style=el('style');style.textContent=
 '.pi-root{padding:0!important;max-width:100%!important;text-align:left!important;display:block!important;min-height:0!important}.pi-title h3{color:#332823;font-size:20px;margin:0 0 7px}.pi-title p,.pi-hint{font-size:12px;color:#76695e;line-height:1.55}.pi-section{border:1px solid #e1d4c7;border-radius:12px;padding:17px;background:#fffdfa;margin:15px 0}.pi-section h4{font-size:14px;margin:0 0 13px;color:#332823}.pi-actions{display:flex;gap:9px;flex-wrap:wrap;margin:15px 0}.pi-btn,.pi-main,.pi-suggestion{background:#fff;border:1px solid #d6c8ba;border-radius:8px;color:#44352b;padding:10px 13px;font-size:12px;cursor:pointer}.pi-main{background:#332823;color:#fff;font-weight:750}.pi-session{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #eaded1;padding:13px 0}.pi-session-info{display:flex;flex-direction:column;gap:6px}.pi-session-info strong{font-size:13px}.pi-session-info small{font-size:11px;color:#847367}.pi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.pi-field{display:flex;flex-direction:column;gap:6px;min-width:0}.pi-field span{font-size:11px;color:#645346;font-weight:700}.pi-input{width:100%;min-width:0;box-sizing:border-box;background:#fff;color:#332823;border:1px solid #d8c7b5;border-radius:7px;padding:10px;font-size:12px}.pi-suggestions{display:flex;flex-direction:column;gap:3px;margin-top:6px}.pi-suggestion{text-align:left}.pi-product{padding:14px;margin:11px 0;border-radius:10px;border:1px solid #e5d8cc;background:#fff}.pi-product-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}.pi-product-header small{color:#796c61}.pi-product-header .pi-btn{margin-left:auto}.pi-range{accent-color:#825840;width:100%}.pi-confirm{display:flex;align-items:center;gap:9px;font-size:12px;color:#625347;margin:11px 0}.pi-total,.pi-result{padding:14px;background:#f4e9dc;color:#332823;border-radius:9px;font-size:13px;line-height:1.5}.pi-total{font-weight:800}.pi-status{font-size:12px;color:#76695e}.pi-ratio{margin-top:25px}@media(max-width:600px){.pi-grid{grid-template-columns:1fr}.pi-section{padding:13px}.pi-session{flex-wrap:wrap}}';
+style.textContent += '.pi-photo{margin-top:17px;border-top:1px solid #e8dbcd;padding-top:14px}.pi-photo-picker{display:inline-flex;position:relative;background:#eee3d7;color:#423126;border:1px solid #d9c8b7;padding:11px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer}.pi-photo-input{position:absolute;left:0;top:0;opacity:0;width:100%;height:100%;cursor:pointer}.pi-photo-results{margin-top:10px;display:flex;flex-direction:column;gap:8px}.pi-photo-result{background:#fff;border:1px solid #e3d8cb;border-radius:9px;padding:11px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.pi-photo-result strong{font-size:12px;flex:1 1 170px}.pi-photo-result .pi-input{flex:1 1 190px;width:auto}';
 document.head.appendChild(style);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
