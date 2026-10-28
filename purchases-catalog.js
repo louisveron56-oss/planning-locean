@@ -94,16 +94,24 @@ function openProduct(id,editFirst){
   var container=e('div','purchases-price-chart');
   var h=validHistory(product).filter(x=>normalize(x.unit)===normalize(product.unit));
   if(!h.length){append(container,'p','purchases-empty','Aucune variation de prix historisée pour ce conditionnement. Les premières observations commencent à leur date réelle d’enregistrement.');return container;}
-  var months=period==='month',data=new Map();
-  h.forEach(x=>{var date=String(x.at).slice(0,months?7:4);if(date)data.set(date,x);});
-  var points=[...data].map(([date,x])=>({date,price:Number(x.price)}));
-  if(points.length<2){append(container,'p','purchases-empty','Une seule période tarifaire enregistrée. La courbe apparaîtra après les prochaines évolutions.');}
+  // Afficher chaque changement, y compris plusieurs prix au cours d'un même mois.
+  var days=period==='month'?31:period==='year'?366:null;
+  if(days){
+   var since=Date.now()-days*86400000;
+   var filtered=h.filter(x=>Date.parse(x.at)>=since);
+   var before=h.filter(x=>Date.parse(x.at)<since);
+   if(before.length)filtered.unshift(before[before.length-1]); // Prix de référence précédent.
+   h=filtered;
+  }
+  if(!h.length){append(container,'p','purchases-empty','Aucun prix enregistré sur cette période. Essaie une période plus longue.');return container;}
+  var points=h.map(x=>({date:period==='month'?new Date(x.at).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}):new Date(x.at).toLocaleDateString('fr-FR',{month:'2-digit',year:'2-digit'}),price:Number(x.price)}));
+  if(points.length<2){append(container,'p','purchases-empty','Une seule observation disponible pour cette période.');}
   var width=620,height=235,left=62,right=22,top=22,bottom=43;
   var vals=points.map(x=>x.price),min=Math.min(...vals),max=Math.max(...vals);
   if(max===min){min=Math.max(0,min*.85);max=max?max*1.15:1;}
   else{var pad=(max-min)*.18;min=Math.max(0,min-pad);max+=pad;}
   var ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');
-  svg.setAttribute('viewBox','0 0 '+width+' '+height);svg.setAttribute('role','img');svg.setAttribute('aria-label','Évolution du prix HT par '+(months?'mois':'année'));
+  svg.setAttribute('viewBox','0 0 '+width+' '+height);svg.setAttribute('role','img');svg.setAttribute('aria-label','Évolution du prix HT sur la période sélectionnée');
   function line(x1,y1,x2,y2,color,sw){var l=document.createElementNS(ns,'line');[['x1',x1],['y1',y1],['x2',x2],['y2',y2],['stroke',color],['stroke-width',sw]].forEach(([k,v])=>l.setAttribute(k,v));svg.appendChild(l);}
   function txt(x,y,t,anchor){var n=document.createElementNS(ns,'text');n.setAttribute('x',x);n.setAttribute('y',y);n.setAttribute('fill','#746659');n.setAttribute('font-size','11');n.setAttribute('text-anchor',anchor||'start');n.textContent=t;svg.appendChild(n);}
   for(var tick=0;tick<=4;tick++){var v=min+(max-min)*(4-tick)/4,y=top+(height-top-bottom)*tick/4;line(left,y,width-right,y,'#e8dfd5',1);txt(left-9,y+4,euro.format(v),'end');}
@@ -120,9 +128,9 @@ function openProduct(id,editFirst){
   [['Prix HT courant',euro.format(product.price)],['Conditionnement',product.unit||'Non précisé'],['Évolution',badge(product).textContent]].forEach(([label,value])=>{var card=append(summary,'div','purchases-detail-stat');append(card,'small','',label);append(card,'strong','',value);});
   var heading=append(content,'div','purchases-history-heading');append(heading,'h4','','Historique tarifaire');
   var period=append(heading,'select','purchases-detail-select');
-  [['month','Par mois'],['year','Par année']].forEach(([id,text])=>{var opt=append(period,'option','',text);opt.value=id;});
+  [['month','1 mois'],['year','1 an'],['all','Tout l’historique']].forEach(([id,text])=>{var opt=append(period,'option','',text);opt.value=id;});
   var chart=append(content,'div','purchases-history-plot');function draw(){chart.replaceChildren(chartView(period.value));}period.onchange=draw;draw();
-  append(content,'p','purchases-help','Chaque point représente le dernier prix HT validé de la période, à conditionnement identique. Les erreurs écartées ne sont pas tracées.');
+  append(content,'p','purchases-help','Chaque point représente une modification de tarif datée. La courbe compare uniquement les prix du même conditionnement ; les erreurs écartées ne sont pas tracées.');
   var rows=append(content,'div','purchases-history-entries');append(rows,'h4','','Journal des prix');
   var list=(product.priceHistory||[]).slice().sort((a,b)=>String(b.at).localeCompare(String(a.at)));
   if(!list.length)append(rows,'p','purchases-empty','Aucun historique pour l’instant. La première modification enregistrera le prix de départ puis le nouveau prix.');
