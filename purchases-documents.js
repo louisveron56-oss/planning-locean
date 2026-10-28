@@ -201,6 +201,24 @@ function renderPriceChanges(host,doc){
   add(row,'small','',money(change.previous)+' → '+money(change.current)+' HT / '+(change.unit||'unité')+' · précédent : '+change.previousDate);
  });
 }
+function renderReconciliation(host,doc){
+ var area=add(host,'section','pd-audit');
+ add(area,'h4','','Rapprochement avec '+doc.linkedBLs.length+' bon(s) de livraison');
+ var rows=doc.reconciliation||[];
+ if(!rows.length){add(area,'p','pd-help','Aucun écart détecté sur les informations comparables. Ceci ne remplace pas la vérification des marchandises.');return;}
+ add(area,'p','pd-warning',rows.length+' point(s) à contrôler avant clôture commerciale.');
+ rows.forEach(function(item){
+  var row=add(area,'div','pd-audit-row');
+  if(item.kind==='litige'){
+   add(row,'strong','','BL '+(item.blNumber||'sans numéro')+' · '+item.description+' · '+item.issueType.replaceAll('_',' '));
+   add(row,'small','',(item.note||'')+' · État : '+item.status);
+  }else{
+   add(row,'strong','','Écart de quantités · '+item.key.replaceAll('|',' · '));
+   add(row,'small','','Facturé : '+item.quantityBilled+' · Reçu sur BL liés : '+item.quantityReceived);
+   add(row,'small','',item.note);
+  }
+ });
+}
 async function loadBLMatches(doc,host){
  if(doc.kind!=='facture'||doc.status==='validé')return;
  var area=add(host,'section','pd-audit'),heading=add(area,'h4','','Rapprochement avec les bons de livraison');
@@ -238,6 +256,7 @@ function renderDetail(){
  if(doc.status==='validé')add(host,'p','pd-approved','✓ Document validé et classé. '+(doc.catalogUnitsUpdated||0)+' unité(s) enrichie(s) dans le catalogue. Aucun prix modifié.');
  if(doc.kind==='BL'&&doc.disputes?.length)renderDisputes(host,doc);
  if(doc.kind==='facture'&&doc.priceChanges?.length)renderPriceChanges(host,doc);
+ if(doc.kind==='facture'&&doc.linkedBLs?.length)renderReconciliation(host,doc);
  var form=add(host,'div','pd-review');
  var supplier=valueInput(form,'Fournisseur',doc.supplier||'');
  var date=valueInput(form,'Date du document',doc.date||'','date');
