@@ -25,10 +25,25 @@ function exportCsv(session){
  let blob=new Blob(['\ufeff'+values.map(line=>line.map(escape).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'});
  let uri=URL.createObjectURL(blob),a=el('a');a.href=uri;a.download='Prism_inventaire_'+session.date+'_'+session.zone.replace(/\s+/g,'-')+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(uri),30000);
 }
+async function exportAll(){
+ let valid=sessions.filter(x=>x.status==='validated');if(!valid.length){status('Aucun inventaire validé à exporter.',true);return;}
+ status('Préparation des inventaires validés…');
+ try{
+  const records=await Promise.all(valid.map(x=>request('inventory?id='+encodeURIComponent(x.id))));
+  const columns=['Établissement','Date','Zone','Inventaire','Produit','Famille','Unité','Quantité équivalente','Prix HT / unité','Valeur HT','Validation'];
+  const table=[columns];
+  records.forEach(({session:s})=>s.lines.forEach(l=>table.push(['L’OCÉAN',s.date,s.zone,s.id,l.name,l.category,l.unit,l.quantity,l.unitPriceHT,l.valueHT,s.validatedAt||''])));
+  const escape=v=>'"'+String(v??'').replace(/"/g,'""').replace(/[\\r\\n]/g,' ')+'"';
+  const blob=new Blob(['\\uFEFF'+table.map(x=>x.map(escape).join(';')).join('\\r\\n')],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob),a=el('a');a.href=url;a.download='Prism_inventaires_valides_LOCEAN.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  status(valid.length+' inventaire(s) validé(s) exporté(s).');
+ }catch(err){status(err.message,true);}
+}
 function home(){
  root.replaceChildren();
  let h=add(root,'div','pi-title');add(h,'h3','','Inventaires de L’Océan');add(h,'p','','Comptage mobile par zone · jauge des bouteilles entamées · valorisation HT');
  let actions=add(root,'div','pi-actions');btn(actions,'+ Nouvel inventaire',()=>{current={zone:'Bar',date:today(),label:'',notes:'',status:'draft',version:0,lines:[]};rows=[];edit();},'pi-main');btn(actions,'Actualiser',load);
+ btn(actions,'Exporter tous les inventaires validés (CSV)',exportAll);
  add(root,'p','pi-status','Comptage assisté et contrôlé. La reconnaissance photographique reste une étape expérimentale.');
  let list=add(root,'section','pi-section');add(list,'h4','','Historique des comptages');
  if(!sessions.length)add(list,'p','pi-hint','Aucun inventaire. Commence par une zone de stockage.');
@@ -133,9 +148,14 @@ function edit(){
   if(!current.id){status('Enregistre le brouillon avant validation.',true);return;}
   if(rows.some(x=>!x.unitConfirmed)){status('Confirme toutes les unités et prix.',true);return;}
   if(!confirm('Valider définitivement cet inventaire ?'))return;
-  busy=true;validate.disabled=true;
-  try{let r=await request('inventory',{action:'validate',id:current.id,version:current.version});current=r.session;sessions=r.summary;rows=current.lines.map(x=>({...x}));edit();}
-  catch(err){status(err.message,true);validate.disabled=false;}busy=false;
+  busy=true;validate.disabled=true;if(save)save.disabled=true;
+  try{
+   // Toujours enregistrer les derniers changements avant verrouillage définitif.
+   let draft=await request('inventory',{action:'save',id:current.id,version:current.version,zone:current.zone,date:current.date,label:current.label,notes:current.notes,lines:rows});
+   current=draft.session;sessions=draft.summary;rows=current.lines.map(x=>({...x}));
+   let r=await request('inventory',{action:'validate',id:current.id,version:current.version});
+   current=r.session;sessions=r.summary;rows=current.lines.map(x=>({...x}));edit();
+  }catch(err){status(err.message,true);validate.disabled=false;if(save)save.disabled=false;}busy=false;
  }
  drawRows();
 }
