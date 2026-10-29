@@ -346,7 +346,7 @@ function renderDetail(){
   };
  }else{
   supplier.disabled=true;date.disabled=true;number.disabled=true;kind.disabled=true;
-  lineHost.querySelectorAll('input').forEach(x=>x.disabled=true);
+  lineHost.querySelectorAll('input,select').forEach(x=>x.disabled=true);
  }
 }
 function install(){
