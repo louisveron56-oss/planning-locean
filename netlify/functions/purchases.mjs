@@ -52,12 +52,12 @@ export default async function(req){
    if(payload.action==="update"){
     const changes=payload.changes||{},category=normalize(changes.category,60),unit=normalize(changes.unit,120),name=normalize(changes.name);
     const price=priceNumber(changes.price);
-    if(!name||!["Bar","Cuisine","Hygiène"].includes(category)||!unit||price===null)return send({error:"Nom, famille, conditionnement et prix HT valides obligatoires"},400);
+    if(!name||!["Bar","Cuisine","Hygiène","À classer"].includes(category)||!unit||price===null)return send({error:"Nom, famille, conditionnement et prix HT valides obligatoires"},400);
     const quantity=changes.inventoryQuantity===""||changes.inventoryQuantity===null?null:Number(changes.inventoryQuantity);
     if(quantity!==null&&(!Number.isFinite(quantity)||quantity<0))return send({error:"Quantité d'inventaire invalide"},400);
     const changedPrice=Number(p.price)!==price||!sameUnit(p.unit,unit);
     const initial=history.length?history:[entry(Number(p.price),p.unit,"Valeur initiale enregistrée au catalogue",actor,saved.importedAt||saved.savedAt||now,"import")];
-    const updated={...p,name,category,subcategory:subtype(category,normalize(changes.subcategory,90)),locations:locations(changes.locations),unit,price,inventoryQuantity:quantity,priceHistory:changedPrice?[...initial,entry(price,unit,normalize(payload.reason,200)||"Modification manuelle",actor)]:history};
+    const updated={...p,name,category,subcategory:subtype(category,normalize(changes.subcategory,90)),locations:locations(changes.locations),unit,price,inventoryQuantity:quantity,priceHistory:changedPrice?[...initial,entry(price,unit,normalize(payload.reason,200)||"Modification manuelle",actor)]:history,sourcePrice:changedPrice?"manuel":p.sourcePrice};
     products[index]=updated;
     await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
     return send({ok:true,product:updated,savedAt:now});
@@ -82,7 +82,7 @@ export default async function(req){
   const products=[];
   for(const rawProduct of payload.products){
    const name=normalize(rawProduct.name),category=normalize(rawProduct.category,60),price=priceNumber(rawProduct.price);
-   if(!name||!["Bar","Cuisine","Hygiène"].includes(category)||price===null)return send({error:"Référence invalide dans le catalogue"},400);
+   if(!name||!["Bar","Cuisine","Hygiène","À classer"].includes(category)||price===null)return send({error:"Référence invalide dans le catalogue"},400);
    const p={name,category,price,inventoryQuantity:Number.isFinite(Number(rawProduct.inventoryQuantity))?Number(rawProduct.inventoryQuantity):null,unit:normalize(rawProduct.unit,120),source:normalize(rawProduct.source),sourceRow:normalize(rawProduct.sourceRow,60)};
    p.id=idFor(p);const old=previous.get(p.id);p.archivedAt=old?.archivedAt||null;p.archivedBy=old?.archivedBy||null;p.subcategory=subtype(category,old?.subcategory);p.locations=locations(old?.locations);p.priceHistory=historyOf(old||{});
    if(old&&(Number(old.price)!==price||!sameUnit(old.unit,p.unit))){
@@ -94,7 +94,7 @@ export default async function(req){
   // Conserver les références ajoutées depuis les factures validées lors d'un réimport CSV.
   const importedNames=new Set(products.map(p=>normalize(p.name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()));
   for(const prior of saved?.products||[]){
-   if(prior.source!=="Facture validée"&&!prior.archivedAt)continue;
+   if(!["Facture validée","Sheets Pennylane"].includes(prior.source)&&!prior.archivedAt)continue;
    const key=normalize(prior.name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
    if(!importedNames.has(key)){products.push(prior);importedNames.add(key);}
   }
