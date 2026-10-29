@@ -88,6 +88,35 @@ function suggestCatalog(label,reference,limit){
  }).filter(x=>x.score>=23).sort((a,b)=>b.score-a.score||a.product.name.localeCompare(b.product.name,'fr')).slice(0,limit||4);
 }
 function kindSelection(){return root?.querySelector('.pd-review select')?.value||activeType;}
+
+var pdSubcats={
+ 'Bar':['Vins rouges','Vins blancs','Vins rosés','Champagnes & effervescents','Spiritueux','Bières & cidres','Softs & eaux','Cafés, thés & boissons chaudes','Sirops & ingrédients bar','Autres boissons'],
+ 'Cuisine':['Viandes & volailles','Poissons & fruits de mer','Fruits & légumes','Crèmerie & fromages','Épicerie salée','Épicerie sucrée','Surgelés','Pain & boulangerie','Autres cuisine'],
+ 'Hygiène':['Entretien','Consommables & emballages','Hygiène corporelle','Autres hygiène']
+};
+function pdGuess(label){
+ var v=String(label||'').toLocaleLowerCase('fr').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'');
+ var tests=[
+ ['Hygiène','Consommables & emballages',/serviette|nappe|sac kraft|barquette|gobelet|film alimentaire|papier cuisson|gant jetable|emballage/],
+ ['Hygiène','Entretien',/detergent|desinfect|lessive|nettoy|javel|degraiss|liquide vaisselle/],
+ ['Bar','Vins rouges',/vin rouge|bordeaux|bourgogne rouge|cotes du rhone/],
+ ['Bar','Vins blancs',/vin blanc|chardonnay|muscadet|sauvignon blanc/],
+ ['Bar','Vins rosés',/vin rose|rose de provence/],
+ ['Bar','Champagnes & effervescents',/champagne|cremant|prosecco/],
+ ['Bar','Bières & cidres',/biere|cidre|pression|ipa |lager/],
+ ['Bar','Softs & eaux',/eau minerale|eau gazeuse|jus de fruit|limonade|cola|tonic/],
+ ['Bar','Cafés, thés & boissons chaudes',/cafe|matcha|the vert|infusion/],
+ ['Cuisine','Poissons & fruits de mer',/saumon|cabillaud|huitre|moule|crevette|thon|merlu|poisson/],
+ ['Cuisine','Viandes & volailles',/boeuf|poulet|canard|porc|veau|agneau|volaille|jambon/],
+ ['Cuisine','Crèmerie & fromages',/lait|creme fraiche|beurre|fromage|comte|mozzarella|emmental/],
+ ['Cuisine','Pain & boulangerie',/baguette|pain de mie|brioche|croissant|pain burger/],
+ ['Cuisine','Fruits & légumes',/tomate|pomme de terre|carotte|oignon|salade|citron|courgette|aubergine|poire|pomme/],
+ ['Cuisine','Épicerie sucrée',/sucre|chocolat|vanille|confiture|miel|farine/]
+ ];
+ for(var t of tests)if(t[2].test(v))return {category:t[0],subcategory:t[1]};
+ return {category:'',subcategory:''};
+}
+
 function lineInput(p,line,i){
  var row=add(p,'div','pd-line');add(row,'strong','','Ligne '+(i+1));
  var name=valueInput(row,'Produit sur le BL',line.description||'');
@@ -151,6 +180,22 @@ function lineInput(p,line,i){
  var updateRow=add(row,'label','pd-unit-update');
  var checkbox=add(updateRow,'input','');checkbox.type='checkbox';
  add(updateRow,'span','','Enregistrer cette unité dans la fiche produit après validation');
+ var proposal=add(row,'div','pd-create-proposal');
+ var createLabel=add(proposal,'label','pd-unit-update');
+ var createNew=add(createLabel,'input','');createNew.type='checkbox';
+ add(createLabel,'span','','Ajouter ce nouveau produit au catalogue après validation');
+ var categories=add(proposal,'div','pd-new-product-selects');
+ var cat=add(categories,'select','pd-catalog-select');
+ [['','Catégorie à choisir'],['Bar','Bar'],['Cuisine','Cuisine'],['Hygiène','Hygiène']].forEach(function(pair){var option=add(cat,'option','',pair[1]);option.value=pair[0];});
+ var subcat=add(categories,'select','pd-catalog-select');
+ function updateSubcat(preferred){
+  subcat.replaceChildren();var first=add(subcat,'option','','À classer');first.value='';
+  (pdSubcats[cat.value]||[]).forEach(function(label){var o=add(subcat,'option','',label);o.value=label;});
+  subcat.value=preferred||'';
+ }
+ var guess=pdGuess(line.description);cat.value=guess.category;updateSubcat(guess.subcategory);
+ cat.addEventListener('change',function(){updateSubcat('');});
+ var hint=add(proposal,'small','pd-help','Catégorie suggérée automatiquement si reconnue ; tu peux la corriger. Produit ajouté sans mouvement de stock.');
  var info=add(row,'small','pd-matched','');
  function change(){
   var product=selector.value!==''?productCatalog[Number(selector.value)]:null;
@@ -162,11 +207,14 @@ function lineInput(p,line,i){
   if(product){
    info.textContent='Catalogue : '+product.name+' · '+money(product.price)+' HT · '+(product.unit||'unité non précisée')+
     (offered?' · Complément possible':' · Unité existante conservée');
-  }else info.textContent='Aucune fiche catalogue ne sera modifiée.';
+  }else info.textContent='Aucune correspondance enregistrée.';
+  var fresh=selector.value===''&&kindSelection()==='facture';
+  proposal.style.display=fresh?'grid':'none';createNew.disabled=!fresh;
+  if(!fresh)createNew.checked=false;
  }
  selector.addEventListener('change',function(){change();updateSuggestions();});unit.addEventListener('input',change);change();updateSuggestions();
  add(row,'small','pd-warning','Vérifier carton, bouteille, kilo ou litre. Les prix du catalogue ne seront jamais modifiés.');
- return ()=>({data:{description:name.value.trim(),quantity:qty.value===''?null:Number(qty.value),unit:unit.value.trim(),unitPriceHT:price.value===''?null:Number(price.value),reference:ref.value.trim(),lineTotalHT:line.lineTotalHT??null,catalogIndex:selector.value===''?null:Number(selector.value),confidence:line.confidence||'low',receivedQuantity:received.value===''?null:Number(received.value),issueType:kindSelection()==='BL'?issue.value:'',issueNote:kindSelection()==='BL'?issueNote.value.trim():''},updateUnit:!checkbox.disabled&&checkbox.checked});
+ return ()=>({data:{description:name.value.trim(),quantity:qty.value===''?null:Number(qty.value),unit:unit.value.trim(),unitPriceHT:price.value===''?null:Number(price.value),reference:ref.value.trim(),lineTotalHT:line.lineTotalHT??null,catalogIndex:selector.value===''?null:Number(selector.value),confidence:line.confidence||'low',receivedQuantity:received.value===''?null:Number(received.value),issueType:kindSelection()==='BL'?issue.value:'',issueNote:kindSelection()==='BL'?issueNote.value.trim():''},updateUnit:!checkbox.disabled&&checkbox.checked,createProduct:!createNew.disabled&&createNew.checked?{category:cat.value,subcategory:subcat.value}:null});
 }
 async function openOriginal(doc){
  try{var result=await call('GET','?id='+encodeURIComponent(doc.id)+'&original=1');
@@ -253,7 +301,7 @@ function renderDetail(){
   };
  }
  if(doc.analysisError)add(host,'p','pd-warning','Analyse précédente : '+doc.analysisError);
- if(doc.status==='validé')add(host,'p','pd-approved','✓ Document validé et classé. '+(doc.catalogUnitsUpdated||0)+' unité(s) enrichie(s) dans le catalogue. Aucun prix modifié.');
+ if(doc.status==='validé')add(host,'p','pd-approved','✓ Document validé et classé. '+(doc.catalogProductsCreated||0)+' produit(s) ajouté(s), '+(doc.catalogUnitsUpdated||0)+' unité(s) enrichie(s).');
  if(doc.kind==='BL'&&doc.disputes?.length)renderDisputes(host,doc);
  if(doc.kind==='facture'&&doc.priceChanges?.length)renderPriceChanges(host,doc);
  if(doc.kind==='facture'&&doc.linkedBLs?.length)renderReconciliation(host,doc);
@@ -270,12 +318,15 @@ function renderDetail(){
  doc.lines.forEach((item,i)=>lines.push(lineInput(lineHost,item,i)));
  kind.addEventListener('change',function(){window.__pdReceiveBindings.forEach(fn=>fn());});
  if(doc.status!=='validé'){
-  var note=add(host,'p','pd-help','Après validation, seules les unités explicitement cochées enrichissent les fiches dont l’unité est encore absente. Aucun mouvement de stock ni changement de prix.');
+  var note=add(host,'p','pd-help','Après validation, les nouveaux produits explicitement cochés seront ajoutés au catalogue avec leur catégorie suggérée et vérifiée. Aucune quantité en stock n’est créée, et les prix des produits existants restent inchangés.');
   var approve=add(host,'button','pd-action pd-approve','✓ Valider et classer');
   approve.onclick=async()=>{
    if(!supplier.value.trim()||!date.value){show('Indique le fournisseur et la date du document avant de valider.',true);return;}
-   var checkedLines=lines.map(f=>f());var proposals=checkedLines.map((row,lineIndex)=>row.updateUnit?{lineIndex:lineIndex,catalogIndex:row.data.catalogIndex}:null).filter(Boolean);if(!confirm('Valider ce document et enregistrer '+proposals.length+' unité(s) cochée(s) ? Aucun prix ne sera modifié.'))return;
-   approve.disabled=true;try{var r=await call('POST','',{action:'confirm',id:doc.id,supplier:supplier.value,date:date.value,documentNumber:number.value,kind:kind.value,lines:checkedLines.map(r=>r.data),catalogUnitUpdates:proposals,linkedBLs:selectedBLs});current=r.document;await refresh();renderDetail();show('Document validé · '+(r.document.catalogUnitsUpdated||0)+' unité(s) enregistrée(s). Aucun prix modifié.');}
+   var checkedLines=lines.map(f=>f());var proposals=checkedLines.map((row,lineIndex)=>row.updateUnit?{lineIndex:lineIndex,catalogIndex:row.data.catalogIndex}:null).filter(Boolean);
+   var newProducts=checkedLines.map((row,lineIndex)=>row.createProduct?{lineIndex:lineIndex,category:row.createProduct.category,subcategory:row.createProduct.subcategory}:null).filter(Boolean);
+   if(newProducts.some(p=>!p.category)){show('Choisis une catégorie pour chaque nouveau produit coché.',true);return;}
+   if(!confirm('Valider ce document, ajouter '+newProducts.length+' nouveau(x) produit(s) et enrichir '+proposals.length+' unité(s) ? Aucun stock ne sera ajouté automatiquement.'))return;
+   approve.disabled=true;try{var r=await call('POST','',{action:'confirm',id:doc.id,supplier:supplier.value,date:date.value,documentNumber:number.value,kind:kind.value,lines:checkedLines.map(r=>r.data),catalogUnitUpdates:proposals,newCatalogProducts:newProducts,linkedBLs:selectedBLs});current=r.document;await refresh();renderDetail();show('Document validé · '+(r.document.catalogProductsCreated||0)+' produit(s) créé(s), '+(r.document.catalogUnitsUpdated||0)+' unité(s) enrichie(s).');}
    catch(err){show(err.message,true);}finally{approve.disabled=false;}
   };
  }else{
@@ -297,7 +348,7 @@ window.addEventListener('locean-purchase-section',function(event){
  current=null;selectedBLs=[];renderList();renderDetail();refresh();
 });
 var css=e('style');
-css.textContent='.pd-root{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:18px}.pd-root>section{grid-column:1/-1}.pd-card,.pd-list,.pd-detail{border:1px solid #e7e8e4;border-radius:11px;background:#fff;padding:17px;min-width:0}.pd-heading h3{font-size:16px;color:#0A3D62;margin:0 0 7px}.pd-heading p{font-size:12px;color:#71808b;line-height:1.5}.pd-upload-actions,.pd-detail-actions{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0}.pd-action{display:inline-flex;gap:6px;align-items:center;justify-content:center;border:0;border-radius:8px;background:#0A3D62;color:#fff;padding:11px 13px;font:650 12px system-ui;cursor:pointer}.pd-action:disabled{opacity:.5;cursor:wait}.pd-secondary{background:#f3f5f4;color:#0A3D62;border:1px solid #e0e5e3}.pd-hidden{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none}.pd-help,.pd-status{font-size:11px;color:#71808b;line-height:1.5;margin:10px 0 0}.pd-list-title,.pd-detail-title{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-bottom:12px}.pd-list-title h4,.pd-detail-title h4{margin:0;color:#0A3D62;font-size:14px}.pd-list-title span{color:#83919c;font-size:11px}.pd-doc{display:flex;align-items:center;justify-content:space-between;gap:7px;border:0;border-bottom:1px solid #f0f1ef;padding:12px 0;background:white;width:100%;text-align:left;cursor:pointer}.pd-doc-body{display:flex;flex-direction:column;gap:5px;min-width:0}.pd-doc-body strong{font-size:12px;color:#293f4e;overflow-wrap:anywhere}.pd-doc-body small{color:#7f8992;font-size:10px}.pd-doc-badge{font-size:10px;background:#f5eee0;border-radius:7px;color:#8a651c;padding:5px;white-space:nowrap}.pd-doc-badge.confirmed{background:#e6f1e9;color:#24603e}.pd-link{background:none;border:none;color:#0A3D62;cursor:pointer}.pd-review{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pd-field{display:flex;flex-direction:column;gap:5px;color:#5b6d7a;font-size:10px;min-width:0}.pd-field input,.pd-field select{width:100%;max-width:100%;min-width:0;padding:9px;border:1px solid #dce0df;border-radius:7px;color:#263c48;box-sizing:border-box;font-size:12px}.pd-line{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:12px;margin:10px 0;border:1px solid #e9ece8;border-radius:8px}.pd-line>strong,.pd-line>small{grid-column:1/-1}.pd-line>strong{color:#0A3D62;font-size:12px}.pd-lines{max-height:440px;overflow-y:auto}.pd-warning{font-size:11px;color:#a06a30}.pd-approved{font-size:11px;color:#24603e}.pd-detail h5{font-size:13px;margin:17px 0 0}.pd-approve{margin-top:12px}.pd-matched{font-size:10px;color:#206a48}@media(max-width:940px){.pd-root{grid-template-columns:1fr}.pd-review{grid-template-columns:1fr}}';
+css.textContent='.pd-create-proposal{display:grid;gap:7px;grid-column:1/-1;border:1px solid #d5e5dc;background:#f5faf7;border-radius:8px;padding:9px}.pd-new-product-selects{display:flex;flex-wrap:wrap;gap:7px}.pd-new-product-selects select{flex:1;min-width:135px}.pd-root{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:18px}.pd-root>section{grid-column:1/-1}.pd-card,.pd-list,.pd-detail{border:1px solid #e7e8e4;border-radius:11px;background:#fff;padding:17px;min-width:0}.pd-heading h3{font-size:16px;color:#0A3D62;margin:0 0 7px}.pd-heading p{font-size:12px;color:#71808b;line-height:1.5}.pd-upload-actions,.pd-detail-actions{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0}.pd-action{display:inline-flex;gap:6px;align-items:center;justify-content:center;border:0;border-radius:8px;background:#0A3D62;color:#fff;padding:11px 13px;font:650 12px system-ui;cursor:pointer}.pd-action:disabled{opacity:.5;cursor:wait}.pd-secondary{background:#f3f5f4;color:#0A3D62;border:1px solid #e0e5e3}.pd-hidden{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none}.pd-help,.pd-status{font-size:11px;color:#71808b;line-height:1.5;margin:10px 0 0}.pd-list-title,.pd-detail-title{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-bottom:12px}.pd-list-title h4,.pd-detail-title h4{margin:0;color:#0A3D62;font-size:14px}.pd-list-title span{color:#83919c;font-size:11px}.pd-doc{display:flex;align-items:center;justify-content:space-between;gap:7px;border:0;border-bottom:1px solid #f0f1ef;padding:12px 0;background:white;width:100%;text-align:left;cursor:pointer}.pd-doc-body{display:flex;flex-direction:column;gap:5px;min-width:0}.pd-doc-body strong{font-size:12px;color:#293f4e;overflow-wrap:anywhere}.pd-doc-body small{color:#7f8992;font-size:10px}.pd-doc-badge{font-size:10px;background:#f5eee0;border-radius:7px;color:#8a651c;padding:5px;white-space:nowrap}.pd-doc-badge.confirmed{background:#e6f1e9;color:#24603e}.pd-link{background:none;border:none;color:#0A3D62;cursor:pointer}.pd-review{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pd-field{display:flex;flex-direction:column;gap:5px;color:#5b6d7a;font-size:10px;min-width:0}.pd-field input,.pd-field select{width:100%;max-width:100%;min-width:0;padding:9px;border:1px solid #dce0df;border-radius:7px;color:#263c48;box-sizing:border-box;font-size:12px}.pd-line{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:12px;margin:10px 0;border:1px solid #e9ece8;border-radius:8px}.pd-line>strong,.pd-line>small{grid-column:1/-1}.pd-line>strong{color:#0A3D62;font-size:12px}.pd-lines{max-height:440px;overflow-y:auto}.pd-warning{font-size:11px;color:#a06a30}.pd-approved{font-size:11px;color:#24603e}.pd-detail h5{font-size:13px;margin:17px 0 0}.pd-approve{margin-top:12px}.pd-matched{font-size:10px;color:#206a48}@media(max-width:940px){.pd-root{grid-template-columns:1fr}.pd-review{grid-template-columns:1fr}}';
 css.textContent+=' .pd-match-area{grid-column:1/-1;border-top:1px solid #ecede9;padding-top:10px}.pd-match-title{display:block;font-size:11px;color:#0A3D62;margin-bottom:9px}.pd-match-suggestions{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:9px}.pd-match-proposal{flex:1 1 180px;min-width:0;border:1px solid #d9e2de;background:#f8fbfa;text-align:left;padding:10px;border-radius:8px;display:flex;flex-direction:column;gap:5px;cursor:pointer}.pd-match-proposal.selected{border-color:#2e7662;background:#edf7f2}.pd-match-proposal-name{font-size:11px;font-weight:700;color:#244659}.pd-match-proposal small{font-size:10px;color:#66737c}.pd-match-proposal-tag{font-size:10px;color:#55796e}.pd-match-empty{color:#89929a;font-size:11px}.pd-catalog-search{width:100%;border:1px solid #dce0de;border-radius:7px;padding:9px;font-size:12px;box-sizing:border-box;margin-bottom:8px}';
 css.textContent+=' .pd-reception-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;border:1px solid #eee7d9;background:#fffcf6;border-radius:9px;padding:9px;margin-top:7px}.pd-audit{border:1px solid #e5e8e4;padding:14px;margin:12px 0;border-radius:10px;background:#fafbf9}.pd-audit h4{font-size:14px;margin:0 0 10px}.pd-audit-row{display:flex;flex-direction:column;gap:5px;border-bottom:1px solid #ebece8;padding:9px 0;font-size:12px}.pd-audit-row small{color:#68737c}.pd-price-up{color:#af4134;font-weight:750}.pd-price-down{color:#237453;font-weight:750}.pd-dispute-status{max-width:200px;padding:7px}.pd-bl-match{display:flex;gap:9px;padding:8px;font-size:11px;cursor:pointer}.pd-bl-match input{accent-color:#0A3D62}@media(max-width:720px){.pd-reception-fields{grid-template-columns:1fr}}';
 css.textContent+=' .pd-catalog-link{grid-column:1/-1}.pd-catalog-select{font-size:12px!important}.pd-unit-update{grid-column:1/-1;display:flex;align-items:center;gap:8px;background:#f8f3ed;padding:10px;border:1px solid #eae0d3;border-radius:8px;color:#332823;font-size:11px;cursor:pointer}.pd-unit-update input{width:17px;height:17px;accent-color:#806d61}.pd-unit-update span{flex:1}';document.head.appendChild(css);
