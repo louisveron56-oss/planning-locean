@@ -1017,6 +1017,51 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
  #planningPage .planning-toolbar .hright{justify-content:center;gap:7px}
  #planningPage .planning-toolbar .week-range{white-space:normal}
 }
+
+/* Prism RH — grille collaborateurs responsive : 3 lignes logiques, sans colonnes écrasées. */
+.team-page .emp-config-top{
+ display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px 14px;
+ align-items:start;width:100%;padding:5px 2px 14px;
+}
+.team-page .emp-config-top>div{min-width:0}
+.team-page .emp-config-top>div:nth-child(1){grid-column:1 / span 1;grid-row:1;align-self:center}
+.team-page .emp-config-top>div:nth-child(2){grid-column:2 / span 5;grid-row:1}
+.team-page .emp-config-top>div:nth-child(3){grid-column:7 / span 2;grid-row:1}
+.team-page .emp-config-top>div:nth-child(10){grid-column:9 / span 4;grid-row:1}
+.team-page .emp-config-top>div:nth-child(4){grid-column:1 / span 2;grid-row:2}
+.team-page .emp-config-top>div:nth-child(5){grid-column:3 / span 2;grid-row:2}
+.team-page .emp-config-top>div:nth-child(6){grid-column:5 / span 3;grid-row:2}
+.team-page .emp-config-top>div:nth-child(7){grid-column:8 / span 2;grid-row:2}
+.team-page .emp-config-top>div:nth-child(8){grid-column:10 / span 3;grid-row:2}
+.team-page .emp-config-top>div:nth-child(9){grid-column:1 / span 4;grid-row:3}
+.team-page .emp-config-top>div:nth-child(11){grid-column:5 / span 3;grid-row:3}
+.team-page .emp-config-top>div:nth-child(12){grid-column:8 / span 2;grid-row:3}
+.team-page .emp-config-top>div:nth-child(13){grid-column:10 / span 3;grid-row:3}
+.team-page .emp-config-top>div:nth-child(n+4):nth-child(-n+8){border-top:1px solid #e9e5dd;padding-top:13px}
+.team-page .emp-config-top .field-inp{min-height:36px;font-size:12px;padding:8px 10px;border-radius:7px}
+.team-page .emp-config-top .config-label{font-size:9px;line-height:1.35;letter-spacing:.045em;margin-bottom:5px}
+.team-page .emp-config-top .rh-pay-note{font-size:10px;line-height:1.4;margin-top:6px;padding:7px 9px;overflow-wrap:break-word}
+.team-page .emp-config-top .chk-chip{min-height:34px;margin-top:1px}
+.team-page .emp-config-top .emp-edit-av{height:38px;width:38px;font-size:11px}
+@media(max-width:1050px){
+ .team-page .emp-config-top{grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+ .team-page .emp-config-top>div:nth-child(n){grid-column:auto;grid-row:auto}
+ .team-page .emp-config-top>div:nth-child(1){grid-column:1/span 1}
+ .team-page .emp-config-top>div:nth-child(2){grid-column:2/span 3}
+ .team-page .emp-config-top>div:nth-child(3){grid-column:5/span 2}
+ .team-page .emp-config-top>div:nth-child(4),.team-page .emp-config-top>div:nth-child(5),.team-page .emp-config-top>div:nth-child(6),.team-page .emp-config-top>div:nth-child(7),.team-page .emp-config-top>div:nth-child(8),.team-page .emp-config-top>div:nth-child(9),.team-page .emp-config-top>div:nth-child(10),.team-page .emp-config-top>div:nth-child(11),.team-page .emp-config-top>div:nth-child(12),.team-page .emp-config-top>div:nth-child(13){grid-column:span 3}
+ .team-page .emp-config-top>div:nth-child(n+4):nth-child(-n+8){border-top:0;padding-top:0}
+ .team-page .emp-config-top>div:nth-child(4){border-top:1px solid #e9e5dd;padding-top:12px}
+ .team-page .emp-config-top>div:nth-child(5){border-top:1px solid #e9e5dd;padding-top:12px}
+}
+@media(max-width:600px){
+ .team-page .emp-config-top{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+ .team-page .emp-config-top>div:nth-child(n){grid-column:span 1;grid-row:auto}
+ .team-page .emp-config-top>div:nth-child(1){grid-column:1}
+ .team-page .emp-config-top>div:nth-child(2){grid-column:2}
+ .team-page .emp-config-top>div:nth-child(9),.team-page .emp-config-top>div:nth-child(10){grid-column:1/-1}
+ .team-page .emp-config-top .rh-pay-note{font-size:10px}
+}
 </style>
 <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
 </head>
