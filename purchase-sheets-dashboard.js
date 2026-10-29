@@ -24,27 +24,85 @@ function table(root,head,rows){
 }
 function note(root,txt){add(root,'p','ps-note',txt);}
 function button(root,title,fn){let b=add(root,'button','ps-button',title);b.type='button';b.onclick=fn;return b;}
+let supplierFocus='';
+function supplierKey(v){return norm(v);}
+async function supplierProfiles(method,payload){
+ const u=window.netlifyIdentity?.currentUser();if(!u)throw Error('Connexion requise');
+ const res=await fetch('/.netlify/functions/supplier-profiles',{method,headers:{Authorization:'Bearer '+await u.jwt(),...(payload?{'Content-Type':'application/json'}:{})},body:payload?JSON.stringify(payload):undefined,cache:'no-store'});
+ const obj=await res.json();if(!res.ok)throw Error(obj.error||'Erreur fournisseur');return obj;
+}
+function navigateToPurchases(supplier){
+ supplierFocus=supplier;
+ const button=document.querySelector('.app-nav-item[data-page="purchase-invoices"]');
+ if(button)button.click();
+ else if(typeof window.navigateApp==='function')window.navigateApp('purchase-invoices');
+ window.dispatchEvent(new CustomEvent('prism-supplier-invoices',{detail:{supplier}}));
+}
+function navigateToProducts(supplier){
+ const button=document.querySelector('.app-nav-item[data-page="suppliers"]');
+ if(button)button.click();
+ else if(typeof window.navigateApp==='function')window.navigateApp('suppliers');
+ window.dispatchEvent(new CustomEvent('prism-supplier-products',{detail:{supplier}}));
+}
 async function mountSuppliers(){
  const page=document.getElementById('module-supplier-directory'),shell=page?.querySelector('.module-shell');
  if(!shell||shell.querySelector('.ps-root'))return;
  shell.querySelector('.module-placeholder')?.remove();
  const root=add(shell,'section','ps-root');
  const toolbar=add(root,'div','ps-toolbar'),reload=button(toolbar,'Actualiser depuis Google Sheets',()=>load(true));
- let content=add(root,'div','ps-content'),query=add(toolbar,'input','ps-search');query.type='search';query.placeholder='Rechercher un fournisseur';query.oninput=()=>draw();
- let rows=[];
- function draw(){
-  content.replaceChildren();
-  const filtered=rows.filter(x=>norm(x.fournisseur).includes(norm(query.value)));
-  const total2026=rows.reduce((s,x)=>s+n(x.achats_ht_2026),0);
-  const summary=add(content,'div','ps-summary');
-  add(summary,'div','','Fournisseurs : '+rows.length);
-  add(summary,'div','','Achats 2026 HT (cumul export) : '+formatEuro.format(total2026));
-  table(content,['Fournisseur','Factures','2024 HT','2025 HT','2026 HT','Dernière facture'],filtered.slice(0,300).map(x=>[x.fournisseur,x.nb_factures,money(x.achats_ht_2024),money(x.achats_ht_2025),money(x.achats_ht_2026),x.derniere_facture]));
-  note(content,'Source : onglet Fournisseurs du Google Sheets. Montants issus de l’export, non rapprochés ici avec les PDF.');
+ const query=add(toolbar,'input','ps-search');query.type='search';query.placeholder='Rechercher un fournisseur';
+ const content=add(root,'div','ps-content');
+ let rows=[],profiles={},selected=null;
+ function nameOf(row){const override=profiles[supplierKey(row.fournisseur)];return override?.displayName||row.fournisseur;}
+ function list(){
+  selected=null;content.replaceChildren();
+  const filtered=rows.filter(x=>norm(nameOf(x)+' '+x.fournisseur).includes(norm(query.value)));
+  const title=add(content,'div','ps-summary');
+  add(title,'div','','Fournisseurs : '+filtered.length);
+  add(title,'div','','Clique sur un fournisseur pour ouvrir sa fiche');
+  const wrap=add(content,'div','ps-scroll'),table=add(wrap,'table','ps-table'),th=add(add(table,'thead'),'tr');
+  ['Fournisseur','Factures','2024 HT','2025 HT','2026 HT','Dernière facture'].forEach(x=>add(th,'th','',x));
+  const tb=add(table,'tbody');
+  filtered.forEach(row=>{
+   const tr=add(tb,'tr'),td=add(tr,'td');
+   const link=add(td,'button','ps-text-link',nameOf(row));link.type='button';link.onclick=()=>detail(row);
+   [row.nb_factures,money(row.achats_ht_2024),money(row.achats_ht_2025),money(row.achats_ht_2026),row.derniere_facture||'—'].forEach(v=>add(tr,'td','',String(v??'')));
+  });
+  note(content,'Les montants proviennent de l’export Pennylane ; les éventuelles corrections du nom affiché sont conservées dans Prism, sans modifier Google Sheets.');
  }
+ function detail(row){
+  selected=row;content.replaceChildren();
+  const head=add(content,'div','ps-toolbar');
+  button(head,'← Tous les fournisseurs',list);
+  add(content,'h3','',nameOf(row));
+  const summary=add(content,'div','ps-summary');
+  add(summary,'div','','Factures · '+(row.nb_factures||'—'));
+  add(summary,'div','','2026 HT · '+money(row.achats_ht_2026));
+  add(summary,'div','','Dernière facture · '+(row.derniere_facture||'—'));
+  const actions=add(content,'div','ps-toolbar');
+  button(actions,'Voir les factures du fournisseur',()=>navigateToPurchases(row.fournisseur));
+  button(actions,'Voir ses produits et prix',()=>navigateToProducts(row.fournisseur));
+  const form=add(content,'div','ps-profile-editor');
+  const label=add(form,'label','');add(label,'span','','Nom affiché dans Prism');
+  const input=add(label,'input','ps-search');input.value=nameOf(row);
+  const noteLabel=add(form,'label','');add(noteLabel,'span','','Notes internes');
+  const notes=add(noteLabel,'textarea','ps-search');notes.rows=3;notes.value=profiles[supplierKey(row.fournisseur)]?.note||'';
+  const status=add(form,'small','ps-note','Nom d’origine : '+row.fournisseur+' · La référence d’origine reste inchangée.');
+  const save=button(form,'Enregistrer la fiche',async()=>{
+   save.disabled=true;status.textContent='Enregistrement…';
+   try{
+    const result=await supplierProfiles('PATCH',{establishment:'LOCEAN',supplier:row.fournisseur,displayName:input.value,note:notes.value});
+    profiles[supplierKey(row.fournisseur)]=result.profile;status.textContent='Fiche enregistrée dans Prism.';content.querySelector('h3').textContent=nameOf(row);
+   }catch(err){status.textContent=err.message;}finally{save.disabled=false;}
+  });
+ }
+ query.oninput=list;
  async function load(force){
-  reload.disabled=true;content.textContent='Lecture des fournisseurs…';
-  try{rows=await read('suppliers',force);draw();}catch(err){content.textContent=err.message;}finally{reload.disabled=false;}
+  reload.disabled=true;content.textContent='Chargement des fournisseurs…';
+  try{
+   const results=await Promise.all([read('suppliers',force),supplierProfiles('GET')]);
+   rows=results[0];profiles=results[1].profiles||{};list();
+  }catch(err){content.textContent=err.message;}finally{reload.disabled=false;}
  }
  await load(false);
 }
