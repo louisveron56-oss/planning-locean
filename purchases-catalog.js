@@ -1,7 +1,7 @@
 /* L'Océan — Catalogue privé Achats & Fournisseurs (lecture et import CSV). */
 (function(){
 'use strict';
-var all=[],ready=false,reference='',savedAt='',query='',category='Tous',subcategory='Tous',offset=0,root,importBusy=false,selectedFile=null,importConfirmed=false;
+var all=[],ready=false,reference='',savedAt='',query='',category='Tous',subcategory='Tous',offset=0,root,importBusy=false,selectedFile=null,importConfirmed=false,showArchived=false;
 var euro=new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2});
 function e(tag,cls,text){var x=document.createElement(tag);if(cls)x.className=cls;if(text!==undefined)x.textContent=text;return x;}
 function append(p,tag,cls,text){var x=e(tag,cls,text);p.appendChild(x);return x;}
@@ -22,6 +22,7 @@ async function userToken(){
 }
 async function request(method,data){
  var token=await userToken(),url=new URL('/.netlify/functions/purchases',window.location.origin);
+ if(method==='GET'&&showArchived)url.searchParams.set('archived','1');
  var response;
  try{
   response=await fetch(url.href,{method:method,headers:{'Authorization':'Bearer '+token,...(data?{'Content-Type':'application/json'}:{})},body:data?JSON.stringify(data):undefined,cache:'no-store',signal:AbortSignal.timeout(25000)});
@@ -92,6 +93,17 @@ function openProduct(id,editFirst){
  var header=append(panel,'div','purchases-detail-header'),title=append(header,'div','purchases-detail-titles');
  append(title,'small','',product.category+' · '+(product.subcategory||'À classer')+' · Fiche produit');append(title,'h3','',product.name);
  var exit=append(header,'button','purchases-detail-close','Fermer ×');exit.type='button';exit.onclick=close;
+ var trashButton=append(header,'button','purchases-archive-trigger',product.archivedAt?'Restaurer':'Supprimer');
+ trashButton.type='button';
+ trashButton.onclick=async function(){
+  var action=product.archivedAt?'restore':'archive';
+  if(action==='archive'&&!confirm('Supprimer « '+product.name+' » du catalogue actif ? Les inventaires passés seront conservés. Ce produit pourra être restauré.'))return;
+  trashButton.disabled=true;
+  try{
+   await request('PATCH',{establishment:'LOCEAN',action:action,productId:product.id});
+   close();await load();
+  }catch(err){trashButton.disabled=false;setNotice(err.message,true);}
+ };
  var tabs=append(panel,'div','purchases-detail-tabs');
  var infoBtn=append(tabs,'button','','Historique des prix'),editBtn=append(tabs,'button','','Modifier le produit');
  infoBtn.type=editBtn.type='button';
@@ -189,7 +201,7 @@ function openProduct(id,editFirst){
   };
  }
  function setActive(which){infoBtn.classList.toggle('active',which==='history');editBtn.classList.toggle('active',which==='edit');which==='edit'?edit():history();}
- infoBtn.onclick=()=>setActive('history');editBtn.onclick=()=>setActive('edit');setActive(editFirst?'edit':'history');exit.focus();
+ infoBtn.onclick=()=>setActive('history');editBtn.onclick=()=>setActive('edit');if(product.archivedAt){editBtn.disabled=true;setActive('history');}else setActive(editFirst?'edit':'history');exit.focus();
 }
 
 function renderTable(){
@@ -226,6 +238,8 @@ function render(){
  var title=append(root,'div','purchases-heading');
  append(title,'h3','','Catalogue des prix d’achat — L’Océan');
  append(title,'p','','Référentiel de gestion · familles, catégories et emplacements · prix HT historisés');
+ var trash=append(title,'button','purchases-archive-trigger',showArchived?'← Catalogue actif':'Corbeille des produits');
+ trash.type='button';trash.onclick=async function(){showArchived=!showArchived;category='Tous';subcategory='Tous';offset=0;await load();};
  var stats=append(root,'div','purchases-stats');
  ['Bar','Cuisine','Hygiène'].forEach(function(cat){var box=append(stats,'div','purchases-stat');
  append(box,'small','',cat);append(box,'strong','',ready?String(all.filter(x=>x.category===cat).length):'—');});
@@ -298,7 +312,7 @@ function install(){
  if(page.classList.contains('open'))load();
 }
 var css=e('style');
-css.textContent='.purchases-root{padding:0!important;max-width:100%!important}.purchases-heading h3{font-size:20px;color:#0A3D62;margin:5px 0}.purchases-heading p,.purchases-disclaimer{font-size:11px;color:#71808b;line-height:1.6}.purchases-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;margin:22px 0}.purchases-stat{border:1px solid #e6e8e6;border-radius:10px;padding:15px;background:white;display:flex;flex-direction:column;gap:5px}.purchases-stat small{color:#78818c}.purchases-stat strong{font-size:25px;color:#0A3D62}.purchases-tools{display:flex;gap:10px;margin-bottom:15px}.purchases-search,.purchases-filter,.purchases-file{border:1px solid #dce0de;border-radius:8px;padding:11px;font-size:12px;background:#fff}.purchases-search{flex:1;min-width:0}.purchases-upload{padding:14px 17px;background:#f8f9f7;border:1px solid #e6e8e5;border-radius:10px;margin:12px 0 20px}.purchases-upload-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.purchases-file{max-width:340px}.purchases-primary{background:#0A3D62;color:#fff;border:0;border-radius:8px;padding:12px 14px;cursor:pointer;font-size:12px}.purchases-primary:disabled{opacity:.6}.purchases-state{font-size:12px;color:#314a5d;margin:11px 0 0}.purchases-results{margin-top:10px}.purchases-count{font-size:11px;color:#70808a;margin-bottom:9px}.purchases-scroll{overflow-x:auto;border:1px solid #e5e8e6;border-radius:10px;background:#fff}.purchases-table{width:100%;border-collapse:collapse;text-align:left;font-size:12px}.purchases-table th{background:#f4f6f5;color:#62707b;font-weight:700;font-size:10px;white-space:nowrap}.purchases-table th,.purchases-table td{padding:12px 13px;border-bottom:1px solid #eceeeb}.purchases-name{font-weight:650;color:#233e51}.purchases-price{font-weight:700;color:#0A3D62;white-space:nowrap}.purchases-source{font-size:10px;color:#8b949b}.purchases-empty{font-size:12px;color:#71808b;padding:15px}.purchases-pages{display:flex;gap:15px;align-items:center;justify-content:center;margin:15px}.purchases-pages button{border:1px solid #ddd;background:#fff;border-radius:7px;padding:8px 11px;cursor:pointer}@media(max-width:650px){.purchases-stats{gap:7px}.purchases-tools{flex-direction:column}.purchases-upload-row{align-items:stretch}.purchases-file{max-width:100%}}';
+css.textContent='.purchases-archive-trigger{border:1px solid #b88980;border-radius:7px;background:#fff8f6;color:#993f33;padding:8px 12px;font-weight:700;cursor:pointer;margin:5px}.purchases-archive-trigger:disabled{opacity:.5}.purchases-root{padding:0!important;max-width:100%!important}.purchases-heading h3{font-size:20px;color:#0A3D62;margin:5px 0}.purchases-heading p,.purchases-disclaimer{font-size:11px;color:#71808b;line-height:1.6}.purchases-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;margin:22px 0}.purchases-stat{border:1px solid #e6e8e6;border-radius:10px;padding:15px;background:white;display:flex;flex-direction:column;gap:5px}.purchases-stat small{color:#78818c}.purchases-stat strong{font-size:25px;color:#0A3D62}.purchases-tools{display:flex;gap:10px;margin-bottom:15px}.purchases-search,.purchases-filter,.purchases-file{border:1px solid #dce0de;border-radius:8px;padding:11px;font-size:12px;background:#fff}.purchases-search{flex:1;min-width:0}.purchases-upload{padding:14px 17px;background:#f8f9f7;border:1px solid #e6e8e5;border-radius:10px;margin:12px 0 20px}.purchases-upload-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.purchases-file{max-width:340px}.purchases-primary{background:#0A3D62;color:#fff;border:0;border-radius:8px;padding:12px 14px;cursor:pointer;font-size:12px}.purchases-primary:disabled{opacity:.6}.purchases-state{font-size:12px;color:#314a5d;margin:11px 0 0}.purchases-results{margin-top:10px}.purchases-count{font-size:11px;color:#70808a;margin-bottom:9px}.purchases-scroll{overflow-x:auto;border:1px solid #e5e8e6;border-radius:10px;background:#fff}.purchases-table{width:100%;border-collapse:collapse;text-align:left;font-size:12px}.purchases-table th{background:#f4f6f5;color:#62707b;font-weight:700;font-size:10px;white-space:nowrap}.purchases-table th,.purchases-table td{padding:12px 13px;border-bottom:1px solid #eceeeb}.purchases-name{font-weight:650;color:#233e51}.purchases-price{font-weight:700;color:#0A3D62;white-space:nowrap}.purchases-source{font-size:10px;color:#8b949b}.purchases-empty{font-size:12px;color:#71808b;padding:15px}.purchases-pages{display:flex;gap:15px;align-items:center;justify-content:center;margin:15px}.purchases-pages button{border:1px solid #ddd;background:#fff;border-radius:7px;padding:8px 11px;cursor:pointer}@media(max-width:650px){.purchases-stats{gap:7px}.purchases-tools{flex-direction:column}.purchases-upload-row{align-items:stretch}.purchases-file{max-width:100%}}';
 css.textContent+="\n.purchases-mobile-cards{display:none}\n@media(max-width:760px){\n #module-suppliers .purchases-scroll{display:none!important}\n #module-suppliers .purchases-mobile-cards{display:flex;flex-direction:column;gap:10px;width:100%;box-sizing:border-box}\n #module-suppliers .purchases-results{min-width:0}\n #module-suppliers .purchases-mobile-item{background:#FFFCF7;border:1px solid #D7C8B8;border-radius:14px;padding:15px;min-width:0;box-shadow:0 3px 12px rgba(51,40,35,.035)}\n #module-suppliers .purchases-mobile-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}\n #module-suppliers .purchases-mobile-name{font-size:15px;line-height:1.35;color:#2B211D;overflow-wrap:anywhere;flex:1;min-width:0}\n #module-suppliers .purchases-mobile-category{font-size:10px;font-weight:750;color:#655448;background:#EDE1D3;border-radius:99px;padding:5px 9px;white-space:nowrap}\n #module-suppliers .purchases-mobile-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:13px;padding-top:12px;border-top:1px solid #EAE0D3}\n #module-suppliers .purchases-mobile-field{display:flex;flex-direction:column;gap:6px;min-width:0}\n #module-suppliers .purchases-mobile-field small{font-size:10px;color:#786A5D}\n #module-suppliers .purchases-mobile-field b{font-size:19px;color:#332823;letter-spacing:-.03em}\n #module-suppliers .purchases-mobile-field span{font-size:12px;color:#42362D;overflow-wrap:anywhere;line-height:1.45}\n #module-suppliers .purchases-mobile-source{margin-top:12px;font-size:10px;color:#806D61}\n #module-suppliers .purchases-count{font-size:12px;line-height:1.5;color:#52453A;margin:15px 0 12px}\n}\n";
 css.textContent += '\n/* Fiche produit et historique de prix — responsive Prism */\n'
 +'.purchases-product-link{background:none;border:0;padding:0;text-align:left;cursor:pointer;font:inherit;font-weight:700;color:#4e3327;text-decoration:underline;text-decoration-color:#c9b7a9;text-underline-offset:3px}.purchases-product-link:hover{color:#946045}.purchases-edit-trigger{border:1px solid #d4c3b2;background:#fffaf5;color:#513c30;font-size:11px;font-weight:750;border-radius:8px;padding:8px 11px;cursor:pointer}.purchases-mobile-source{display:flex;align-items:center;justify-content:space-between;gap:10px}.purchases-delta{display:inline-block;border-radius:6px;padding:5px 7px;background:#f2ede7;color:#786c61;font-size:11px;font-weight:750;white-space:nowrap}.purchases-delta.is-up{background:#fbefeb;color:#a54737}.purchases-delta.is-down{background:#e9f5ed;color:#287a51}.purchases-delta.is-flat{background:#f2ede7;color:#7a6d61}'
