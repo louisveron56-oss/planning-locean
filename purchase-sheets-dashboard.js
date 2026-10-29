@@ -162,33 +162,92 @@ async function mountPurchases(){
  }
  await load(false);
 }
+let productSupplierFocus='';
+async function catalogSync(method,confirm){
+ const user=window.netlifyIdentity?.currentUser();
+ if(!user)throw Error('Connexion requise');
+ const res=await fetch('/.netlify/functions/purchase-catalog-sync',{method,headers:{Authorization:'Bearer '+await user.jwt(),...(method==='POST'?{'Content-Type':'application/json'}:{})},body:method==='POST'?JSON.stringify({establishment:'LOCEAN',confirm:true}):undefined,cache:'no-store'});
+ const data=await res.json();if(!res.ok)throw Error(data.error||'Erreur de synchronisation');
+ return data;
+}
 async function mountProducts(){
- const page=document.getElementById('module-suppliers'),shell=page?.querySelector('.module-shell');if(!shell||shell.querySelector('.ps-products'))return;
+ const page=document.getElementById('module-suppliers'),shell=page?.querySelector('.module-shell');
+ if(!shell||shell.querySelector('.ps-products'))return;
  const root=e('section','ps-root ps-products');
  const catalog=shell.querySelector('.purchases-root');
  if(catalog)catalog.insertAdjacentElement('afterend',root);else shell.appendChild(root);
- add(root,'h3','','Références et évolution des achats · Google Sheets');
- const toolbar=add(root,'div','ps-toolbar'),search=add(toolbar,'input','ps-search');search.type='search';search.placeholder='Nom, code ou fournisseur';
- const reload=button(toolbar,'Actualiser depuis Sheets',()=>load(true)),content=add(root,'div');
+ add(root,'h3','','Produits Pennylane · prix d’achat et historique');
+ const toolbar=add(root,'div','ps-toolbar');
+ const supplier=add(toolbar,'select','ps-search ps-select');
+ const family=add(toolbar,'select','ps-search ps-select');
+ const search=add(toolbar,'input','ps-search');search.type='search';search.placeholder='Produit, code ou fournisseur';
+ const reload=button(toolbar,'Actualiser les données',()=>load(true));
+ const sync=button(toolbar,'Synchroniser avec le catalogue d’inventaire',syncCatalog);
+ const content=add(root,'div');
+ const state=add(root,'p','ps-note','');
  let rows=[],catalogNames=new Set(),catalogRefs=new Set();
+ function populate(){
+  const prevSupplier=productSupplierFocus||supplier.value;
+  supplier.replaceChildren();let none=add(supplier,'option','','Tous les fournisseurs');none.value='';
+  [...new Set(rows.map(r=>String(r.fournisseur||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr')).forEach(v=>{let o=add(supplier,'option','',v);o.value=v;});
+  supplier.value=prevSupplier||'';if(supplier.selectedIndex<0)supplier.value='';
+  productSupplierFocus='';
+  const previousFamily=family.value;
+  family.replaceChildren();none=add(family,'option','','Toutes les familles');none.value='';
+  [...new Set(rows.map(r=>String(r.famille||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr')).forEach(v=>{let o=add(family,'option','',v);o.value=v;});
+  family.value=previousFamily||'';if(family.selectedIndex<0)family.value='';
+ }
  function draw(){
   content.replaceChildren();
-  const filtered=rows.filter(x=>norm([x.designation,x.fournisseur,x.code,x.famille].join(' ')).includes(norm(search.value)));
-  const unknown=filtered.filter(x=>!catalogRefs.has(norm(x.fournisseur)+'|'+norm(x.code))&&!catalogNames.has(norm(x.designation)));
+  const filtered=rows.filter(x=>
+   (!supplier.value||supplierKey(x.fournisseur)===supplierKey(supplier.value))&&
+   (!family.value||x.famille===family.value)&&
+   norm([x.designation,x.fournisseur,x.code,x.famille].join(' ')).includes(norm(search.value))
+  );
+  const unmatched=filtered.filter(x=>!catalogRefs.has(norm(x.fournisseur)+'|'+norm(x.code))&&!catalogNames.has(norm(x.designation)));
   const summary=add(content,'div','ps-summary');
-  add(summary,'div','','Références importées : '+rows.length);
-  add(summary,'div','','Non rapprochées au catalogue Prism (estimation) : '+unknown.length+' / '+filtered.length);
-  table(content,['Fournisseur','Code','Produit','Famille Sheets','Prix HT actuel','Premier prix HT','Évolution'],filtered.slice(0,150).map(x=>[x.fournisseur,x.code,x.designation,x.famille,money(x.prix_actuel_ht),money(x.prix_debut_ht),x.evolution||'—']));
-  note(content,'Référentiel historique en lecture seule. Le rapprochement des nouveaux produits reste indicatif : aucune création de fiche ni modification de prix ou de stock sans validation. Limite de 150 lignes visibles.');
+  add(summary,'div','','Références Sheets : '+rows.length);
+  add(summary,'div','','Résultats filtrés : '+filtered.length);
+  add(summary,'div','','Non rapprochées (indicatif) : '+unmatched.length);
+  table(content,['Fournisseur','Référence','Désignation','Famille','Prix actuel HT','Prix initial HT','Évolution'],filtered.slice(0,200).map(x=>[x.fournisseur,x.code,x.designation,x.famille,money(x.prix_actuel_ht),money(x.prix_debut_ht),x.evolution||'—']));
+  if(filtered.length>200)note(content,'200 lignes affichées au maximum ; affine les filtres pour retrouver une référence.');
+  note(content,'Le tableur est la source d’import. Le catalogue privé Prism reste la base des inventaires : il est mis à jour seulement après confirmation.');
  }
- search.oninput=draw;
- async function load(force){
-  reload.disabled=true;content.textContent='Lecture des références…';
+ async function syncCatalog(){
+  sync.disabled=true;state.textContent='Analyse des produits et des prix depuis Google Sheets…';
   try{
-   const [products,catalog]=await Promise.all([read('products',force),window.netlifyIdentity?.currentUser()?.jwt().then(jwt=>fetch('/.netlify/functions/purchases',{headers:{Authorization:'Bearer '+jwt},cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null))]);
+   const preview=await catalogSync('GET');
+   const summary=preview.newProducts+' nouvelle(s) référence(s), '+preview.pricesUpdated+' prix à actualiser, '+preview.ambiguous+' ambiguïté(s) et '+preview.unclassified+' produit(s) à classer.';
+   state.textContent=summary;
+   if(!preview.newProducts&&!preview.pricesUpdated)return;
+   if(!confirm(summary+'\\n\\nConfirmer la création des nouvelles fiches et la mise à jour des prix dans le catalogue de tes inventaires ? Les quantités et inventaires existants ne seront pas modifiés.'))return;
+   const outcome=await catalogSync('POST',true);
+   state.textContent='Synchronisation enregistrée : '+outcome.newProducts+' produit(s) créé(s) et '+outcome.pricesUpdated+' prix modifié(s). Les catégories inconnues restent « À classer ».';
+   const u=window.netlifyIdentity?.currentUser();
+   if(u){
+    const response=await fetch('/.netlify/functions/purchases',{headers:{Authorization:'Bearer '+await u.jwt()},cache:'no-store'});
+    if(response.ok){const d=await response.json();catalogNames=new Set((d.products||[]).map(x=>norm(x.name)));catalogRefs=new Set((d.products||[]).map(x=>norm(x.supplier)+'|'+norm(x.supplierReference)));draw();}
+   }
+   window.dispatchEvent(new CustomEvent('prism-catalog-updated'));
+  }catch(err){state.textContent=err.message;}finally{sync.disabled=false;}
+ }
+ search.oninput=draw;supplier.onchange=draw;family.onchange=draw;
+ window.addEventListener('prism-supplier-products',event=>{
+  productSupplierFocus=event.detail?.supplier||'';
+  if(rows.length){supplier.value=productSupplierFocus;if(supplier.selectedIndex<0)supplier.value='';productSupplierFocus='';draw();}
+ });
+ async function load(force){
+  reload.disabled=true;content.textContent='Lecture des références et du catalogue…';
+  try{
+   const u=window.netlifyIdentity?.currentUser();
+   const token=u?await u.jwt():null;
+   const [products,catalog]=await Promise.all([
+    read('products',force),
+    token?fetch('/.netlify/functions/purchases',{headers:{Authorization:'Bearer '+token},cache:'no-store'}).then(r=>r.ok?r.json():null):null
+   ]);
    rows=products;catalogNames=new Set((catalog?.products||[]).map(x=>norm(x.name)));
    catalogRefs=new Set((catalog?.products||[]).map(x=>norm(x.supplier)+'|'+norm(x.supplierReference)));
-   catalogRefs.delete('|');draw();
+   catalogRefs.delete('|');populate();draw();
   }catch(err){content.textContent=err.message;}finally{reload.disabled=false;}
  }
  await load(false);
@@ -207,7 +266,7 @@ function initialize(){
  mountIfVisible();
 }
 const style=e('style');
-style.textContent='.ps-root{margin-top:16px;background:#fff;border:1px solid #e7e1d9;border-radius:12px;padding:16px;min-width:0}.ps-root h3{font-size:15px;margin:0 0 12px;color:#332823}.ps-toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.ps-button{background:#382b25;color:white;border:0;border-radius:8px;padding:9px 12px;font-weight:700;cursor:pointer}.ps-button:disabled{opacity:.5}.ps-search{min-width:150px;flex:1;border:1px solid #ded9d3;border-radius:7px;padding:9px}.ps-summary{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;color:#3e332c;font-weight:700;font-size:12px}.ps-scroll{overflow:auto;max-height:510px;border:1px solid #eee8e1;border-radius:8px}.ps-table{border-collapse:collapse;width:100%;font-size:11px}.ps-table th,.ps-table td{padding:9px;text-align:left;border-bottom:1px solid #eee7e0;white-space:nowrap}.ps-table th{position:sticky;top:0;background:#f8f5f0;color:#61564f}.ps-note{font-size:11px;line-height:1.5;color:#80756e;margin-top:10px}';
+style.textContent='.ps-text-link{border:0;background:none;color:#795139;font-weight:750;text-align:left;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.ps-profile-editor{display:grid;gap:10px;max-width:660px;margin:15px 0;padding:16px;background:#faf8f5;border:1px solid #e7e0d8;border-radius:10px}.ps-profile-editor label{display:grid;gap:5px;font-size:11px;font-weight:650}.ps-profile-editor textarea{width:100%;font:inherit;resize:vertical}.ps-profile-editor .ps-button{justify-self:start}.ps-select{max-width:250px}.ps-root{margin-top:16px;background:#fff;border:1px solid #e7e1d9;border-radius:12px;padding:16px;min-width:0}.ps-root h3{font-size:15px;margin:0 0 12px;color:#332823}.ps-toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.ps-button{background:#382b25;color:white;border:0;border-radius:8px;padding:9px 12px;font-weight:700;cursor:pointer}.ps-button:disabled{opacity:.5}.ps-search{min-width:150px;flex:1;border:1px solid #ded9d3;border-radius:7px;padding:9px}.ps-summary{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;color:#3e332c;font-weight:700;font-size:12px}.ps-scroll{overflow:auto;max-height:510px;border:1px solid #eee8e1;border-radius:8px}.ps-table{border-collapse:collapse;width:100%;font-size:11px}.ps-table th,.ps-table td{padding:9px;text-align:left;border-bottom:1px solid #eee7e0;white-space:nowrap}.ps-table th{position:sticky;top:0;background:#f8f5f0;color:#61564f}.ps-note{font-size:11px;line-height:1.5;color:#80756e;margin-top:10px}';
 document.head.appendChild(style);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize);else initialize();
 })();
