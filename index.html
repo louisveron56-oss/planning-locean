@@ -4047,6 +4047,8 @@ function ensureEmpConfig(emp){
   emp.maxSplits=Math.max(0,Math.min(2,parseInt(emp.maxSplits,10)||0));
 
   if(emp.role===undefined||emp.role===null)emp.role='';
+  if(!['CDI','CDD'].includes(emp.contractType))emp.contractType='';
+  ['contractStartDate','contractEndDate','actualExitDate'].forEach(function(field){if(typeof emp[field]!=='string'||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(emp[field]))emp[field]='';});
   return emp;
 }
 
@@ -4081,6 +4083,10 @@ function openRH(){
     html+='<div><div class="config-label">Employé <span class="team-section-number">#'+(ei+1)+'</span></div><input class="field-inp" id="rh_name_'+ei+'" value="'+emp.name+'"></div>';
     html+='<div><div class="config-label">Pôle</div><select class="field-inp" id="rh_dept_'+ei+'"><option value="salle" '+(normalizeDept(emp.department)==='salle'?'selected':'')+'>Salle</option><option value="cuisine" '+(normalizeDept(emp.department)==='cuisine'?'selected':'')+'>Cuisine</option></select></div>';
     html+='<div><div class="config-label">Contrat h/sem</div><input class="field-inp" type="number" min="0" step="0.5" id="rh_contract_'+ei+'" value="'+(emp.contract||'')+'" placeholder="42"></div>';
+    html+='<div><div class="config-label">Type de contrat</div><select class="field-inp" id="rh_contract_type_'+ei+'"><option value="" '+(!emp.contractType?'selected':'')+'>À renseigner</option><option value="CDI" '+(emp.contractType==='CDI'?'selected':'')+'>CDI</option><option value="CDD" '+(emp.contractType==='CDD'?'selected':'')+'>CDD</option></select></div>';
+    html+='<div><div class="config-label">Date d’entrée</div><input class="field-inp" type="date" id="rh_start_date_'+ei+'" value="'+(emp.contractStartDate||'')+'"></div>';
+    html+='<div><div class="config-label">Fin prévue du CDD</div><input class="field-inp" type="date" id="rh_end_date_'+ei+'" value="'+(emp.contractEndDate||'')+'"></div>';
+    html+='<div><div class="config-label">Sortie effective (si applicable)</div><input class="field-inp" type="date" id="rh_exit_date_'+ei+'" value="'+(emp.actualExitDate||'')+'"></div>';
     html+='<div><div class="config-label">Salaire brut mensuel €</div><input class="field-inp" type="number" min="0" step="1" id="rh_gross_month_'+ei+'" value="'+(emp.grossMonthlySalary||'')+'" placeholder="2500"><div class="rh-pay-note">'+rhPaySummary(emp)+'</div></div>';
     html+='<div class="config-secondary"><div class="config-label">Fonction / note courte</div><input class="field-inp" id="rh_role_'+ei+'" value="'+(emp.role||'')+'" placeholder="Chef de rang..."></div>';
     html+='<div class="config-secondary"><div class="config-label">Préférence</div><select class="field-inp" id="rh_pref_'+ei+'">'
@@ -4148,6 +4154,14 @@ function syncRHModalToData(){
     if(n&&n.value&&n.value!=='__DEL__')emp.name=n.value.trim()||emp.name;
     if(dept)emp.department=normalizeDept(dept.value);
     if(c)emp.contract=c.value===''?0:(parseFloat(c.value)||0);
+    var ct=document.getElementById('rh_contract_type_'+ei);
+    var start=document.getElementById('rh_start_date_'+ei);
+    var end=document.getElementById('rh_end_date_'+ei);
+    var exit=document.getElementById('rh_exit_date_'+ei);
+    if(ct)emp.contractType=ct.value;
+    if(start)emp.contractStartDate=start.value;
+    if(end)emp.contractEndDate=end.value;
+    if(exit)emp.actualExitDate=exit.value;
     if(gm)emp.grossMonthlySalary=gm.value===''?0:(parseFloat(gm.value)||0);
     if(role)emp.role=role.value.trim();
     if(pref)emp.preferredService=pref.value||'flexible';
@@ -4344,6 +4358,10 @@ function serializeTeam(){
       name:e.name,
       department:normalizeDept(e.department),
       contract:Number(e.contract)||0,
+      contractType:e.contractType||'',
+      contractStartDate:e.contractStartDate||'',
+      contractEndDate:e.contractEndDate||'',
+      actualExitDate:e.actualExitDate||'',
       grossHourlyRate:Number(e.grossHourlyRate)||0,
       role:e.role||'',
       hidden:!!e.hidden,
@@ -4369,6 +4387,10 @@ function applySavedTeam(team){
       name:e.name||'Employé',
       department:normalizeDept(e.department),
       contract:Number(e.contract)||0,
+      contractType:e.contractType||'',
+      contractStartDate:e.contractStartDate||'',
+      contractEndDate:e.contractEndDate||'',
+      actualExitDate:e.actualExitDate||'',
       grossHourlyRate:Number(e.grossHourlyRate)||0,
       role:e.role||'',
       hidden:!!e.hidden,
@@ -5203,5 +5225,6 @@ window.addEventListener('beforeunload',function(){
 
 
 <script src="./sales-dashboard.js"></script>
+<script src="./pointage-hour-cumulative.js"></script>
 </body>
 </html>
