@@ -130,6 +130,11 @@ function install(){
  var banner=page.querySelector('.data-source-banner');
  if(banner){var pill=banner.querySelector('.data-source-pill');if(pill)pill.textContent='Google Sheets · Lecture seule';var sub=banner.querySelector('.data-source-sub');if(sub)sub.textContent='LOCEAN_DATA_API · Synchronisation depuis les exports KSD';var refresh=button('↻ Actualiser',function(){load(true);});banner.appendChild(refresh);}
  new MutationObserver(function(){if(page.classList.contains('open'))load(false);}).observe(page,{attributes:true,attributeFilter:['class']});
+ // Si le chargement initial précède l'authentification, relancer dès la connexion.
+ if(window.netlifyIdentity&&typeof netlifyIdentity.on==='function'){
+  netlifyIdentity.on('login',function(){if(page.classList.contains('open'))load(true);});
+  netlifyIdentity.on('init',function(user){if(user&&page.classList.contains('open')&&!ready)load(false);});
+ }
  if(page.classList.contains('open'))load(false);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
