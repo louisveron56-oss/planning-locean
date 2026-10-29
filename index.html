@@ -2967,7 +2967,8 @@ function navigateApp(page){
 document.addEventListener('DOMContentLoaded',function(){
   initLoceanIdentity();
   loadImprovements();
-  navigateApp('dashboard');
+  // Accueil temporaire : ouvrir directement les ventes journalières.
+  navigateApp('sales');
   updateDeptTabs('planningDeptTabs',CURRENT_PLANNING_DEPT);
   updateDeptTabs('teamDeptTabs',CURRENT_TEAM_DEPT);
   updateDeptTabs('pointageDeptTabs',CURRENT_POINTAGE_DEPT);
