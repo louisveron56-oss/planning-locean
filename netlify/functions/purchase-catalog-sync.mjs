@@ -73,7 +73,7 @@ export default async function(req){
    const match=byRef.get(k);
    if(match!==undefined){
     const old=products[match];
-    if(old.archivedAt){statistics.skipped++;continue;}
+    if(old.archivedAt||old.sourcePrice==="manuel"){statistics.skipped++;continue;}
     // Never apply a stale export over a newer purchase or a human price correction.
     const priorDate=clean(old.sourceLastPurchaseDate,20);
     const newer=!priorDate||!!date&&date>priorDate;
