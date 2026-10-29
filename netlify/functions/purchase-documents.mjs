@@ -14,7 +14,7 @@ async function auth(){
  if(!allowed.includes(user.email.toLowerCase()))return {error:send({error:"Accès refusé"},403)};
  return {user};
 }
-const shape=(doc)=>({id:doc.id,filename:doc.filename,mime:doc.mime,kind:doc.kind,establishment:doc.establishment,supplier:doc.supplier,date:doc.date,documentNumber:doc.documentNumber,createdAt:doc.createdAt,status:doc.status,lines:doc.lines||[],notes:doc.notes||"",analysisError:doc.analysisError||"",confirmedAt:doc.confirmedAt||"",linkedInvoice:doc.linkedInvoice||"",linkedBLs:doc.linkedBLs||[],reconciliation:doc.reconciliation||[],disputes:doc.disputes||[],priceChanges:doc.priceChanges||[],referencedBLs:doc.referencedBLs||[],catalogUnitsUpdated:doc.catalogUnitsUpdated||0});
+const shape=(doc)=>({id:doc.id,filename:doc.filename,mime:doc.mime,kind:doc.kind,establishment:doc.establishment,supplier:doc.supplier,date:doc.date,documentNumber:doc.documentNumber,createdAt:doc.createdAt,status:doc.status,lines:doc.lines||[],notes:doc.notes||"",analysisError:doc.analysisError||"",confirmedAt:doc.confirmedAt||"",linkedInvoice:doc.linkedInvoice||"",linkedBLs:doc.linkedBLs||[],reconciliation:doc.reconciliation||[],disputes:doc.disputes||[],priceChanges:doc.priceChanges||[],referencedBLs:doc.referencedBLs||[],catalogUnitsUpdated:doc.catalogUnitsUpdated||0,catalogProductsCreated:doc.catalogProductsCreated||0});
 function optionalNumber(v){return v===null||v===undefined||v===""?null:Number.isFinite(Number(v))?Number(v):null;}
 function cleanLine(x){
  return {description:safe(x.description,250),reference:safe(x.reference,90),quantity:optionalNumber(x.quantity),unit:safe(x.unit,65),unitPriceHT:optionalNumber(x.unitPriceHT),lineTotalHT:optionalNumber(x.lineTotalHT),catalogIndex:Number.isInteger(x.catalogIndex)&&x.catalogIndex>=0?x.catalogIndex:null,confidence:["high","medium","low"].includes(x.confidence)?x.confidence:"low",receivedQuantity:optionalNumber(x.receivedQuantity),issueType:["manquant","casse","non_livre","double","mauvaise_reference","autre"].includes(x.issueType)?x.issueType:"",issueNote:safe(x.issueNote,220)};
@@ -218,6 +218,43 @@ export default async function(req){
     }
     if(enriched){saved.savedAt=new Date().toISOString();await catalogStore.setJSON("ocean/latest",saved);}
    }
+   // Création explicite de nouveaux produits uniquement sur une facture validée.
+   // Les suggestions de catégorie du navigateur ne sont jamais acceptées sans validation serveur.
+   let created=0;
+   const requestedProducts=doc.kind==="facture"&&Array.isArray(body.newCatalogProducts)?body.newCatalogProducts:[];
+   if(requestedProducts.length){
+    if(requestedProducts.length>100)return send({error:"Trop de créations de produits en une fois"},400);
+    const catalogStore=catalog();
+    const saved=await catalogStore.get("ocean/latest",{type:"json",consistency:"strong"});
+    if(!saved||!Array.isArray(saved.products))return send({error:"Catalogue absent : importe ton inventaire initial avant de créer de nouveaux produits."},409);
+    const categories={
+     Bar:["Vins rouges","Vins blancs","Vins rosés","Champagnes & effervescents","Spiritueux","Bières & cidres","Softs & eaux","Cafés, thés & boissons chaudes","Sirops & ingrédients bar","Autres boissons"],
+     Cuisine:["Viandes & volailles","Poissons & fruits de mer","Fruits & légumes","Crèmerie & fromages","Épicerie salée","Épicerie sucrée","Surgelés","Pain & boulangerie","Autres cuisine"],
+     Hygiène:["Entretien","Consommables & emballages","Hygiène corporelle","Autres hygiène"]
+    };
+    const seen=new Set();
+    for(const proposal of requestedProducts){
+     const lineIndex=Number(proposal.lineIndex),category=safe(proposal.category,60),subcategory=safe(proposal.subcategory,90);
+     if(!Number.isInteger(lineIndex)||lineIndex<0||lineIndex>=doc.lines.length||!categories[category]||subcategory&&!categories[category].includes(subcategory))return send({error:"Nouveau produit : catégorie ou ligne invalide"},400);
+     const line=doc.lines[lineIndex],name=safe(line.description,250),ref=safe(line.reference,90);
+     if(line.catalogIndex!==null||!name||name.length<3)return send({error:"Création impossible : correspondance existante ou description insuffisante"},409);
+     const key=normalize(name);
+     if(seen.has(key))continue;
+     seen.add(key);
+     // Doublon : même libellé, ou même référence chez le même fournisseur.
+     if(saved.products.some(p=>normalize(p.name)===key||(ref&&supplierKey(p.supplier)===supplierKey(doc.supplier)&&normalize(p.supplierReference)===normalize(ref))))continue;
+     const price=line.unitPriceHT!==null&&Number.isFinite(line.unitPriceHT)&&line.unitPriceHT>=0?line.unitPriceHT:0;
+     saved.products.push({
+      id:"prd-"+crypto.randomUUID(),name,category,subcategory,price,unit:safe(line.unit,120)||"Non précisée",
+      inventoryQuantity:null,locations:[],supplier:safe(doc.supplier,180),supplierReference:ref,
+      source:"Facture validée",sourceDocumentId:doc.id,sourceRow:"",priceHistory:[],
+      createdAt:new Date().toISOString(),createdBy:identity.user.email
+     });
+     created++;
+    }
+    if(created){saved.savedAt=new Date().toISOString();await catalogStore.setJSON("ocean/latest",saved);}
+   }
+   doc.catalogProductsCreated=created;
    if(doc.kind==="BL"){
     doc.disputes=doc.lines.map((line,lineIndex)=>({lineIndex,description:line.description,issueType:line.issueType,note:line.issueNote,expected:line.quantity,received:line.receivedQuantity,status:"à signaler"})).filter(d=>d.issueType);
    }

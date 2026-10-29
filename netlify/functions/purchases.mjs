@@ -82,6 +82,13 @@ export default async function(req){
    }
    products.push(p);
   }
+  // Conserver les références ajoutées depuis les factures validées lors d'un réimport CSV.
+  const importedNames=new Set(products.map(p=>normalize(p.name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()));
+  for(const prior of saved?.products||[]){
+   if(prior.source!=="Facture validée")continue;
+   const key=normalize(prior.name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+   if(!importedNames.has(key)){products.push(prior);importedNames.add(key);}
+  }
   const record={reference:"Inventaire L’Océan · septembre 2026",savedAt:now,importedAt:now,products};
   await db.setJSON("ocean/latest",record);
   return send({ok:true,count:products.length,savedAt:now,products});
