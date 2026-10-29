@@ -22,7 +22,7 @@ function cleanLine(x){
 function normalize(s){return safe(s,250).toLocaleLowerCase("fr").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();}
 function matchCatalog(lines,products){
  return lines.map(line=>{
-  const clean=cleanLine(line),key=normalize(clean.description),exact=products.findIndex(p=>normalize(p.name)===key);
+  const clean=cleanLine(line),key=normalize(clean.description),exact=products.findIndex(p=>!p.archivedAt&&normalize(p.name)===key);
   if(exact>=0)clean.catalogIndex=exact;
   else clean.catalogIndex=null;
   return clean;
