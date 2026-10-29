@@ -177,7 +177,7 @@ function openProduct(id,editFirst){
   function field(label,name,type,value){var wrap=append(form,'label','purchases-edit-field');append(wrap,'span','',label);var input=append(wrap,'input','purchases-edit-input');input.name=name;input.type=type;input.required=name!=='inventoryQuantity';input.value=value??'';return input;}
   var name=field('Nom du produit','name','text',product.name);
   var categoryField=append(form,'label','purchases-edit-field');append(categoryField,'span','','Famille');
-  var categorySelect=append(categoryField,'select','purchases-edit-input');categorySelect.name='category';['Bar','Cuisine','Hygiène'].forEach(cat=>{var o=append(categorySelect,'option','',cat);o.value=cat;o.selected=product.category===cat;});
+  var categorySelect=append(categoryField,'select','purchases-edit-input');categorySelect.name='category';['Bar','Cuisine','Hygiène','À classer'].forEach(cat=>{var o=append(categorySelect,'option','',cat);o.value=cat;o.selected=product.category===cat;});
   var subField=append(form,'label','purchases-edit-field');append(subField,'span','','Sous-catégorie');
   var subSelect=append(subField,'select','purchases-edit-input');
   function fillSubs(){subSelect.replaceChildren();var blank=append(subSelect,'option','','À classer');blank.value='';(SUBCATS[categorySelect.value]||[]).forEach(x=>{var o=append(subSelect,'option','',x);o.value=x;});subSelect.value=product.subcategory||'';}
@@ -241,10 +241,10 @@ function render(){
  var trash=append(title,'button','purchases-archive-trigger',showArchived?'← Catalogue actif':'Corbeille des produits');
  trash.type='button';trash.onclick=async function(){showArchived=!showArchived;category='Tous';subcategory='Tous';offset=0;await load();};
  var stats=append(root,'div','purchases-stats');
- ['Bar','Cuisine','Hygiène'].forEach(function(cat){var box=append(stats,'div','purchases-stat');
+ ['Bar','Cuisine','Hygiène','À classer'].forEach(function(cat){var box=append(stats,'div','purchases-stat');
  append(box,'small','',cat);append(box,'strong','',ready?String(all.filter(x=>x.category===cat).length):'—');});
  var shelf=append(root,'div','purchases-category-shelf');
- ['Tous','Bar','Cuisine','Hygiène'].forEach(function(cat){
+ ['Tous','Bar','Cuisine','Hygiène','À classer'].forEach(function(cat){
   var card=append(shelf,'button','purchases-category-card'+(category===cat?' active':''));card.type='button';
   append(card,'strong','',cat==='Tous'?'Tous les produits':cat);
   append(card,'small','',ready?String(all.filter(x=>cat==='Tous'||x.category===cat).length)+' références':'—');
@@ -264,7 +264,7 @@ function render(){
  var search=append(tools,'input','purchases-search');search.type='search';search.placeholder='Rechercher un produit…';search.value=query;search.setAttribute('aria-label','Rechercher une référence');
  search.addEventListener('input',function(){query=this.value;offset=0;renderTable();});
  var filter=append(tools,'select','purchases-filter');
- ['Tous','Bar','Cuisine','Hygiène'].forEach(function(label){var opt=append(filter,'option','',label);opt.value=label;opt.selected=category===label;});
+ ['Tous','Bar','Cuisine','Hygiène','À classer'].forEach(function(label){var opt=append(filter,'option','',label);opt.value=label;opt.selected=category===label;});
  filter.addEventListener('change',function(){category=this.value;subcategory='Tous';offset=0;render();});
  var upload=append(root,'div','purchases-upload');
  var row=append(upload,'div','purchases-upload-row');
@@ -303,6 +303,7 @@ async function load(){
  try{var r=await request('GET');if(importBusy)return;ready=r.ready;all=r.products||[];reference=r.reference||'';savedAt=r.savedAt||'';render();}
  catch(err){if(importBusy)return;ready=false;all=[];render();showError(err);}
 }
+window.addEventListener('prism-catalog-updated',function(){load();});
 function install(){
  var page=document.getElementById('module-suppliers');if(!page)return;root=page.querySelector('.module-placeholder');if(!root)return;
  root.classList.add('purchases-root');root.style.textAlign='left';root.style.display='block';
