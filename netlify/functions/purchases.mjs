@@ -28,7 +28,7 @@ export default async function(req){
  if(!allowed.includes(user.email.toLowerCase()))return send({error:"Accès interdit"},403);
  try{
   const db=store(),saved=await db.get("ocean/latest",{type:"json",consistency:"strong"});
-  if(req.method==="GET")return send({ready:!!saved,reference:saved?.reference||null,savedAt:saved?.savedAt||null,products:(saved?.products||[]).map(p=>({...p,id:p.id||idFor(p),priceHistory:historyOf(p)}))});
+  if(req.method==="GET")return send({ready:!!saved,reference:saved?.reference||null,savedAt:saved?.savedAt||null,products:(saved?.products||[]).filter(p=>new URL(req.url).searchParams.get("archived")==="1"?!!p.archivedAt:!p.archivedAt).map(p=>({...p,id:p.id||idFor(p),priceHistory:historyOf(p)}))});
   const raw=await req.text();if(raw.length>1700000)return send({error:"Requête trop volumineuse"},413);
   let payload;try{payload=JSON.parse(raw);}catch(_){return send({error:"JSON invalide"},400);}
   if(payload?.establishment!=="LOCEAN")return send({error:"Établissement incorrect"},400);
@@ -40,6 +40,15 @@ export default async function(req){
    if(index<0)return send({error:"Produit introuvable. Actualise le catalogue."},404);
    const p={...products[index],id:products[index].id||idFor(products[index])};
    const history=historyOf(p);
+   if(payload.action==="archive"||payload.action==="restore"){
+    if(payload.action==="archive"&&p.archivedAt)return send({error:"Produit déjà dans la corbeille"},409);
+    if(payload.action==="restore"&&!p.archivedAt)return send({error:"Produit déjà actif"},409);
+    const updated={...p,archivedAt:payload.action==="archive"?now:null,archivedBy:payload.action==="archive"?actor:null};
+    products[index]=updated;
+    await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
+    return send({ok:true,product:updated,savedAt:now});
+   }
+   if(p.archivedAt)return send({error:"Produit archivé : restaure-le avant modification"},409);
    if(payload.action==="update"){
     const changes=payload.changes||{},category=normalize(changes.category,60),unit=normalize(changes.unit,120),name=normalize(changes.name);
     const price=priceNumber(changes.price);
@@ -75,7 +84,7 @@ export default async function(req){
    const name=normalize(rawProduct.name),category=normalize(rawProduct.category,60),price=priceNumber(rawProduct.price);
    if(!name||!["Bar","Cuisine","Hygiène"].includes(category)||price===null)return send({error:"Référence invalide dans le catalogue"},400);
    const p={name,category,price,inventoryQuantity:Number.isFinite(Number(rawProduct.inventoryQuantity))?Number(rawProduct.inventoryQuantity):null,unit:normalize(rawProduct.unit,120),source:normalize(rawProduct.source),sourceRow:normalize(rawProduct.sourceRow,60)};
-   p.id=idFor(p);const old=previous.get(p.id);p.subcategory=subtype(category,old?.subcategory);p.locations=locations(old?.locations);p.priceHistory=historyOf(old||{});
+   p.id=idFor(p);const old=previous.get(p.id);p.archivedAt=old?.archivedAt||null;p.archivedBy=old?.archivedBy||null;p.subcategory=subtype(category,old?.subcategory);p.locations=locations(old?.locations);p.priceHistory=historyOf(old||{});
    if(old&&(Number(old.price)!==price||!sameUnit(old.unit,p.unit))){
     if(!p.priceHistory.length)p.priceHistory.push(entry(old.price,old.unit,"Valeur précédente du catalogue",actor,saved.importedAt||saved.savedAt||now,"import"));
     p.priceHistory.push(entry(price,p.unit,"Remplacement du catalogue CSV",actor,now,"import"));
@@ -85,7 +94,7 @@ export default async function(req){
   // Conserver les références ajoutées depuis les factures validées lors d'un réimport CSV.
   const importedNames=new Set(products.map(p=>normalize(p.name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()));
   for(const prior of saved?.products||[]){
-   if(prior.source!=="Facture validée")continue;
+   if(prior.source!=="Facture validée"&&!prior.archivedAt)continue;
    const key=normalize(prior.name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
    if(!importedNames.has(key)){products.push(prior);importedNames.add(key);}
   }
