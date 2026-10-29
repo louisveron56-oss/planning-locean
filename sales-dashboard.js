@@ -1,7 +1,7 @@
 /* L'Océan — analyses des ventes, sans modifier les données Google Sheets. */
 (function(){
 'use strict';
-var data=null,loading=false,period='day',anchor=new Date(),ready=false;
+var data=null,loading=false,period='day',anchor=new Date(),ready=false,pendingAuthReload=false;
 var euro=new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0});
 var integer=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0});
 var decimals=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2});
@@ -114,7 +114,7 @@ async function load(force){
  data=payload;ready=true;
  var keys=payload.rows.map(function(r){return dateKey(r.date);}).filter(Boolean).sort();if(keys.length&&key(anchor)>keys[keys.length-1])anchor=fromKey(keys[keys.length-1]);
  redraw();
- }catch(err){var panel=elem('div','prism-sales-loading prism-sales-error');panel.appendChild(elem('div','prism-sales-loading-icon','!'));panel.appendChild(elem('h3','','Données temporairement indisponibles'));panel.appendChild(elem('p','',err.name==='TimeoutError'?'Délai de connexion dépassé. Réessaie ou vérifie le service Netlify.':err.message));panel.appendChild(button('↻ Réessayer',function(){load(true);}));holder.replaceChildren(panel);ready=false;}finally{clearTimeout(watchdog);loading=false;}
+ }catch(err){var panel=elem('div','prism-sales-loading prism-sales-error');panel.appendChild(elem('div','prism-sales-loading-icon','!'));panel.appendChild(elem('h3','','Données temporairement indisponibles'));panel.appendChild(elem('p','',err.name==='TimeoutError'?'Délai de connexion dépassé. Réessaie ou vérifie le service Netlify.':err.message));panel.appendChild(button('↻ Réessayer',function(){load(true);}));holder.replaceChildren(panel);ready=false;}finally{clearTimeout(watchdog);loading=false;if(pendingAuthReload){pendingAuthReload=false;load(true);}}
 }
 function sidebarFix(){
  var scroll=document.querySelector('.app-sidebar-scroll'),footer=document.querySelector('.app-sidebar-foot');if(!scroll||!footer)return;
@@ -132,7 +132,7 @@ function install(){
  new MutationObserver(function(){if(page.classList.contains('open'))load(false);}).observe(page,{attributes:true,attributeFilter:['class']});
  // Si le chargement initial précède l'authentification, relancer dès la connexion.
  if(window.netlifyIdentity&&typeof netlifyIdentity.on==='function'){
-  netlifyIdentity.on('login',function(){if(page.classList.contains('open'))load(true);});
+  netlifyIdentity.on('login',function(){if(page.classList.contains('open')){if(loading)pendingAuthReload=true;else load(true);}});
   netlifyIdentity.on('init',function(user){if(user&&page.classList.contains('open')&&!ready)load(false);});
  }
  if(page.classList.contains('open'))load(false);
