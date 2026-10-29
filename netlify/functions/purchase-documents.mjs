@@ -14,7 +14,7 @@ async function auth(){
  if(!allowed.includes(user.email.toLowerCase()))return {error:send({error:"Accès refusé"},403)};
  return {user};
 }
-const shape=(doc)=>({id:doc.id,filename:doc.filename,mime:doc.mime,kind:doc.kind,establishment:doc.establishment,supplier:doc.supplier,date:doc.date,documentNumber:doc.documentNumber,createdAt:doc.createdAt,status:doc.status,lines:doc.lines||[],notes:doc.notes||"",analysisError:doc.analysisError||"",confirmedAt:doc.confirmedAt||"",linkedInvoice:doc.linkedInvoice||"",linkedBLs:doc.linkedBLs||[],reconciliation:doc.reconciliation||[],disputes:doc.disputes||[],priceChanges:doc.priceChanges||[],referencedBLs:doc.referencedBLs||[],catalogUnitsUpdated:doc.catalogUnitsUpdated||0,catalogProductsCreated:doc.catalogProductsCreated||0});
+const shape=(doc)=>({id:doc.id,filename:doc.filename,mime:doc.mime,kind:doc.kind,establishment:doc.establishment,supplier:doc.supplier,date:doc.date,documentNumber:doc.documentNumber,createdAt:doc.createdAt,status:doc.status,lines:doc.lines||[],notes:doc.notes||"",analysisError:doc.analysisError||"",confirmedAt:doc.confirmedAt||"",linkedInvoice:doc.linkedInvoice||"",linkedBLs:doc.linkedBLs||[],reconciliation:doc.reconciliation||[],disputes:doc.disputes||[],priceChanges:doc.priceChanges||[],referencedBLs:doc.referencedBLs||[],catalogUnitsUpdated:doc.catalogUnitsUpdated||0,catalogProductsCreated:doc.catalogProductsCreated||0,archivedAt:doc.archivedAt||'',archivedBy:doc.archivedBy||'',archiveReason:doc.archiveReason||''});
 function optionalNumber(v){return v===null||v===undefined||v===""?null:Number.isFinite(Number(v))?Number(v):null;}
 function cleanLine(x){
  return {description:safe(x.description,250),reference:safe(x.reference,90),quantity:optionalNumber(x.quantity),unit:safe(x.unit,65),unitPriceHT:optionalNumber(x.unitPriceHT),lineTotalHT:optionalNumber(x.lineTotalHT),catalogIndex:Number.isInteger(x.catalogIndex)&&x.catalogIndex>=0?x.catalogIndex:null,confidence:["high","medium","low"].includes(x.confidence)?x.confidence:"low",receivedQuantity:optionalNumber(x.receivedQuantity),issueType:["manquant","casse","non_livre","double","mauvaise_reference","autre"].includes(x.issueType)?x.issueType:"",issueNote:safe(x.issueNote,220)};
@@ -142,10 +142,10 @@ export default async function(req){
    }
    if(url.searchParams.get("matches")==="1"){
     const index=await db.get("index",{type:"json",consistency:"strong"})||[];
-    return send({matches:index.filter(x=>x.kind==="BL"&&x.status==="validé").slice(0,200)});
+    return send({matches:index.filter(x=>x.kind==="BL"&&x.status==="validé"&&!x.archivedAt).slice(0,200)});
    }
    const index=await db.get("index",{type:"json",consistency:"strong"})||[];
-   return send({documents:index.filter(x=>x.establishment==="LOCEAN").slice(0,500)});
+   return send({documents:index.filter(x=>x.establishment==="LOCEAN"&&(url.searchParams.get("archived")==="1"?!!x.archivedAt:!x.archivedAt)).slice(0,500)});
   }
   if(method!=="POST")return send({error:"Méthode non autorisée"},405);
   const raw=await req.text();
@@ -173,6 +173,20 @@ export default async function(req){
   if(!/^[0-9a-f-]{36}$/.test(safe(body.id,90)))return send({error:"Document invalide"},400);
   const doc=await db.get("docs/"+body.id,{type:"json",consistency:"strong"});
   if(!doc)return send({error:"Document introuvable"},404);
+  if(body.action==="archive"||body.action==="restore"){
+   if(body.action==="archive"&&doc.archivedAt)return send({error:"Document déjà dans la corbeille"},409);
+   if(body.action==="restore"&&!doc.archivedAt)return send({error:"Document déjà actif"},409);
+   if(body.action==="archive"){
+    doc.archivedAt=new Date().toISOString();doc.archivedBy=identity.user.email;
+    doc.archiveReason=safe(body.reason,220)||"Suppression manuelle depuis Prism";
+   }else{doc.archivedAt="";doc.archivedBy="";doc.archiveReason="";}
+   await db.setJSON("docs/"+doc.id,doc);
+   const list=await db.get("index",{type:"json",consistency:"strong"})||[];
+   const pos=list.findIndex(x=>x.id===doc.id);
+   if(pos>=0){list[pos]=shape(doc);await db.setJSON("index",list);}
+   return send({document:shape(doc)});
+  }
+  if(doc.archivedAt)return send({error:"Document dans la corbeille : restaure-le avant modification"},409);
   if(body.action==="analyze"){
    if(doc.status==="validé")return send({error:"Document déjà validé"},409);
    let parsed;try{parsed=await analyze(doc,{dataUri:doc.dataUri});}catch(err){doc.analysisError=safe(err.message,350);await db.setJSON("docs/"+doc.id,doc);return send({error:doc.analysisError},502);}
@@ -260,7 +274,7 @@ export default async function(req){
    }
    if(doc.kind==="facture"){
     const index=await db.get("index",{type:"json",consistency:"strong"})||[];
-    const recent=await Promise.all(index.filter(x=>x.status==="validé"&&(x.kind==="facture"||x.kind==="BL")).slice(0,150).map(x=>db.get("docs/"+x.id,{type:"json",consistency:"strong"})));
+    const recent=await Promise.all(index.filter(x=>!x.archivedAt&&x.status==="validé"&&(x.kind==="facture"||x.kind==="BL")).slice(0,150).map(x=>db.get("docs/"+x.id,{type:"json",consistency:"strong"})));
     doc.priceChanges=priceHistory(doc,recent.filter(Boolean));
     const ids=Array.isArray(body.linkedBLs)?body.linkedBLs.filter(x=>typeof x==="string").slice(0,30):[];
     doc.linkedBLs=[];const linkedBills=[];
@@ -276,7 +290,7 @@ export default async function(req){
   }else if(body.action==="suggest_matches"){
    if(doc.kind!=="facture")return send({matches:[]});
    const index=await db.get("index",{type:"json",consistency:"strong"})||[];
-   const candidates=await Promise.all(index.filter(x=>x.kind==="BL"&&x.status==="validé").slice(0,150).map(x=>db.get("docs/"+x.id,{type:"json",consistency:"strong"})));
+   const candidates=await Promise.all(index.filter(x=>!x.archivedAt&&x.kind==="BL"&&x.status==="validé").slice(0,150).map(x=>db.get("docs/"+x.id,{type:"json",consistency:"strong"})));
    return send({matches:candidates.filter(Boolean).map(bl=>({id:bl.id,supplier:bl.supplier,date:bl.date,documentNumber:bl.documentNumber,score:matchScore(doc,bl),disputes:bl.disputes?.length||0})).filter(x=>x.score>=25).sort((a,b)=>b.score-a.score).slice(0,15)});
   }else if(body.action==="dispute_status"){
    if(doc.kind!=="BL"||doc.status!=="validé")return send({error:"BL non validé"},409);
