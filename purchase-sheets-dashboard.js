@@ -52,7 +52,7 @@ async function mountSuppliers(){
  const toolbar=add(root,'div','ps-toolbar'),reload=button(toolbar,'Actualiser depuis Google Sheets',()=>load(true));
  const query=add(toolbar,'input','ps-search');query.type='search';query.placeholder='Rechercher un fournisseur';
  const content=add(root,'div','ps-content');
- let rows=[],profiles={},selected=null;
+ let rows=[],profiles={},selected=null,selectedIncoming='';
  function nameOf(row){const override=profiles[supplierKey(row.fournisseur)];return override?.displayName||row.fournisseur;}
  function list(){
   selected=null;content.replaceChildren();
@@ -97,11 +97,16 @@ async function mountSuppliers(){
   });
  }
  query.oninput=list;
+ window.addEventListener('prism-show-supplier',event=>{
+  selectedIncoming=event.detail?.supplier||'';
+  if(rows.length){const row=rows.find(x=>supplierKey(x.fournisseur)===supplierKey(selectedIncoming));if(row)detail(row);selectedIncoming='';}
+ });
  async function load(force){
   reload.disabled=true;content.textContent='Chargement des fournisseurs…';
   try{
    const results=await Promise.all([read('suppliers',force),supplierProfiles('GET')]);
    rows=results[0];profiles=results[1].profiles||{};list();
+   if(selectedIncoming){const row=rows.find(x=>supplierKey(x.fournisseur)===supplierKey(selectedIncoming));if(row)detail(row);selectedIncoming='';}
   }catch(err){content.textContent=err.message;}finally{reload.disabled=false;}
  }
  await load(false);
