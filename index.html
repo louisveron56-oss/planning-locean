@@ -1062,6 +1062,21 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
  .team-page .emp-config-top>div:nth-child(9),.team-page .emp-config-top>div:nth-child(10){grid-column:1/-1}
  .team-page .emp-config-top .rh-pay-note{font-size:10px}
 }
+
+/* Mémos Performance équipe — cadrage futur, non interactif */
+.teamperf-roadmap{margin-top:17px;border:1px solid #e5dfd7;border-radius:13px;background:#fff;padding:18px}
+.teamperf-roadmap-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px}
+.teamperf-roadmap-head h3{font-size:17px;color:#332823;margin:5px 0 0}
+.teamperf-roadmap-count{font-size:10px;color:#77695e;background:#f3eee9;padding:7px 10px;border-radius:999px;white-space:nowrap}
+.teamperf-memo-list{display:grid;gap:10px}
+.teamperf-memo{display:flex;gap:14px;border:1px solid #eee8e1;border-radius:10px;background:#fbfaf8;padding:14px}
+.teamperf-memo-icon{width:34px;height:34px;min-width:34px;display:flex;align-items:center;justify-content:center;background:#ece2d8;border-radius:9px;color:#674b3c;font-size:12px;font-weight:800}
+.teamperf-memo-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.teamperf-memo-top strong{font-size:13px;color:#332823}
+.teamperf-memo-top span{font-size:10px;color:#8a6a55;white-space:nowrap}
+.teamperf-memo p{font-size:11px;line-height:1.6;color:#6c625b;margin-top:7px}
+.teamperf-roadmap-foot{font-size:10px;line-height:1.5;color:#8c8177;margin-top:13px}
+@media(max-width:680px){.teamperf-roadmap{padding:13px}.teamperf-memo{padding:11px;gap:10px}.teamperf-memo-top{flex-direction:column;gap:4px}.teamperf-roadmap-count{font-size:9px}}
 </style>
 <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
 </head>
@@ -1720,11 +1735,36 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
       </div>
     </div>
 
-    <div class="module-placeholder" style="margin-top:12px">
-      <div class="module-placeholder-icon">↺</div>
-      <strong>Historique employés à récupérer</strong>
-      <p>Rappel : aller rechercher les chiffres par serveur dans les anciennes caisses / exports depuis 2024 et les intégrer progressivement dans une table dédiée.</p>
-    </div>
+    <section class="teamperf-roadmap" aria-label="Mémos de développement Performance équipe">
+      <div class="teamperf-roadmap-head">
+        <div><div class="module-kicker">À développer · Mémos</div><h3>Prochaines évolutions</h3></div>
+        <span class="teamperf-roadmap-count">3 idées enregistrées</span>
+      </div>
+      <div class="teamperf-memo-list">
+        <article class="teamperf-memo">
+          <div class="teamperf-memo-icon">01</div>
+          <div>
+            <div class="teamperf-memo-top"><strong>Importer les ventes détaillées mois par mois</strong><span>Priorité : données</span></div>
+            <p>Prévoir l'import progressif des exports KSD mensuels détaillés, par salarié, service, article, quantité et montant lorsque ces colonnes existent. Détecter les mois déjà importés pour éviter les doublons et permettre la comparaison dans le temps.</p>
+          </div>
+        </article>
+        <article class="teamperf-memo">
+          <div class="teamperf-memo-icon">02</div>
+          <div>
+            <div class="teamperf-memo-top"><strong>Créer un espace personnel pour chaque salarié</strong><span>Priorité : accès RH</span></div>
+            <p>Un compte individuel à droits restreints, optimisé pour téléphone : consulter uniquement son planning, ses horaires et son cumul d'heures. Les données des autres salariés, les données de gestion et les fonctions d'administration restent inaccessibles.</p>
+          </div>
+        </article>
+        <article class="teamperf-memo">
+          <div class="teamperf-memo-icon">03</div>
+          <div>
+            <div class="teamperf-memo-top"><strong>Créer une progression d'objectifs façon jeu</strong><span>Priorité : motivation</span></div>
+            <p>Pour un futur dispositif de motivation ou d'intéressement au chiffre : jauges de progression, paliers, défis collectifs et objectifs individuels équitables. Afficher les résultats atteints et le reste à accomplir, sans activer ni calculer de prime avant définition et validation des règles.</p>
+          </div>
+        </article>
+      </div>
+      <p class="teamperf-roadmap-foot">Mémos de conception uniquement : aucune connexion, aucun accès salarié et aucun intéressement ne sont encore activés. L'analyse d'intéressement et la récupération de l'historique employés sont déjà évoquées plus haut, sans être dupliquées ici.</p>
+    </section>
   </div>
 </section>
 
