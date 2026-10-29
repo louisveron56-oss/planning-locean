@@ -112,23 +112,54 @@ async function mountPurchases(){
  const root=e('section','ps-root ps-invoices');
  const docUi=shell.querySelector('.pd-root');
  if(docUi)shell.insertBefore(root,docUi);else shell.appendChild(root);
- add(root,'h3','','Historique comptable · Google Sheets');
- const toolbar=add(root,'div','ps-toolbar'),search=add(toolbar,'input','ps-search');search.placeholder='Fournisseur, numéro, catégorie…';search.type='search';
+ add(root,'h3','','Historique des achats · Google Sheets');
+ const toolbar=add(root,'div','ps-toolbar');
+ const supplierSelect=add(toolbar,'select','ps-search ps-select');
+ const search=add(toolbar,'input','ps-search');search.placeholder='N° de facture, catégorie, fournisseur…';search.type='search';
  const month=add(toolbar,'input','ps-search');month.type='month';
- const refresh=button(toolbar,'Actualiser',()=>load(true));
- const content=add(root,'div'),hint=add(root,'p','ps-note','Historique des achats issu du tableur. Les lignes sans PDF ne deviennent pas des documents scannés Prism ; les montants et leurs catégories restent ceux de la source.');
+ const refresh=button(toolbar,'Actualiser les factures',()=>load(true));
+ const content=add(root,'div');
+ note(root,'Les lignes proviennent de l’onglet Achats et ne contiennent pas nécessairement le PDF original. Les archives de documents scannés restent dans la section ci-dessous.');
  let rows=[];
+ function populateSuppliers(){
+  const old=supplierFocus||supplierSelect.value;
+  supplierSelect.replaceChildren();
+  const empty=add(supplierSelect,'option','','Tous les fournisseurs');empty.value='';
+  [...new Set(rows.map(x=>String(x.fournisseur||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr')).forEach(name=>{const op=add(supplierSelect,'option','',name);op.value=name;});
+  supplierSelect.value=old||'';
+  if(supplierSelect.selectedIndex<0)supplierSelect.value='';
+  supplierFocus='';draw();
+ }
  function draw(){
   content.replaceChildren();
-  const filtered=rows.filter(x=>(!month.value||String(x.mois||x.date).startsWith(month.value))&&(!search.value||norm([x.fournisseur,x.numero,x.categorie].join(' ')).includes(norm(search.value))));
-  const sum=filtered.reduce((a,x)=>a+n(x.ht),0);
-  const summary=add(content,'div','ps-summary');add(summary,'div','','Lignes : '+filtered.length);add(summary,'div','','Total HT des lignes filtrées : '+formatEuro.format(sum));
-  table(content,['Date','Fournisseur','Catégorie','N° facture','HT','TTC'],filtered.slice(0,150).map(x=>[x.date,x.fournisseur,x.categorie,x.numero||'—',money(x.ht),money(x.ttc)]));
-  if(filtered.length>150)note(content,'Affichage limité aux 150 premières lignes ; les totaux portent sur toutes les lignes filtrées.');
-  note(content,'Les achats peuvent inclure des charges hors matières et des lignes sans numéro de facture : ne pas assimiler directement ce total à la comptabilité validée.');
+  const filtered=rows.filter(x=>
+   (!supplierSelect.value||supplierKey(x.fournisseur)===supplierKey(supplierSelect.value))&&
+   (!month.value||String(x.mois||x.date).startsWith(month.value))&&
+   (!search.value||norm([x.fournisseur,x.numero,x.categorie].join(' ')).includes(norm(search.value)))
+  );
+  const total=filtered.reduce((a,x)=>a+n(x.ht),0),summary=add(content,'div','ps-summary');
+  add(summary,'div','','Lignes d’achats : '+filtered.length);
+  add(summary,'div','','Total HT : '+formatEuro.format(total));
+  if(supplierSelect.value){
+   const bar=add(content,'div','ps-toolbar');
+   button(bar,'← Tous les fournisseurs',()=>{supplierSelect.value='';draw();});
+   button(bar,'Fiche fournisseur',()=>{const nav=document.querySelector('.app-nav-item[data-page="supplier-directory"]');nav?.click();window.dispatchEvent(new CustomEvent('prism-show-supplier',{detail:{supplier:supplierSelect.value}}));});
+  }
+  table(content,['Date','Fournisseur','Catégorie','N° facture','HT','TTC'],filtered.slice(0,200).map(x=>[x.date,x.fournisseur,x.categorie,x.numero||'—',money(x.ht),money(x.ttc)]));
+  if(filtered.length>200)note(content,'Affichage limité à 200 lignes ; le total porte sur toutes les lignes filtrées.');
+  note(content,'Les lignes peuvent inclure des charges hors matières, des avoirs et des documents sans numéro : le total doit être rapproché de la comptabilité avant validation.');
  }
- search.oninput=draw;month.onchange=draw;
- async function load(force){refresh.disabled=true;content.textContent='Lecture des achats…';try{rows=await read('purchases',force);draw();}catch(err){content.textContent=err.message;}finally{refresh.disabled=false;}}
+ supplierSelect.onchange=draw;search.oninput=draw;month.onchange=draw;
+ window.addEventListener('prism-supplier-invoices',event=>{
+  supplierFocus=event.detail?.supplier||'';
+  if(rows.length){supplierSelect.value=supplierFocus;if(supplierSelect.selectedIndex<0)supplierSelect.value='';supplierFocus='';draw();}
+ });
+ async function load(force){
+  refresh.disabled=true;content.textContent='Lecture des achats…';
+  try{rows=await read('purchases',force);populateSuppliers();}
+  catch(err){content.textContent=err.message;}
+  finally{refresh.disabled=false;}
+ }
  await load(false);
 }
 async function mountProducts(){
