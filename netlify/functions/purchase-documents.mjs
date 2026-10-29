@@ -162,7 +162,12 @@ export default async function(req){
    if(mime==="application/pdf"&&String.fromCharCode(...bytes.slice(0,4))!=="%PDF")return send({error:"PDF invalide"},400);
    const hash=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",bytes))).map(v=>v.toString(16).padStart(2,"0")).join("");
    const previous=await db.get("hashes/"+hash,{type:"text",consistency:"strong"});
-   if(previous)return send({error:"Document déjà importé",existingId:previous},409);
+   // Une copie dans la corbeille ne bloque pas une nouvelle analyse du même fichier.
+   // La copie archivée reste conservée pour l'historique et la traçabilité.
+   if(previous){
+    const prior=await db.get("docs/"+previous,{type:"json",consistency:"strong"});
+    if(prior&&!prior.archivedAt)return send({error:"Document déjà importé",existingId:previous},409);
+   }
    const doc={id:crypto.randomUUID(),filename:name,mime,dataUri:body.dataUri,kind:"à déterminer",establishment:"LOCEAN",supplier:"",date:"",documentNumber:"",notes:"",status:"à analyser",lines:[],createdAt:new Date().toISOString(),uploadedBy:identity.user.email,hash};
    await db.setJSON("docs/"+doc.id,doc);
    await db.set("hashes/"+hash,doc.id);
@@ -174,12 +179,19 @@ export default async function(req){
   const doc=await db.get("docs/"+body.id,{type:"json",consistency:"strong"});
   if(!doc)return send({error:"Document introuvable"},404);
   if(body.action==="archive"||body.action==="restore"){
+   if(body.action==="restore"&&doc.hash){
+    const activeId=await db.get("hashes/"+doc.hash,{type:"text",consistency:"strong"});
+    if(activeId&&activeId!==doc.id){
+     const active=await db.get("docs/"+activeId,{type:"json",consistency:"strong"});
+     if(active&&!active.archivedAt)return send({error:"Une autre copie de cette facture est déjà active. Archive-la avant de restaurer cet exemplaire.",existingId:activeId},409);
+    }
+   }
    if(body.action==="archive"&&doc.archivedAt)return send({error:"Document déjà dans la corbeille"},409);
    if(body.action==="restore"&&!doc.archivedAt)return send({error:"Document déjà actif"},409);
    if(body.action==="archive"){
     doc.archivedAt=new Date().toISOString();doc.archivedBy=identity.user.email;
     doc.archiveReason=safe(body.reason,220)||"Suppression manuelle depuis Prism";
-   }else{doc.archivedAt="";doc.archivedBy="";doc.archiveReason="";}
+   }else{doc.archivedAt="";doc.archivedBy="";doc.archiveReason="";if(doc.hash)await db.set("hashes/"+doc.hash,doc.id);}
    await db.setJSON("docs/"+doc.id,doc);
    const list=await db.get("index",{type:"json",consistency:"strong"})||[];
    const pos=list.findIndex(x=>x.id===doc.id);
