@@ -95,7 +95,7 @@ var pdSubcats={
  'Hygiène':['Entretien','Consommables & emballages','Hygiène corporelle','Autres hygiène']
 };
 function pdGuess(label){
- var v=String(label||'').toLocaleLowerCase('fr').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'');
+ var v=String(label||'').toLocaleLowerCase('fr').normalize('NFD').replace(/[\u0300-\u036f]/g,'');
  var tests=[
  ['Hygiène','Consommables & emballages',/serviette|nappe|sac kraft|barquette|gobelet|film alimentaire|papier cuisson|gant jetable|emballage/],
  ['Hygiène','Entretien',/detergent|desinfect|lessive|nettoy|javel|degraiss|liquide vaisselle/],
