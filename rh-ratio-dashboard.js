@@ -23,14 +23,14 @@ function getTarget(id){
 }
 function line(root,label,value){const r=add(root,"div","rh-kpi-row");add(r,"span","",label);add(r,"strong","",value);}
 function navigate(){
- const b=document.querySelector('.app-nav-item[data-page="teamperf"]');
- if(b)b.click();else window.navigateApp?.("teamperf");
+ const b=document.querySelector('.app-nav-item[data-page="reports"]');
+ if(b)b.click();else window.navigateApp?.("reports");
 }
 function render(){
- for(const id of ["dashboard","teamperf"]){
+ for(const id of ["dashboard","teamperf","reports"]){
   const root=getTarget(id);if(!root)continue;root.replaceChildren();
   const head=add(root,"div","rh-head");
-  add(head,"strong","",id==="dashboard"?"Masse salariale · septembre 2026":"Ratio RH · L'Océan · septembre 2026");
+  add(head,"strong","",id==="dashboard"?"Masse salariale · septembre 2026":id==="reports"?"Analyse des coûts RH · septembre 2026":"Ratio RH · L'Océan · septembre 2026");
   add(head,"span","rh-state",typeof snapshot?.ratio==="number"?"PROVISOIRE":"À COMPLÉTER");
   if(!loaded){add(root,"p","rh-message",loading?"Lecture des sources en cours…":"Ouvre la rubrique ou actualise pour charger les données.");}
   else if(snapshot?.error){add(root,"p","rh-warning",snapshot.error);}
@@ -45,7 +45,7 @@ function render(){
    line(root,"Salaire brut",fmt(snapshot.payroll.gross));
    line(root,"Charges patronales",fmt(snapshot.payroll.patronales));
    line(root,"CA HT des Z",snapshot.ca!==null?fmt(snapshot.ca):"Non disponible");
-   if(id==="teamperf"){
+   if(id==="teamperf"||id==="reports"){
     line(root,"Lignes Z retenues",String(snapshot.salesRows));
     const warns=add(root,"div","rh-notes");
     add(warns,"strong","","Contrôles avant validation définitive");
@@ -53,10 +53,10 @@ function render(){
     add(root,"p","rh-source","Sources : Journal de paie MySilae septembre 2026 · LOCEAN_DATA_API / Jours. Aucune provision CP ajoutée. Les logements et le compte 649 restent suivis séparément.");
    } else {
     add(root,"p","rh-warning","⚠ Donnée de paie exploitable ; rapprochement comptable et dates des Z à contrôler.");
-    const b=add(root,"button","rh-action","Voir le détail RH →");b.type="button";b.onclick=navigate;
+    const b=add(root,"button","rh-action","Ouvrir l’analyse RH →");b.type="button";b.onclick=navigate;
    }
   }
-  if(id==="teamperf"){
+  if(id==="teamperf"||id==="reports"){
    const b=add(root,"button","rh-action","↻ Actualiser le CA et la paie");b.type="button";b.disabled=loading;b.onclick=()=>load(true);
   }
  }
@@ -77,8 +77,8 @@ async function load(force){
   if(rows.length!==30)warnings.push(rows.length+" lignes de Z en septembre : vérifier les journées de clôture.");
   if(uniqueDays!==30)warnings.push(rows.length+" lignes sur "+uniqueDays+" dates distinctes : des Z sont datés le même jour, probablement à la clôture nocturne. À vérifier.");
   if(invalid.length)warnings.push(invalid.length+" ligne(s) de Z avec CA HT invalide.");
-  warnings.push("Écart de 700 € entre le brut du journal et les comptes 641, correspondant aux participations logement : imputation à confirmer.");
-  warnings.push("Le crédit 649 de 2 962,35 € correspond aux avantages nourriture ; sa contrepartie comptable reste à contrôler.");
+  warnings.push("Les 700 € de participations logement (400 € Martin, 300 € Maxence) sont identifiés et confirmés ; leur présentation entre journal et écriture 641 reste à documenter.");
+  warnings.push("Le crédit 649 de 2 962,35 € correspond aux avantages nourriture ; selon le comptable, ils sont à intégrer sans charges supplémentaires, sans double comptage. Leur inclusion exacte dans le brut reste à confirmer.");
   warnings.push("La variation des provisions de congés payés n'est pas intégrée au coût salarial de paie.");
   snapshot={payroll:p.payroll,ca,salesRows:rows.length,ratio:ca>0&&!invalid.length?100*p.payroll.charged/ca:null,warnings};
  }catch(err){snapshot={error:err.message,ratio:null};}
@@ -86,9 +86,9 @@ async function load(force){
 }
 function init(){
  render();
- const a=document.getElementById("module-dashboard"),b=document.getElementById("module-teamperf");
- const observer=new MutationObserver(()=>{if(a?.classList.contains("open")||b?.classList.contains("open"))load(false)});
- [a,b].filter(Boolean).forEach(e=>observer.observe(e,{attributes:true,attributeFilter:["class"]}));
+ const a=document.getElementById("module-dashboard"),b=document.getElementById("module-teamperf"),c=document.getElementById("module-reports");
+ const observer=new MutationObserver(()=>{if(a?.classList.contains("open")||b?.classList.contains("open")||c?.classList.contains("open"))load(false)});
+ [a,b,c].filter(Boolean).forEach(e=>observer.observe(e,{attributes:true,attributeFilter:["class"]}));
  if(a?.classList.contains("open")||b?.classList.contains("open"))load(false);
  window.addEventListener("rh-ratio-refresh",()=>load(true));
 }
