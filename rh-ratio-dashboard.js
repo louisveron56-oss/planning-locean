@@ -31,7 +31,7 @@ function render(){
   const root=getTarget(id);if(!root)continue;root.replaceChildren();
   const head=add(root,"div","rh-head");
   add(head,"strong","",id==="dashboard"?"Masse salariale · septembre 2026":"Ratio RH · L'Océan · septembre 2026");
-  add(head,"span","rh-state",snapshot?.ratio!==null?"PROVISOIRE":"À COMPLÉTER");
+  add(head,"span","rh-state",typeof snapshot?.ratio==="number"?"PROVISOIRE":"À COMPLÉTER");
   if(!loaded){add(root,"p","rh-message",loading?"Lecture des sources en cours…":"Ouvre la rubrique ou actualise pour charger les données.");}
   else if(snapshot?.error){add(root,"p","rh-warning",snapshot.error);}
   else {
