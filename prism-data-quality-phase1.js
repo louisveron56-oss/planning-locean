@@ -111,7 +111,7 @@ async function run(){
   const p=prod.rows||[],unreliable=p.filter(x=>String(x.fiable||'').trim().toLowerCase()!=='oui').length,units=p.filter(x=>!String(x.unite||'').trim()).length;
   evidence.products={state:'review',details:p.length+' références ; '+unreliable+' prix douteux, '+units+' unités manquantes'+(cat.error?' ; catalogue Prism non vérifiable':' ; '+(cat.products?.length||0)+' fiches actives dans Prism')};
  }
- evidence.payroll={state:'missing',details:'Pas de source de paie mensuelle consolidée connectée dans Prism'};
+ evidence.payroll={state:'review',details:'Septembre 2026 : coût salarial chargé MySilae intégré au module RH. Les prochains mois nécessitent un import et les rapprochements comptables restent à finaliser.'};
  evidence.charges={state:'missing',details:'Pas de table validée de charges fixes/variables et MCV connectée'};
  busy=false;checkedAt=new Date();render();
 }
