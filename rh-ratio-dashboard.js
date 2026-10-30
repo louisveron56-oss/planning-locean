@@ -18,7 +18,7 @@ async function api(url,token){
 function getTarget(id){
  const parent=document.querySelector("#module-"+id+" .module-shell");if(!parent)return null;
  let root=parent.querySelector(".rh-monthly-panel");
- if(!root){root=add(parent,"section","rh-monthly-panel");if(id==="dashboard"){const before=parent.querySelector(".dq-root");if(before)parent.insertBefore(root,before)}}
+ if(!root){root=add(parent,"section","rh-monthly-panel");const before=id==="dashboard"?parent.querySelector(".dq-root"):id==="reports"?parent.querySelector(".module-placeholder"):id==="teamperf"?parent.querySelector(".future-panel-grid"):null;if(before)parent.insertBefore(root,before)}
  return root;
 }
 function line(root,label,value){const r=add(root,"div","rh-kpi-row");add(r,"span","",label);add(r,"strong","",value);}
