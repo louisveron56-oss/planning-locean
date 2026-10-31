@@ -83,7 +83,7 @@ function table(parent,groups){
  const body=put(t,"tbody");
  groups.forEach(x=>{
   const rows=data.months.filter(m=>m.month.startsWith(x.label.slice(0,4))&&(period==="year"||period==="quarter"?period==="year"||Math.ceil(Number(m.month.slice(5))/3)===Number(x.label.at(-1)):m.month===x.label));
-  const delta=comparison(groups,x.label);const tr=put(body,"tr");
+  const delta=period==="year"&&x.months!==12?null:comparison(groups,x.label);const tr=put(body,"tr");
   const brut=sum(rows,"brut"),pat=sum(rows,"charges_patronales");
   [x.label,money(x.ca),money(brut),money(pat),money(x.rh),percentage(x.ratio),delta?(delta.delta>=0?"+":"")+pct.format(delta.delta)+" pt":"—",x.warnings?"⚠ "+x.warnings+" contrôle(s)":"Source(s) rapprochée(s)"].forEach((v,i)=>put(tr,"td",i===7&&x.warnings?"rh-attention":"",v));
  });
@@ -99,12 +99,12 @@ function renderReport(p){
  button(actions,"↻ Actualiser",()=>load(true));
  const all=group(data.months),shown=period==="year"?all:all.filter(x=>x.year===year);
  const thisYear=group(data.months.filter(x=>x.month.slice(0,4)===year));
- const focus=shown.at(-1),prior=focus?comparison(all,focus.label):null;
+ const focus=shown.at(-1),prior=focus&&!(period==="year"&&focus.months!==12)?comparison(all,focus.label):null;
  const cards=put(p,"div","rh-summary-grid");
- stat(cards,"Ratio RH · "+(focus?.label||"—"),percentage(focus?.ratio),"Coût chargé / CA HT");
+ stat(cards,"Ratio RH · "+(focus?.label||"—"),percentage(focus?.ratio),focus&&period==="year"&&focus.months<12?focus.months+" mois disponibles · année incomplète":"Coût chargé / CA HT");
  stat(cards,"Masse salariale chargée",money(focus?.rh),"Brut + charges patronales");
  stat(cards,"CA HT",money(focus?.ca),"KSD · ventes mensuelles");
- stat(cards,"Évolution du ratio N-1",prior?(prior.delta>=0?"+":"")+pct.format(prior.delta)+" pt":"—",prior?"Même période année précédente":"Période N-1 indisponible");
+ stat(cards,"Évolution du ratio N-1",prior?(prior.delta>=0?"+":"")+pct.format(prior.delta)+" pt":"—",prior?"Même période année précédente":"Comparer uniquement des périodes équivalentes");
  const chart=put(p,"div","rh-chart");put(chart,"h4","","Comparaison des ratios RH · "+(period==="year"?"exercices":year));drawBars(chart,shown,period);
  const caption=put(p,"p","rh-muted","Graphique : coût salarial chargé rapporté au CA HT, calculé sur les totaux de chaque période (pas de moyenne simple). Les années incomplètes ne doivent pas être comparées comme des exercices entiers.");
  put(p,"h4","","Détail de gestion et rapprochements");table(p,shown);
