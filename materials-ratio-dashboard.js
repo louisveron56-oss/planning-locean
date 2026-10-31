@@ -64,7 +64,7 @@ function compact(r){
  if(latest)add(r,"p","mat-sub",latest.month+" : "+pct(latest.ratio)+" d'achats / CA HT, hors variation des stocks.");
  btn(r,"Ouvrir l'analyse matières →",()=>{const b=document.querySelector('.app-nav-item[data-page="reports"]');if(b)b.click();else window.navigateApp?.("reports")});
 }
-function paint(){for(const id of ["dashboard","reports"]){const r=container(id);if(r)id==="reports"?renderReport(r):compact(r)}}
+function paint(){for(const id of ["reports"]){const r=container(id);if(r)id==="reports"?renderReport(r):compact(r)}}
 function init(){
  const style=document.createElement("style");
  style.textContent=[
