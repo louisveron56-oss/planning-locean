@@ -124,7 +124,7 @@ function renderSmall(p,id){
  button(p,"Ouvrir l'analyse RH →",()=>{const b=document.querySelector('.app-nav-item[data-page="reports"]');if(b)b.click();else window.navigateApp?.("reports");});
 }
 function render(){
- for(const id of ["dashboard","teamperf","reports"]){const p=root(id);if(p){if(id==="reports")renderReport(p);else renderSmall(p,id)}}
+ for(const id of ["teamperf","reports"]){const p=root(id);if(p){if(id==="reports")renderReport(p);else renderSmall(p,id)}}
 }
 function install(){
  const css=make("style");css.textContent=[
