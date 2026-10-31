@@ -20,6 +20,7 @@ const items=[
  {title:"Fiabilité des prix fournisseurs",page:"suppliers",deps:["products"]}
 ];
 let evidence={},busy=false,checkedAt=null;
+function status(item){const states=item.deps.map(k=>evidence[k]?.state||'unknown');return states.includes('missing')?'missing':states.includes('unknown')?'unknown':states.includes('review')?'review':'available'}
 const make=(tag,cls,txt)=>{let x=document.createElement(tag);if(cls)x.className=cls;if(txt!==undefined)x.textContent=txt;return x};
 const put=(root,tag,cls,txt)=>{let x=make(tag,cls,txt);root.appendChild(x);return x};
 function navigate(page){let b=document.querySelector('.app-nav-item[data-page="'+page+'"]');if(b)b.click();else window.navigateApp?.(page)}
@@ -27,15 +28,15 @@ function button(root,label,fn){let b=put(root,'button','dq-button',label);b.type
 function sourceLine(root,group){
  let e=evidence[group]||{state:"pending",details:"Source non contrôlée"};
  const line=put(root,'div','dq-line');
- put(line,'span','dq-alert','!');
+ put(line,'span','dq-alert',e.state==='available'?'✓':e.state==='review'?'•':'!');
  const col=put(line,'div','dq-line-content');
  requirements[group].forEach((r,i)=>put(col,'div','',r+(i===0&&e.details?' — '+e.details:'')));
 }
 function card(root,item,compact){
- const box=put(root,'div','dq-card');
+ const state=status(item),box=put(root,'div','dq-card dq-'+state);
  const h=put(box,'div','dq-heading');
  put(h,'strong','',item.title);
- put(h,'span','dq-badge','NON VALIDÉ');
+ put(h,'span','dq-badge',state==='available'?'DISPONIBLE':state==='review'?'À RAPPROCHER':state==='missing'?'À COMPLÉTER':'À VÉRIFIER');
  for(let key of item.deps)sourceLine(box,key);
  if(!compact)button(box,'Ouvrir le module →',()=>navigate(item.page));
 }
@@ -48,16 +49,18 @@ function render(){
   put(root,'h3','','Diagnostic de fiabilité · L’Océan');
   put(root,'p','dq-sub',checkedAt?'Contrôle des sources : '+checkedAt.toLocaleString('fr-FR'):'En attente de vérification des sources');
   button(root,busy?'Contrôle en cours…':'Actualiser le diagnostic',run).disabled=busy;
-  put(root,'p','dq-warning','⚠ Aucun des ratios ci-dessous n’est certifié. Aucune formule ou donnée n’est modifiée par cet écran.');
-  const grid=put(root,'div','dq-grid');items.forEach(item=>card(grid,item,false));
+  put(root,'p','dq-warning','Données présentes ≠ validation comptable. Les écarts restent à rapprocher avant présentation externe.');
+  const open=items.filter(i=>status(i)!=='available'),ready=items.filter(i=>status(i)==='available');
+  put(root,'h4','','Contrôles ouverts ('+open.length+')');const grid=put(root,'div','dq-grid');open.forEach(item=>card(grid,item,false));
+  if(ready.length){put(root,'h4','','Indicateurs disponibles ('+ready.length+')');const ok=put(root,'div','dq-grid');ready.forEach(item=>card(ok,item,false));}
   const prio=put(root,'div','dq-priorities');put(prio,'h4','','Données à compléter en priorité');
-  Object.entries(requirements).forEach(([group,labels])=>{
+  Object.entries(requirements).filter(([group])=>evidence[group]?.state!=='available').forEach(([group,labels])=>{
    const row=put(prio,'div','dq-priority');
    const n=items.filter(i=>i.deps.includes(group)).length;
    put(row,'strong','',labels.join(' · '));
    put(row,'small','','Impact sur '+n+' indicateur(s)'+(evidence[group]?.details?' · '+evidence[group].details:''));
   });
-  put(root,'p','dq-sub','Rouge = condition de validation non satisfaite, y compris si la source contient des données partielles. Une source inaccessible n’est pas considérée comme absente.');
+  put(root,'p','dq-sub','Disponible = source exploitable ; à rapprocher = chiffres présents, contrôles encore ouverts. Une source inaccessible n’est pas considérée comme absente.');
  }
  const placement={
   'module-sales':['CA et CA par couvert'],
@@ -73,7 +76,8 @@ function render(){
   if(!zone)zone=put(shell,'section','dq-inline');
   zone.replaceChildren();
   put(zone,'h4','','Conditions avant validation');
-  items.filter(x=>names.includes(x.title)).forEach(x=>card(zone,x,true));
+  items.filter(x=>names.includes(x.title)&&status(x)!=='available').forEach(x=>card(zone,x,true));
+  if(!zone.querySelector('.dq-card'))put(zone,'p','dq-sub','Source exploitable. Voir les contrôles comptables dans Rapports.');
   button(zone,'Voir toutes les données manquantes →',()=>navigate('dashboard'));
  });
 }
@@ -91,7 +95,9 @@ async function run(){
  ['purchases','/.netlify/functions/purchase-sheets?type=purchases'],
  ['products','/.netlify/functions/purchase-sheets?type=products'],
  ['catalog','/.netlify/functions/purchases'],
- ['inventory','/.netlify/functions/inventory']
+ ['inventory','/.netlify/functions/inventory'],
+ ['payroll','/.netlify/functions/rh-monthly'],
+ ['materials','/.netlify/functions/materials-monthly']
  ];
  const results=await Promise.allSettled(endpoints.map(async([k,url])=>({key:k,data:await fetchJson(url,token)})));
  const data={};results.forEach((r,i)=>data[endpoints[i][0]]=r.status==='fulfilled'?r.value.data:{error:r.reason?.message||'Connexion indisponible'});
@@ -111,7 +117,13 @@ async function run(){
   const p=prod.rows||[],unreliable=p.filter(x=>String(x.fiable||'').trim().toLowerCase()!=='oui').length,units=p.filter(x=>!String(x.unite||'').trim()).length;
   evidence.products={state:'review',details:p.length+' références ; '+unreliable+' prix douteux, '+units+' unités manquantes'+(cat.error?' ; catalogue Prism non vérifiable':' ; '+(cat.products?.length||0)+' fiches actives dans Prism')};
  }
- evidence.payroll={state:'review',details:'Septembre 2026 : coût salarial chargé MySilae intégré au module RH. Les prochains mois nécessitent un import et les rapprochements comptables restent à finaliser.'};
+ const pay=data.payroll;
+ evidence.payroll=pay.error?{state:'unknown',details:'RH indisponible : '+pay.error}:{state:(pay.months||[]).length?'review':'missing',details:(pay.months||[]).length+' mois de paie MySilae disponibles ; rapprochements 641/645, gérance et bilan à finaliser.'};
+ const mat=data.materials;
+ if(mat.error)evidence.purchase={state:'unknown',details:'Achats non vérifiables : '+mat.error};
+ else {const list=mat.months||[];evidence.purchase={state:list.length?'review':'missing',details:list.length+' mois de ratios achats disponibles ; '+list.filter(x=>x.warnings?.length).length+' mois avec réserves de complétude ou affectation'};}
+ if(!sales.error){const rows=sales.rows||[],covers=rows.filter(x=>Number(String(x.couverts||'').replace(',','.'))>0).length,tickets=rows.filter(x=>Number(String(x.ticket_moyen||'').replace(',','.'))>0).length;
+ evidence.sales={state:rows.length&&covers&&tickets?'review':'missing',details:rows.length+' lignes Z ; couverts renseignés sur '+covers+' lignes, ticket moyen sur '+tickets+'. Indicateurs consultables, rapprochement des dates et familles à contrôler.'};}
  evidence.charges={state:'missing',details:'Pas de table validée de charges fixes/variables et MCV connectée'};
  busy=false;checkedAt=new Date();render();
 }
@@ -138,7 +150,7 @@ style.textContent=[
  '.dq-line{display:flex;gap:7px;margin:7px 0;color:#a52e2a;font-size:11px;line-height:1.45}',
  '.dq-alert{font-weight:900}.dq-line-content{display:grid;gap:3px}',
  '.dq-button{border:1px solid #d7b4aa;color:#7f2c29;background:#fff;border-radius:7px;padding:8px 10px;font-size:11px;font-weight:700;cursor:pointer;margin:4px 6px 0 0}',
- '.dq-button:disabled{opacity:.5}.dq-priorities{margin-top:18px}.dq-priority{display:grid;gap:4px;padding:9px 0;border-bottom:1px solid #eee1de}',
+ '.dq-card.dq-available{background:#f3f8f7;border-color:#cadfda;border-left-color:#4a887e}.dq-available .dq-badge{background:#e1f1ec;color:#286e5f}.dq-card.dq-review{background:#fffcf7;border-color:#e8d9bd;border-left-color:#cc9653}.dq-review .dq-badge{background:#fff0d9;color:#946321}.dq-card.dq-review .dq-line{color:#8d672d}.dq-button:disabled{opacity:.5}.dq-priorities{margin-top:18px}.dq-priority{display:grid;gap:4px;padding:9px 0;border-bottom:1px solid #eee1de}',
  '.dq-priority strong{font-size:11px;color:#9a302b}.dq-priority small{font-size:10px;color:#80645e}',
  '@media(max-width:650px){.dq-root,.dq-inline{padding:11px}}'
 ].join('');
