@@ -9,7 +9,7 @@ const percent=x=>Number.isFinite(x)?dec.format(x)+" %":"—";
 const keydate=x=>String(x||"").slice(0,10);
 const create=(p,tag,cl,txt)=>{const el=document.createElement(tag);if(cl)el.className=cl;if(txt!==undefined)el.textContent=txt;p.appendChild(el);return el;};
 const total=(rows,k)=>rows.reduce((s,r)=>s+(Number.isFinite(r[k])?r[k]:0),0);
-let sources=null,error="",loading=false,mode="month",anchor="2026-09-30";
+let sources=null,error="",loading=false,mode="month",anchor=new Date().toLocaleDateString("sv-SE");
 function interval(){const year=anchor.slice(0,4),m=anchor.slice(0,7);
  return mode==="day"?{start:anchor,end:anchor,title:new Date(anchor+"T12:00:00").toLocaleDateString("fr-FR",{day:"numeric",month:"long",year:"numeric"})}:
  mode==="month"?{start:m+"-01",end:m+"-31",title:new Date(m+"-01T12:00:00").toLocaleDateString("fr-FR",{month:"long",year:"numeric"})}:
@@ -23,7 +23,7 @@ async function load(force){
   const token=await user.jwt();
   const [sales,rh,mat]=await Promise.all([fetchJson("/.netlify/functions/sales",token),fetchJson("/.netlify/functions/rh-monthly",token),fetchJson("/.netlify/functions/materials-monthly",token)]);
   const salesRows=(sales.rows||[]).filter(x=>String(x.etablissement||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().includes("ocean")).map(x=>({...x,day:keydate(x.date),ttc:amount(x.ca_ttc),ht:amount(x.ca_ht),cover:amount(x.couverts),ticket:amount(x.ticket_moyen)})).filter(x=>/^\d{4}-\d\d-\d\d$/.test(x.day));
-  const last=salesRows.map(x=>x.day).sort().at(-1);if(last&&anchor>"2026-09-30")anchor=last;
+  const last=salesRows.map(x=>x.day).sort().at(-1);if(last&&anchor>last)anchor=last;
   sources={sales:salesRows,rh:rh.months||[],materials:mat.months||[]};
  }catch(e){error=e.message}finally{loading=false;render()}
 }
@@ -57,7 +57,7 @@ function card(container,name,value,sub){const el=create(container,"div","prism-o
 function button(container,name,fn,selected){const b=create(container,"button","prism-overview-btn"+(selected?" selected":""),name);b.type="button";b.onclick=fn;return b;}
 function render(){
  const host=document.querySelector("#module-dashboard .module-shell");if(!host)return;
- let root=host.querySelector("#prismOverview");if(!root){root=create(host,"section","prism-overview");root.id="prismOverview";const place=host.querySelector(".module-placeholder");if(place)place.remove();}
+ let root=host.querySelector("#prismOverview");if(!root){root=create(host,"section","prism-overview");root.id="prismOverview";const place=host.querySelector("#prismDashboardMount");if(place)place.replaceWith(root);}
  root.replaceChildren();const intro=create(root,"div","prism-overview-title");create(intro,"h3","","Indicateurs de pilotage");create(intro,"span","","L'Océan · CA et charges HT");
  const controls=create(root,"div","prism-overview-controls");["day","month","year"].forEach((x,i)=>button(controls,["Journalier","Mensuel","Annuel"][i],()=>{mode=x;render()},mode===x));
  const nav=create(controls,"div","prism-overview-nav");button(nav,"‹",()=>shift(-1));
