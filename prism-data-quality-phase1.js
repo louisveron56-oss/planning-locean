@@ -43,7 +43,7 @@ function card(root,item,compact){
  if(!compact)button(box,'Ouvrir le module →',()=>navigate(item.page));
 }
 function render(){
- const dash=document.querySelector('#module-dashboard .module-shell');
+ const dash=null;
  if(dash){
   let root=dash.querySelector('#prismDataQuality');
   if(!root){root=put(dash,'section','dq-root');root.id='prismDataQuality'}
