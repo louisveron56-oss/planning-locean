@@ -3,6 +3,7 @@
 // Phase 1: diagnosis only. Never writes business data or computes KPIs.
 const requirements={
  sales:["Z de caisse et couverture des dates","CA HT par famille rapproché des Z","CA restaurant séparé du comptoir"],
+ ticket:["Couverts et ticket moyen disponibles dans les Z KSD"],
  purchase:["Factures datées et affectées à L’Océan","Détail des achats par famille et avoirs"],
  consumption:["Inventaires valorisés ouverture/clôture par zone et période"],
  payroll:["Brut, charges patronales et provisions par mois travaillé"],
@@ -10,7 +11,8 @@ const requirements={
  products:["Références fournisseurs classées et unités normalisées","Prix OCR fiables et comparables"]
 };
 const items=[
- {title:"CA et CA par couvert",page:"sales",deps:["sales"]},
+ {title:"CA et ventilation des ventes",page:"sales",deps:["sales"]},
+ {title:"Ticket moyen et CA par couvert",page:"sales",deps:["ticket"]},
  {title:"Ratio matière sur achats",page:"costs",deps:["sales","purchase"]},
  {title:"Ratio matière consommée",page:"costs",deps:["sales","purchase","consumption"]},
  {title:"Marge brute matière",page:"foodcost",deps:["sales","purchase","consumption"]},
@@ -63,7 +65,7 @@ function render(){
   put(root,'p','dq-sub','Disponible = source exploitable ; à rapprocher = chiffres présents, contrôles encore ouverts. Une source inaccessible n’est pas considérée comme absente.');
  }
  const placement={
-  'module-sales':['CA et CA par couvert'],
+  'module-sales':['CA et ventilation des ventes','Ticket moyen et CA par couvert'],
   'module-costs':['Ratio matière sur achats','Ratio matière consommée'],
   'module-foodcost':['Marge brute matière'],
   'module-teamperf':['Ratio personnel','Prime cost'],
@@ -102,6 +104,7 @@ async function run(){
  const results=await Promise.allSettled(endpoints.map(async([k,url])=>({key:k,data:await fetchJson(url,token)})));
  const data={};results.forEach((r,i)=>data[endpoints[i][0]]=r.status==='fulfilled'?r.value.data:{error:r.reason?.message||'Connexion indisponible'});
  const sales=data.sales;
+ evidence.ticket=sales.error?{state:'unknown',details:'Source des tickets non vérifiable : '+sales.error}:{state:'review',details:'Lecture en cours des couverts et tickets moyens'};
  evidence.sales=sales.error?{state:'unknown',details:'Source non vérifiable : '+sales.error}:{state:'review',details:(sales.rows?.length||0)+' jours de ventes lus. Couverture des Z, CA HT familles et ventilation restaurant à valider'};
  const purchases=data.purchases;
  if(purchases.error)evidence.purchase={state:'unknown',details:'Source non vérifiable : '+purchases.error};
@@ -123,7 +126,8 @@ async function run(){
  if(mat.error)evidence.purchase={state:'unknown',details:'Achats non vérifiables : '+mat.error};
  else {const list=mat.months||[];evidence.purchase={state:list.length?'review':'missing',details:list.length+' mois de ratios achats disponibles ; '+list.filter(x=>x.warnings?.length).length+' mois avec réserves de complétude ou affectation'};}
  if(!sales.error){const rows=sales.rows||[],covers=rows.filter(x=>Number(String(x.couverts||'').replace(',','.'))>0).length,tickets=rows.filter(x=>Number(String(x.ticket_moyen||'').replace(',','.'))>0).length;
- evidence.sales={state:rows.length&&covers&&tickets?'review':'missing',details:rows.length+' lignes Z ; couverts renseignés sur '+covers+' lignes, ticket moyen sur '+tickets+'. Indicateurs consultables, rapprochement des dates et familles à contrôler.'};}
+ evidence.sales={state:rows.length?'review':'missing',details:rows.length+' lignes Z ; contrôle des dates de clôture et des familles à poursuivre.'};
+ evidence.ticket={state:covers&&tickets?'available':'review',details:rows.length+' lignes Z ; '+covers+' avec couverts, '+tickets+' avec ticket moyen. Fonctionnalité de consultation déjà opérationnelle.'};}
  evidence.charges={state:'missing',details:'Pas de table validée de charges fixes/variables et MCV connectée'};
  busy=false;checkedAt=new Date();render();
 }
