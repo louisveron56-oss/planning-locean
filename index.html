@@ -1844,6 +1844,7 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
           <label>Description</label>
           <textarea id="devDesc" placeholder="Décrire ce qu'il faut corriger ou faire évoluer…"></textarea>
         </div>
+        <div class="rh-pay-note" id="devActor">Auteur identifié automatiquement depuis la session Prism.</div>
         <button class="btn btn-primary dev-submit" type="button" onclick="addImprovement()">Ajouter au suivi</button>
         <div class="rh-pay-note"><strong>Prototype :</strong> les remontées sont enregistrées sur cet appareil. La synchronisation multi-admin sera branchée au backend lors de la mise en place des comptes utilisateurs.</div>
       </div>
@@ -1967,6 +1968,7 @@ function initLoceanIdentity(){
   }
   netlifyIdentity.on('init',function(user){
     setAuthUI(user);
+    renderImprovementActor();
     var hashType=identityHashType();
     if(!user&&hashType){
       setTimeout(function(){
@@ -1976,13 +1978,14 @@ function initLoceanIdentity(){
   });
   netlifyIdentity.on('login',function(user){
     setAuthUI(user);
+    renderImprovementActor();
     try{netlifyIdentity.close();}catch(e){}
     if(window.location.hash){
       history.replaceState(null,'',window.location.pathname+window.location.search);
     }
   });
   netlifyIdentity.on('signup',function(user){setAuthUI(user);});
-  netlifyIdentity.on('logout',function(){setAuthUI(null);});
+  netlifyIdentity.on('logout',function(){setAuthUI(null);renderImprovementActor();});
   netlifyIdentity.on('error',function(err){
     console.error('Identity:',err);
     document.body.classList.remove('auth-widget-open');
@@ -2911,10 +2914,25 @@ function loadImprovements(){
 function saveImprovements(){
   try{localStorage.setItem('locean_improvements_v1',JSON.stringify(IMPROVEMENTS));}catch(e){}
 }
+function improvementActor(){
+  var u=window.netlifyIdentity&&window.netlifyIdentity.currentUser?window.netlifyIdentity.currentUser():LOCEAN_AUTH_USER;
+  if(!u||!u.email)return null;
+  var profile=u.user_metadata||{};
+  var label=String(profile.full_name||profile.name||profile.first_name||'').trim();
+  return {email:String(u.email).trim().toLowerCase(),name:label||String(u.email).trim().toLowerCase()};
+}
+function renderImprovementActor(){
+  var line=document.getElementById('devActor');
+  if(!line)return;
+  var actor=improvementActor();
+  line.textContent=actor?'Demande enregistrée par : '+actor.name+' ('+actor.email+')':'Connecte-toi pour enregistrer une demande nominative.';
+}
 function addImprovement(){
   var title=document.getElementById('devTitle');
   var desc=document.getElementById('devDesc');
   if(!title||!title.value.trim())return;
+  var actor=improvementActor();
+  if(!actor){alert('Connecte-toi à Prism pour enregistrer une demande.');return;}
   IMPROVEMENTS.unshift({
     id:Date.now(),
     type:(document.getElementById('devType')||{}).value||'À revoir',
@@ -2923,6 +2941,7 @@ function addImprovement(){
     priority:(document.getElementById('devPriority')||{}).value||'Normale',
     desc:desc?desc.value.trim():'',
     status:'Nouveau',
+    requestedBy:actor,
     createdAt:new Date().toISOString()
   });
   saveImprovements();
@@ -2935,6 +2954,8 @@ function cycleImprovementStatus(id){
   if(!item)return;
   var i=order.indexOf(item.status);
   item.status=order[(i+1)%order.length];
+  item.statusChangedBy=improvementActor();
+  item.statusChangedAt=new Date().toISOString();
   saveImprovements();renderImprovements();
 }
 function renderImprovements(){
@@ -2946,10 +2967,10 @@ function renderImprovements(){
     var dt=new Date(x.createdAt);
     return '<div class="dev-card"><div class="dev-card-top"><div>'+
       '<div class="dev-card-title">'+escapeHtml(x.title)+'</div>'+
-      '<div class="dev-card-meta">'+escapeHtml(x.type)+' · '+escapeHtml(x.module)+' · '+dt.toLocaleDateString('fr-FR')+'</div></div>'+
+      '<div class="dev-card-meta">'+escapeHtml(x.type)+' · '+escapeHtml(x.module)+' · '+dt.toLocaleDateString('fr-FR')+'+(x.requestedBy?' · Demandé par '+escapeHtml(x.requestedBy.name||x.requestedBy.email)+' ('+escapeHtml(x.requestedBy.email)+')':' · Auteur inconnu (ancienne demande)')</div></div>'+
       '<button class="btn btn-ghost" type="button" onclick="cycleImprovementStatus('+x.id+')">'+escapeHtml(x.status)+'</button></div>'+
       (x.desc?'<div class="dev-card-desc">'+escapeHtml(x.desc)+'</div>':'')+
-      '<div class="dev-tags"><span class="dev-tag">'+escapeHtml(x.priority)+'</span></div></div>';
+      '<div class="dev-tags"><span class="dev-tag">'+escapeHtml(x.priority)+'</span>'+(x.statusChangedBy?'<span class="dev-tag">Statut modifié par '+escapeHtml(x.statusChangedBy.name||x.statusChangedBy.email)+'</span>':'')+'</div></div>';
   }).join('');
 }
 function escapeHtml(v){
@@ -3001,7 +3022,7 @@ function setHeaderMode(page){
 
 function navigateApp(page){
   if(page==='sales')window.dispatchEvent(new CustomEvent('prism-open-sales'));
-  if(page==='improvements')setTimeout(renderImprovements,0);
+  if(page==='improvements')setTimeout(function(){renderImprovementActor();renderImprovements();},0);
   if(page==='planning')setTimeout(renderMobilePlanning,0);
   updateMobileBottomNav(page);
   closeAppSidebar();
