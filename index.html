@@ -2985,7 +2985,7 @@ function renderImprovements(){
     var dt=new Date(x.createdAt);
     return '<div class="dev-card"><div class="dev-card-top"><div>'+
       '<div class="dev-card-title">'+escapeHtml(x.title)+'</div>'+
-      '<div class="dev-card-meta">'+escapeHtml(x.type)+' · '+escapeHtml(x.module)+' · '+dt.toLocaleDateString('fr-FR')+'+(x.requestedBy?' · Demandé par '+escapeHtml(x.requestedBy.name||x.requestedBy.email)+' ('+escapeHtml(x.requestedBy.email)+')':' · Auteur inconnu (ancienne demande)')</div></div>'+
+      '<div class="dev-card-meta">'+escapeHtml(x.type)+' · '+escapeHtml(x.module)+' · '+dt.toLocaleDateString('fr-FR')+(x.requestedBy?' · Demandé par '+escapeHtml(x.requestedBy.name||x.requestedBy.email)+' ('+escapeHtml(x.requestedBy.email)+')':' · Auteur inconnu (ancienne demande)')+'</div></div>'+
       '<button class="btn btn-ghost" type="button" onclick="cycleImprovementStatus('+x.id+')">'+escapeHtml(x.status)+'</button></div>'+
       (x.desc?'<div class="dev-card-desc">'+escapeHtml(x.desc)+'</div>':'')+
       '<div class="dev-tags"><span class="dev-tag">'+escapeHtml(x.priority)+'</span>'+(x.statusChangedBy?'<span class="dev-tag">Statut modifié par '+escapeHtml(x.statusChangedBy.name||x.statusChangedBy.email)+'</span>':'')+'</div></div>';
