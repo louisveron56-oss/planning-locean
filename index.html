@@ -925,6 +925,10 @@ body.app-nav-ready > .module-page{
 .dev-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
 .dev-tag{font-size:7.5px;padding:4px 6px;border-radius:999px;background:#eeece6;color:var(--g600);font-weight:700}
 .dev-empty{padding:24px;text-align:center;color:var(--g500);font-size:9px}
+.dev-card-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap;margin-top:10px}
+.dev-card-actions .btn{font-size:10px;padding:7px 11px}
+.dev-status-select{border:1px solid var(--g200);background:#fff;color:var(--navy);border-radius:8px;padding:8px;font:inherit;font-size:10px;max-width:138px;cursor:pointer}
+#devCount{font-size:10px}
 @media(max-width:760px){
   .future-panel-grid{grid-template-columns:1fr}
   .dev-board{grid-template-columns:1fr}
@@ -1846,13 +1850,25 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
         </div>
         <div class="dev-field"><label for="devRequester">Nom du demandeur (obligatoire)</label><input id="devRequester" autocomplete="name" placeholder="Nom et prénom" oninput="updateImprovementSubmit()" required></div>
         <div class="rh-pay-note" id="devActor">Auteur identifié automatiquement depuis la session Prism.</div>
+        <input type="hidden" id="devEditId">
         <button id="devSubmit" class="btn btn-primary dev-submit" type="button" onclick="addImprovement()" disabled>Ajouter au suivi</button>
+        <button id="devCancelEdit" class="btn btn-ghost dev-submit" type="button" onclick="cancelImprovementEdit()" style="display:none">Annuler les modifications</button>
         <div class="rh-pay-note"><strong>Prototype :</strong> les remontées sont enregistrées sur cet appareil. La synchronisation multi-admin sera branchée au backend lors de la mise en place des comptes utilisateurs.</div>
       </div>
 
       <div class="dev-list-wrap">
         <div class="module-title" style="font-size:15px">Suivi</div>
         <div class="module-lead" style="margin-top:2px">Nouveau · À traiter · En cours · Résolu</div>
+        <div class="dev-field"><label for="devStatusFilter">Afficher les demandes</label>
+          <select id="devStatusFilter" onchange="renderImprovements()">
+            <option value="all">Toutes les demandes</option>
+            <option value="Nouveau">Nouvelles</option>
+            <option value="À traiter">À traiter</option>
+            <option value="En cours">En cours</option>
+            <option value="Résolu">Résolues</option>
+          </select>
+        </div>
+        <div id="devCount" class="module-lead" style="margin-top:9px"></div>
         <div class="dev-list" id="devList"></div>
       </div>
     </div>
@@ -2945,50 +2961,95 @@ function renderImprovementActor(){
   updateImprovementSubmit();
 }
 function addImprovement(){
-  var title=document.getElementById('devTitle');
-  var desc=document.getElementById('devDesc');
+  var title=document.getElementById('devTitle'),desc=document.getElementById('devDesc');
   if(!title||!title.value.trim())return;
   var actor=improvementActor();
-  if(!actor){alert('Connecte-toi à Prism pour enregistrer une demande.');return;}
-  if(!actor.name){alert('Le nom du demandeur est obligatoire.');document.getElementById('devRequester')?.focus();return;}
-  IMPROVEMENTS.unshift({
-    id:Date.now(),
+  if(!actor||!actor.name){alert('Un nom et un compte Prism connecté sont obligatoires.');return;}
+  var editId=(document.getElementById('devEditId')||{}).value||'';
+  var fields={
     type:(document.getElementById('devType')||{}).value||'À revoir',
-    title:title.value.trim(),
-    module:(document.getElementById('devModule')||{}).value||'Autre',
+    title:title.value.trim(),module:(document.getElementById('devModule')||{}).value||'Autre',
     priority:(document.getElementById('devPriority')||{}).value||'Normale',
-    desc:desc?desc.value.trim():'',
-    status:'Nouveau',
-    requestedBy:actor,
-    createdAt:new Date().toISOString()
-  });
-  saveImprovements();
-  title.value=''; if(desc)desc.value='';
-  renderImprovements();updateImprovementSubmit();
+    desc:desc?desc.value.trim():''
+  };
+  if(editId){
+    var old=IMPROVEMENTS.find(function(x){return String(x.id)===editId;});
+    if(!old){alert('Demande introuvable.');return;}
+    Object.assign(old,fields,{updatedAt:new Date().toISOString(),updatedBy:actor});
+  }else{
+    IMPROVEMENTS.unshift(Object.assign({
+      id:Date.now(),status:'Nouveau',requestedBy:actor,createdAt:new Date().toISOString()
+    },fields));
+  }
+  saveImprovements();cancelImprovementEdit();renderImprovements();
+}
+function cancelImprovementEdit(){
+  var e=document.getElementById('devEditId');if(e)e.value='';
+  var t=document.getElementById('devTitle'),d=document.getElementById('devDesc');
+  if(t)t.value='';if(d)d.value='';
+  var b=document.getElementById('devSubmit');if(b)b.textContent='Ajouter au suivi';
+  var c=document.getElementById('devCancelEdit');if(c)c.style.display='none';
+  updateImprovementSubmit();
+}
+function editImprovement(id){
+  var item=IMPROVEMENTS.find(function(x){return String(x.id)===String(id);});
+  if(!item)return;
+  document.getElementById('devEditId').value=String(item.id);
+  document.getElementById('devTitle').value=item.title||'';
+  document.getElementById('devDesc').value=item.desc||'';
+  document.getElementById('devType').value=item.type||'À revoir';
+  document.getElementById('devModule').value=item.module||'Autre';
+  document.getElementById('devPriority').value=item.priority||'Normale';
+  document.getElementById('devSubmit').textContent='Enregistrer les modifications';
+  document.getElementById('devCancelEdit').style.display='block';
+  updateImprovementSubmit();
+  document.getElementById('devTitle').focus();
+  document.querySelector('#module-improvements .dev-form')?.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function deleteImprovement(id){
+  var idx=IMPROVEMENTS.findIndex(function(x){return String(x.id)===String(id);});
+  if(idx<0)return;
+  if(!window.confirm('Supprimer définitivement la demande « '+IMPROVEMENTS[idx].title+' » ? Cette action ne peut pas être annulée.'))return;
+  IMPROVEMENTS.splice(idx,1);saveImprovements();renderImprovements();
+  var ed=document.getElementById('devEditId');if(ed&&ed.value===String(id))cancelImprovementEdit();
+}
+function setImprovementStatus(id,value){
+  var item=IMPROVEMENTS.find(function(x){return String(x.id)===String(id);});
+  if(!item||['Nouveau','À traiter','En cours','Résolu'].indexOf(value)<0)return;
+  if(item.status===value)return;
+  var actor=improvementActor();if(!actor||!actor.name){alert('Un nom et un compte connecté sont obligatoires.');renderImprovements();return;}
+  item.status=value;item.statusChangedBy=actor;item.statusChangedAt=new Date().toISOString();
+  saveImprovements();renderImprovements();
 }
 function cycleImprovementStatus(id){
   var order=['Nouveau','À traiter','En cours','Résolu'];
-  var item=IMPROVEMENTS.find(function(x){return x.id===id;});
-  if(!item)return;
-  var i=order.indexOf(item.status);
-  item.status=order[(i+1)%order.length];
-  item.statusChangedBy=improvementActor();
-  item.statusChangedAt=new Date().toISOString();
-  saveImprovements();renderImprovements();
+  var item=IMPROVEMENTS.find(function(x){return String(x.id)===String(id);});if(!item)return;
+  setImprovementStatus(id,order[(order.indexOf(item.status)+1)%order.length]);
 }
 function renderImprovements(){
   var list=document.getElementById('devList');if(!list)return;
-  if(!IMPROVEMENTS.length){
-    list.innerHTML='<div class="dev-empty">Aucune remontée pour le moment.</div>';return;
-  }
-  list.innerHTML=IMPROVEMENTS.map(function(x){
-    var dt=new Date(x.createdAt);
+  var filter=(document.getElementById('devStatusFilter')||{}).value||'all';
+  var visible=IMPROVEMENTS.filter(function(x){return filter==='all'||x.status===filter;});
+  var count=document.getElementById('devCount');
+  if(count)count.textContent=visible.length+' affichée(s) sur '+IMPROVEMENTS.length+' demande(s) enregistrée(s) sur cet appareil';
+  if(!visible.length){list.innerHTML='<div class="dev-empty">Aucune demande dans cette catégorie.</div>';return;}
+  list.innerHTML=visible.map(function(x){
+    var dt=new Date(x.createdAt),date=Number.isNaN(dt.getTime())?'Date inconnue':dt.toLocaleDateString('fr-FR');
+    var who=x.requestedBy?escapeHtml(x.requestedBy.name||x.requestedBy.email):'Auteur inconnu (ancienne demande)';
+    var statuses=['Nouveau','À traiter','En cours','Résolu'];
+    var select='<select class="dev-status-select" aria-label="Statut de la demande" onchange="setImprovementStatus('+JSON.stringify(x.id)+',this.value)">'+statuses.map(function(st){return '<option value="'+escapeHtml(st)+'"'+(x.status===st?' selected':'')+'>'+escapeHtml(st)+'</option>';}).join('')+'</select>';
     return '<div class="dev-card"><div class="dev-card-top"><div>'+
       '<div class="dev-card-title">'+escapeHtml(x.title)+'</div>'+
-      '<div class="dev-card-meta">'+escapeHtml(x.type)+' · '+escapeHtml(x.module)+' · '+dt.toLocaleDateString('fr-FR')+(x.requestedBy?' · Demandé par '+escapeHtml(x.requestedBy.name||x.requestedBy.email)+' ('+escapeHtml(x.requestedBy.email)+')':' · Auteur inconnu (ancienne demande)')+'</div></div>'+
-      '<button class="btn btn-ghost" type="button" onclick="cycleImprovementStatus('+x.id+')">'+escapeHtml(x.status)+'</button></div>'+
+      '<div class="dev-card-meta">'+escapeHtml(x.type)+' · '+escapeHtml(x.module)+' · '+date+' · Demandé par '+who+'</div></div>'+
+      select+'</div>'+
       (x.desc?'<div class="dev-card-desc">'+escapeHtml(x.desc)+'</div>':'')+
-      '<div class="dev-tags"><span class="dev-tag">'+escapeHtml(x.priority)+'</span>'+(x.statusChangedBy?'<span class="dev-tag">Statut modifié par '+escapeHtml(x.statusChangedBy.name||x.statusChangedBy.email)+'</span>':'')+'</div></div>';
+      '<div class="dev-tags"><span class="dev-tag">'+escapeHtml(x.priority)+'</span>'+
+      (x.updatedBy?'<span class="dev-tag">Modifiée par '+escapeHtml(x.updatedBy.name||x.updatedBy.email)+'</span>':'')+
+      (x.statusChangedBy?'<span class="dev-tag">Statut : '+escapeHtml(x.statusChangedBy.name||x.statusChangedBy.email)+'</span>':'')+
+      '</div><div class="dev-card-actions">'+
+      '<button type="button" class="btn btn-ghost" onclick="editImprovement('+JSON.stringify(x.id)+')">Modifier</button>'+
+      '<button type="button" class="btn btn-ghost" onclick="deleteImprovement('+JSON.stringify(x.id)+')">Supprimer</button>'+
+      '</div></div>';
   }).join('');
 }
 function escapeHtml(v){
