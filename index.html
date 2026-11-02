@@ -1826,7 +1826,7 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
         </div>
         <div class="dev-field">
           <label>Titre</label>
-          <input id="devTitle" placeholder="Ex. Pointage mobile">
+          <input id="devTitle" placeholder="Ex. Pointage mobile" oninput="updateImprovementSubmit()">
         </div>
         <div class="dev-field">
           <label>Module concerné</label>
@@ -1844,8 +1844,9 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
           <label>Description</label>
           <textarea id="devDesc" placeholder="Décrire ce qu'il faut corriger ou faire évoluer…"></textarea>
         </div>
+        <div class="dev-field"><label for="devRequester">Nom du demandeur (obligatoire)</label><input id="devRequester" autocomplete="name" placeholder="Nom et prénom" oninput="updateImprovementSubmit()" required></div>
         <div class="rh-pay-note" id="devActor">Auteur identifié automatiquement depuis la session Prism.</div>
-        <button class="btn btn-primary dev-submit" type="button" onclick="addImprovement()">Ajouter au suivi</button>
+        <button id="devSubmit" class="btn btn-primary dev-submit" type="button" onclick="addImprovement()" disabled>Ajouter au suivi</button>
         <div class="rh-pay-note"><strong>Prototype :</strong> les remontées sont enregistrées sur cet appareil. La synchronisation multi-admin sera branchée au backend lors de la mise en place des comptes utilisateurs.</div>
       </div>
 
@@ -2918,14 +2919,30 @@ function improvementActor(){
   var u=window.netlifyIdentity&&window.netlifyIdentity.currentUser?window.netlifyIdentity.currentUser():LOCEAN_AUTH_USER;
   if(!u||!u.email)return null;
   var profile=u.user_metadata||{};
-  var label=String(profile.full_name||profile.name||profile.first_name||'').trim();
-  return {email:String(u.email).trim().toLowerCase(),name:label||String(u.email).trim().toLowerCase()};
+  var input=document.getElementById('devRequester');
+  var label=input?input.value.trim():String(profile.full_name||profile.name||profile.first_name||'').trim();
+  return {email:String(u.email).trim().toLowerCase(),name:label};
+}
+function updateImprovementSubmit(){
+  var b=document.getElementById('devSubmit');
+  var actor=improvementActor();
+  if(b)b.disabled=!actor||!actor.name||!document.getElementById('devTitle')?.value.trim();
 }
 function renderImprovementActor(){
-  var line=document.getElementById('devActor');
-  if(!line)return;
-  var actor=improvementActor();
-  line.textContent=actor?'Demande enregistrée par : '+actor.name+' ('+actor.email+')':'Connecte-toi pour enregistrer une demande nominative.';
+  var line=document.getElementById('devActor'),input=document.getElementById('devRequester');
+  if(!line||!input)return;
+  var u=window.netlifyIdentity&&window.netlifyIdentity.currentUser?window.netlifyIdentity.currentUser():LOCEAN_AUTH_USER;
+  var profile=u&&u.user_metadata||{};
+  var suggested=String(profile.full_name||profile.name||profile.first_name||'').trim();
+  if(u&&String(u.email||'').trim().toLowerCase()==='veron-l@hotmail.fr'&&!suggested)suggested='Louis';
+  var currentEmail=u?String(u.email||'').trim().toLowerCase():'';
+  if(input.dataset.account!==currentEmail){
+    input.value=suggested;input.dataset.account=currentEmail;
+  }
+  input.readOnly=!!suggested;
+  input.disabled=!u;
+  line.textContent=u?'Compte connecté : '+currentEmail+(suggested?' · Nom repris du profil.':' · Indique le nom avant validation.'):'Connecte-toi à Prism pour saisir une demande.';
+  updateImprovementSubmit();
 }
 function addImprovement(){
   var title=document.getElementById('devTitle');
@@ -2933,6 +2950,7 @@ function addImprovement(){
   if(!title||!title.value.trim())return;
   var actor=improvementActor();
   if(!actor){alert('Connecte-toi à Prism pour enregistrer une demande.');return;}
+  if(!actor.name){alert('Le nom du demandeur est obligatoire.');document.getElementById('devRequester')?.focus();return;}
   IMPROVEMENTS.unshift({
     id:Date.now(),
     type:(document.getElementById('devType')||{}).value||'À revoir',
@@ -2946,7 +2964,7 @@ function addImprovement(){
   });
   saveImprovements();
   title.value=''; if(desc)desc.value='';
-  renderImprovements();
+  renderImprovements();updateImprovementSubmit();
 }
 function cycleImprovementStatus(id){
   var order=['Nouveau','À traiter','En cours','Résolu'];
