@@ -1,65 +1,35 @@
-/* Prism - prototype non nominatif de gestion des remunerations.
- * Aucune donnée salariale réelle, aucune persistance, aucun endpoint.
- * Les droits admin devront être vérifiés côté serveur avant activation réelle.
- */
 (function(){
 "use strict";
-const demo=[
- {id:"DEMO-001",name:"Camille D. (fictif)",team:"Cuisine",job:"Chef de partie",gross:2650,start:"2025-04-01",exit:"",status:"actif"},
- {id:"DEMO-002",name:"Thomas L. (fictif)",team:"Salle",job:"Chef de rang",gross:2200,start:"2025-06-15",exit:"",status:"actif"},
- {id:"DEMO-003",name:"Alex M. (fictif)",team:"Bar",job:"Barman",gross:2400,start:"2024-03-11",exit:"2026-08-31",status:"sorti"}
-];
-const state=demo.map(x=>({...x}));let filter="actif";
-const euro=new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR",minimumFractionDigits:2});
-const el=(p,t,cl,txt)=>{let n=document.createElement(t);if(cl)n.className=cl;if(txt!==undefined)n.textContent=txt;p.appendChild(n);return n};
-function control(p,txt,fn,selected){const b=el(p,"button","remu-btn"+(selected?" remu-on":""),txt);b.type="button";b.onclick=fn;return b;}
+let rows=[],loaded=false,filter="visible",site="ALL",busy=false;
+const root=()=>document.getElementById("prismRemunerationsDemo");
+const make=(p,t,v)=>{let e=document.createElement(t);if(v!==undefined)e.textContent=v;p.append(e);return e};
+const money=n=>new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR"}).format(n);
+async function api(body){
+const u=window.netlifyIdentity?.currentUser?.();if(!u)throw Error("Connexion requise");
+const token=await u.jwt();
+const r=await fetch("/.netlify/functions/private-payroll",{method:body?"POST":"GET",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined,cache:"no-store"});
+const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||"Accès indisponible");return d;
+}
+function btn(p,label,fn){let b=make(p,"button",label);b.type="button";b.onclick=fn;b.style.margin="5px";return b}
+async function load(){let box=root();if(!box)return;box.textContent="Vérification des droits…";try{const d=await api();rows=d.rows||[];loaded=true;draw()}catch(e){box.textContent="Dossier privé : "+e.message}}
+async function upload(file){if(!file)return;try{let document=JSON.parse(await file.text());await api({action:"import",document});await load()}catch(e){alert(e.message)}}
+async function archive(r){try{await api({action:"archive",record_id:r.record_id,status:r.status==="archived"?"visible":"archived"});await load()}catch(e){alert(e.message)}}
 function draw(){
- const parent=document.getElementById("prismRemunerationsDemo");if(!parent)return;
- parent.replaceChildren();
- const title=el(parent,"div","remu-title");el(title,"h3","","Registre des rémunérations");el(title,"span","remu-demo-pill","DÉMONSTRATION · DONNÉES FICTIVES");
- el(parent,"p","remu-muted","Préfiguration de la future rubrique réservée aux administrateurs. Aucun salaire réel n'est lu, transmis ou enregistré.");
- const filters=el(parent,"div","remu-filters");
- [["actif","Actifs"],["sorti","Sortis"],["tous","Tous"]].forEach(([k,label])=>control(filters,label,()=>{filter=k;draw()},filter===k));
- const list=state.filter(x=>filter==="tous"||x.status===filter);
- const summary=el(parent,"div","remu-summary");
- const active=state.filter(x=>x.status==="actif");
- el(summary,"div","","Actifs (simulation) : "+active.length);
- el(summary,"div","","Brut contractuel mensuel indicatif : "+euro.format(active.reduce((s,x)=>s+x.gross,0)));
- const scroller=el(parent,"div","remu-table-wrap"),table=el(scroller,"table","remu-table"),thead=el(table,"thead"),head=el(thead,"tr");
- ["Salarié fictif","Service","Poste","Brut mensuel fictif","Entrée","Sortie","Situation","Simulation"].forEach(x=>el(head,"th","",x));
- const tbody=el(table,"tbody");
- list.forEach(x=>{
-  const row=el(tbody,"tr","");
-  [x.name,x.team,x.job,euro.format(x.gross),x.start,x.exit||"—",x.status==="actif"?"Actif":"Sorti"].forEach(v=>el(row,"td","",v));
-  const col=el(row,"td","");
-  if(x.status==="actif")control(col,"Simuler une sortie",()=>{const d=window.prompt("Date de sortie fictive (AAAA-MM-JJ) :","2026-10-31");if(d===null)return;if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||Number.isNaN(Date.parse(d))){window.alert("Date non valide");return}x.exit=d;x.status="sorti";draw()});
-  else control(col,"Réactiver la démo",()=>{x.exit="";x.status="actif";draw()});
- });
- if(!list.length)el(parent,"p","remu-muted","Aucun salarié fictif dans cette catégorie.");
- const foot=el(parent,"div","remu-foot");
- el(foot,"strong","","Règles prévues pour la version réelle");
- el(foot,"p","","Sortie = archivage, jamais suppression automatique de l'historique. Les salaires contractuels, bruts versés et coûts employeur seront distingués, avec dates d'effet et traçabilité.");
- el(foot,"p","","L'accès devra être autorisé par un rôle administrateur vérifié par le serveur. Aucun import MySilae nominatif avant cette protection.");
- control(foot,"Réinitialiser la démonstration",()=>{state.splice(0,state.length,...demo.map(x=>({...x})));filter="actif";draw()});
+ const box=root();if(!box)return;box.replaceChildren();
+ make(box,"h3","Rémunérations · septembre 2026 — accès administrateur");
+ make(box,"p","Données individuelles confidentielles. Le statut Archivé masque sans supprimer les montants.");
+ if(!rows.length){make(box,"p","Importer les données vérifiées des deux établissements.");
+ const input=make(box,"input");input.type="file";input.accept=".json";input.onchange=()=>upload(input.files[0]);return}
+ const select=make(box,"select");["ALL","OCEAN","ESCALE"].forEach(v=>{const o=make(select,"option",v==="ALL"?"Tous les établissements":v);o.value=v});select.value=site;select.onchange=()=>{site=select.value;draw()};
+ const st=make(box,"select");["visible","archived","all"].forEach(v=>{let o=make(st,"option",v==="visible"?"Visibles":v==="archived"?"Archives":"Tous");o.value=v});st.value=filter;st.onchange=()=>{filter=st.value;draw()};
+ const list=rows.filter(r=>(site==="ALL"||r.establishment===site)&&(filter==="all"||r.status===filter));
+ const sum=k=>money(list.reduce((a,r)=>a+r[k],0));
+ make(box,"p",list.length+" lignes · Brut "+sum("gross")+" · Net "+sum("net")+" · Coût "+sum("employer_cost"));
+ const wrap=make(box,"div");wrap.style.overflowX="auto";
+ const table=make(wrap,"table");table.style.width="100%";table.style.borderCollapse="collapse";
+ let head=make(table,"tr");["Société","Matricule","Salarié","Brut","Net à payer","Coût","Situation","Action"].forEach(v=>make(head,"th",v));
+ for(const r of list){let tr=make(table,"tr");[r.establishment,r.employee_id,r.name,money(r.gross),money(r.net),money(r.employer_cost),r.status].forEach(v=>{let td=make(tr,"td",v);td.style.padding="8px";td.style.borderBottom="1px solid #ddd"});btn(make(tr,"td"),r.status==="archived"?"Réafficher":"Archiver",()=>archive(r))}
 }
-function init(){
- const shell=document.querySelector("#module-settings .module-shell");if(!shell)return;
- let section=document.getElementById("prismRemunerationsDemo");
- if(!section){section=el(shell,"section","remu-root");section.id="prismRemunerationsDemo";}
- const style=document.createElement("style");style.textContent=[
- ".remu-root{border:1px solid #e2e8ed;background:#fff;border-radius:12px;padding:18px;margin:20px 0;color:#283e4b}",
- ".remu-title{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.remu-title h3{margin:0;font-size:17px}",
- ".remu-demo-pill{font-size:10px;color:#8d5d2d;background:#fff2df;padding:7px;border-radius:6px;font-weight:700}",
- ".remu-muted{font-size:11px;color:#70818b;line-height:1.6}.remu-filters{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}",
- ".remu-btn{font:inherit;font-size:11px;border:1px solid #d9e2e7;border-radius:7px;background:#fff;color:#24506b;padding:9px 12px;cursor:pointer}",
- ".remu-btn.remu-on{background:#194f6e;color:#fff;border-color:#194f6e}.remu-summary{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:15px;font-size:12px;font-weight:650}",
- ".remu-table-wrap{overflow-x:auto}.remu-table{width:100%;min-width:870px;border-collapse:collapse;font-size:11px}",
- ".remu-table th,.remu-table td{text-align:left;padding:11px 9px;border-bottom:1px solid #edf0f2;white-space:nowrap}",
- ".remu-table th{background:#f4f7f8;color:#526572}.remu-foot{border-left:3px solid #c6a36e;background:#fffaf3;margin-top:18px;padding:13px;font-size:11px;color:#715b3c;line-height:1.5}",
- ".remu-foot p{margin:8px 0}.remu-foot strong{color:#4c483d}"
- ].join("");document.head.appendChild(style);
- const old=shell.querySelector(".module-placeholder");if(old){old.style.display="none";}
- draw();
-}
+function init(){const host=document.querySelector("#module-settings .module-shell");if(!host)return;host.querySelector(".module-placeholder")?.remove();let box=make(host,"section");box.id="prismRemunerationsDemo";box.style.cssText="background:white;border:1px solid #ddd;border-radius:12px;padding:18px;margin:18px 0";make(box,"h3","Rémunérations · Accès privé");const target=document.getElementById("module-settings");if(target){new MutationObserver(()=>{if(target.classList.contains("open")&&!loaded&&!busy){busy=true;load().finally(()=>busy=false)}}).observe(target,{attributes:true,attributeFilter:["class"]});if(target.classList.contains("open"))load()}}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 })();
