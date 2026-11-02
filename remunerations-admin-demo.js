@@ -11,7 +11,7 @@ const r=await fetch("/.netlify/functions/private-payroll",{method:body?"POST":"G
 const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||"Accès indisponible");return d;
 }
 function btn(p,label,fn){let b=make(p,"button",label);b.type="button";b.onclick=fn;b.style.margin="5px";return b}
-async function load(){let box=root();if(!box)return;box.textContent="Vérification des droits…";try{const d=await api();rows=d.rows||[];loaded=true;draw()}catch(e){box.textContent="Dossier privé : "+e.message}}
+async function load(){let box=root();if(!box)return;box.textContent="Vérification des droits…";try{const d=await api();rows=d.rows||[];loaded=true;draw()}catch(e){loaded=true;box.replaceChildren();make(box,"h3","Rémunérations · Accès privé");make(box,"p","Le dossier des salaires est verrouillé. Les autres paramètres de Prism restent accessibles.");make(box,"p",e.message);btn(box,"Réessayer",()=>{loaded=false;load()});}}
 async function upload(file){if(!file)return;try{let document=JSON.parse(await file.text());await api({action:"import",document});await load()}catch(e){alert(e.message)}}
 async function archive(r){try{await api({action:"archive",record_id:r.record_id,status:r.status==="archived"?"visible":"archived"});await load()}catch(e){alert(e.message)}}
 function draw(){
@@ -30,6 +30,6 @@ function draw(){
  let head=make(table,"tr");["Société","Matricule","Salarié","Brut","Net à payer","Coût","Situation","Action"].forEach(v=>make(head,"th",v));
  for(const r of list){let tr=make(table,"tr");[r.establishment,r.employee_id,r.name,money(r.gross),money(r.net),money(r.employer_cost),r.status].forEach(v=>{let td=make(tr,"td",v);td.style.padding="8px";td.style.borderBottom="1px solid #ddd"});btn(make(tr,"td"),r.status==="archived"?"Réafficher":"Archiver",()=>archive(r))}
 }
-function init(){const host=document.querySelector("#module-settings .module-shell");if(!host)return;host.querySelector(".module-placeholder")?.remove();let box=make(host,"section");box.id="prismRemunerationsDemo";box.style.cssText="background:white;border:1px solid #ddd;border-radius:12px;padding:18px;margin:18px 0";make(box,"h3","Rémunérations · Accès privé");const target=document.getElementById("module-settings");if(target){new MutationObserver(()=>{if(target.classList.contains("open")&&!loaded&&!busy){busy=true;load().finally(()=>busy=false)}}).observe(target,{attributes:true,attributeFilter:["class"]});if(target.classList.contains("open"))load()}}
+function init(){const host=document.querySelector("#module-settings .module-shell");if(!host)return;let box=make(host,"section");box.id="prismRemunerationsDemo";box.style.cssText="background:white;border:1px solid #ddd;border-radius:12px;padding:18px;margin:18px 0";make(box,"h3","Rémunérations · Accès privé");const target=document.getElementById("module-settings");if(target){new MutationObserver(()=>{if(target.classList.contains("open")&&!loaded&&!busy){busy=true;load().finally(()=>busy=false)}}).observe(target,{attributes:true,attributeFilter:["class"]});if(target.classList.contains("open"))load()}}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 })();
