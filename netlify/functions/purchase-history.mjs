@@ -11,16 +11,24 @@ const date=v=>{const s=norm(v,30);if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;cons
 const k=(supplier,reference)=>slug(supplier)+"|"+slug(reference);
 const basicUnit=u=>{const a=slug(u);if(["kg","kilogramme","kilogrammes"].includes(a))return "kg";if(["g","gramme","grammes"].includes(a))return "g";if(["l","litre","litres"].includes(a))return "L";if(["cl"].includes(a))return "cl";if(["ml"].includes(a))return "ml";if(["piece","pieces","unite","unites","u","pc","pcs"].includes(a))return "pièce";return "";};
 function clean(r){
- const supplier=norm(r.supplier,160),reference=norm(r.reference,140),description=norm(r.description,250);
+ // Ne supprimer aucune facture parce qu'une référence, une unité ou un prix manque.
+ const supplier=norm(r.supplier,160)||"Fournisseur à identifier";
+ const description=norm(r.description,250)||"Désignation à vérifier";
+ const explicitReference=norm(r.reference,140);
+ const reference=explicitReference||"sans-ref:"+slug(description).slice(0,110);
  const d=date(r.date),price=parseNum(r.priceHT),quantity=parseNum(r.quantity),unit=norm(r.unit,50);
- if(!supplier||!reference||!d||price===null||price<0||price>100000||!description)return null;
  const reading=slug(r.reading),status=slug(r.invoiceStatus);
  const issues=[];
+ if(!explicitReference)issues.push("Référence absente : regroupement provisoire par désignation");
+ if(!norm(r.supplier))issues.push("Fournisseur absent");
+ if(!norm(r.description))issues.push("Désignation absente");
+ if(!d)issues.push("Date non reconnue");
+ if(price===null||price<0||price>100000)issues.push("Prix unitaire non exploitable");
  if(!basicUnit(unit))issues.push("Unité non normalisée");
  if(reading.includes("ocr"))issues.push("Lecture OCR");
- if(status&&status!=="complete"&&status!=="complet"&&status!=="valide")issues.push("Facture à contrôler");
+ if(!status||!["complete","complet","valide"].includes(status))issues.push("Complétude de facture à contrôler");
  if(quantity===null||quantity<=0)issues.push("Quantité à contrôler");
- return {supplier,reference,description,date:d,priceHT:price,quantity,unit,
+ return {supplier,reference,description,date:d||"",priceHT:price!==null&&price>=0&&price<=100000?price:null,quantity,unit,
   document: norm(r.document,180),invoice: norm(r.invoice,100),source: norm(r.source,240),
   reading:norm(r.reading,30),invoiceStatus:norm(r.invoiceStatus,40),
   issues,verified:issues.length===0};
