@@ -20,7 +20,7 @@
   syncDarkLink();
 
   var brand = document.createElement('link');
-  brand.rel = 'stylesheet'; brand.href = './prism-refonte.css?v=4'; brand.id = 'prism-refonte-css';
+  brand.rel = 'stylesheet'; brand.href = './prism-refonte.css?v=5'; brand.id = 'prism-refonte-css';
   var mapped = document.createElement('style');
   mapped.id = 'prism-refonte-map';
 
@@ -311,8 +311,36 @@
       if (o) { el.setAttribute(attr, o); el.removeAttribute('data-prism-' + attr); }
     });
   }
+  /* Noms en capitales nettoyés à l'affichage (texte d'origine conservé dans title). */
+  var SMALL = { de: 1, du: 1, des: 1, et: 1, la: 1, le: 1, les: 1, en: 1, au: 1, aux: 1, a: 1 };
+  function mostlyUpper(t) { var l = t.replace(/[^A-Za-zÀ-ÿ]/g, ''); if (l.length < 3) return false; var u = l.replace(/[^A-ZÀ-Þ]/g, ''); return u.length / l.length > 0.7; }
+  function cleanName(t) {
+    var x = t.replace(/^\s*\d{8,}\s*/, '').replace(/^\s*\d{1,3}\s*[_\[\]“”"'‘’=…\-—.+]+\s*/, '').replace(/^\s*[_\[\]“”"'‘’=…\-—.]+\s*/, '');
+    x = x.replace(/(\s+\d+[.,]\d{2}\s*€?)+\s*$/, '').trim();
+    return x || t;
+  }
+  function sentence(t) { var x = t.toLowerCase(); return x.replace(/^([^a-zà-ÿ]*)([a-zà-ÿ])/, function (_, a, b) { return a + b.toUpperCase(); }); }
+  function title(t) { return t.toLowerCase().split(/(\s+|-)/).map(function (w, i) { return (i && SMALL[w]) ? w : w.charAt(0).toUpperCase() + w.slice(1); }).join(''); }
+  function prettify(root) {
+    var list = root.querySelectorAll ? root.querySelectorAll('.pcu-product-link,.pcu-product-name,.pcu-supplier-cell,.pcu-product-supplier,.pcu-price') : [];
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i], t = e.textContent;
+      if (!t || e.dataset.prismPretty === t) continue;
+      if (e.classList.contains('pcu-price')) {
+        var m = t.match(/^(.*?)\s*·\s*unité à vérifier\s*$/);
+        if (m) { e.textContent = m[1]; var pill = document.createElement('span'); pill.className = 'pcu-unit-check'; pill.textContent = 'unité à vérifier'; e.appendChild(pill); }
+        e.dataset.prismPretty = e.textContent; continue;
+      }
+      if (!mostlyUpper(t)) { e.dataset.prismPretty = t; continue; }
+      var isSupplier = e.classList.contains('pcu-supplier-cell') || e.classList.contains('pcu-product-supplier');
+      var out = isSupplier ? title(t.trim()) : sentence(cleanName(t.trim()));
+      if (!e.title) e.title = t.trim();
+      e.textContent = out; e.dataset.prismPretty = out;
+    }
+  }
   function scan(node) {
     if (!node || node.nodeType !== 1) return;
+    prettify(node);
     mapInline(node);
     var list = node.querySelectorAll('[style],svg [fill],svg [stroke]');
     for (var i = 0; i < list.length; i++) mapInline(list[i]);
