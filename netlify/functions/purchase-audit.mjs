@@ -19,7 +19,7 @@ export default async function(req){
   const audit=audits(),index=await audit.get("responses/"+active.run,{type:"json",consistency:"strong"})||{};
   if(req.method==="GET"){
    const page=Math.max(0,Math.min(500,Number(new URL(req.url).searchParams.get("page"))||0));
-   const pending=products.filter(p=>!index[p.key]?.resolved);
+   const pending=products.filter(p=>!index[p.key]?.status);
    return send({ready:true,run:active.run,total:products.length,pending:pending.length,answered:Object.keys(index).length,page,
     questions:pending.slice(page*15,page*15+15).map(p=>({key:p.key,supplier:p.supplier,reference:p.reference,
     description:p.description,purchaseCount:p.count,anomalyCount:p.issues,first:p.first,last:p.last,
