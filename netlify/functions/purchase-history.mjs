@@ -26,7 +26,7 @@ function clean(r){
  if(price===null||price<0||price>100000)issues.push("Prix unitaire non exploitable");
  if(!basicUnit(unit))issues.push("Unité non normalisée");
  if(reading.includes("ocr"))issues.push("Lecture OCR");
- if(!status||!["complete","complet","valide"].includes(status))issues.push("Complétude de facture à contrôler");
+ if(!status||!["complete","complet","valide","ok"].includes(status))issues.push("Complétude de facture à contrôler");
  if(quantity===null||quantity<=0)issues.push("Quantité à contrôler");
  return {supplier,reference,description,date:d||"",priceHT:price!==null&&price>=0&&price<=100000?price:null,quantity,unit,
   document: norm(r.document,180),invoice: norm(r.invoice,100),source: norm(r.source,240),
