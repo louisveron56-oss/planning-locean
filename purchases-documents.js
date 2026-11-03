@@ -23,11 +23,11 @@ async function optimizedImage(file){
 function fileData(file){return new Promise(function(resolve,reject){var reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Lecture impossible'));reader.readAsDataURL(file);});}
 function uploadCard(){
  var block=add(root,'section','pd-card'),header=add(block,'div','pd-heading');
- add(header,'h3','','Réception & contrôle documentaire');add(header,'p','','Photographier un BL ou importer une facture. Archivage privé et validation après lecture IA.');
+ add(header,'h3','','Réception & contrôle documentaire');
  var buttons=add(block,'div','pd-upload-actions');
  var camera=add(buttons,'label','pd-action','📷 Prendre une photo');var photo=add(camera,'input','pd-hidden');photo.type='file';photo.accept='image/*';photo.setAttribute('capture','environment');
  var other=add(buttons,'label','pd-action pd-secondary','⇧ Importer PDF / image');var files=add(other,'input','pd-hidden');files.type='file';files.accept='application/pdf,image/jpeg,image/png,image/webp';files.multiple=false;
- add(block,'p','pd-help','PDF, JPEG, PNG ou WebP · 2,5 Mo maximum · Les unités peuvent enrichir le catalogue après validation explicite. Aucun prix n’est modifié automatiquement.');
+
  add(block,'p','pd-status','');
  async function receive(file){
   if(!file)return;
