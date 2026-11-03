@@ -130,7 +130,7 @@ async function importFlow(){
  };input.click();
 }
 function init(){
- const host=document.getElementById("module-suppliers")||document.body;
+ const host=document.querySelector("#module-purchase-invoices .module-shell")||document.body;
  if(document.getElementById("prism-purchase-history-open"))return;
  const button=el("button","Historique achats 2024–2026");button.id="prism-purchase-history-open";button.type="button";
  button.style.cssText="margin:10px;padding:10px 14px;border-radius:9px;background:#263d58;color:white;border:0;cursor:pointer";
