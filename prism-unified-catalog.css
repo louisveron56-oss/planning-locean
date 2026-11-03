@@ -1,0 +1,33 @@
+/* Functional layout for the unified catalog.
+   All colors and surfaces are inherited from Claude's brand tokens. */
+.pcu-root{max-width:100%;min-width:0;margin:18px 0 22px;padding:24px;background:var(--card,inherit);border:1px solid var(--border,currentColor);border-radius:20px;color:var(--text,inherit)}
+.pcu-root[hidden],.purchases-root[hidden],.ps-products[hidden]{display:none!important}
+.pcu-header h3{margin:0 0 6px;font-size:20px}
+.pcu-header p,.pcu-count,.pcu-note,.pcu-empty{font-size:12px;color:var(--text-2,inherit);line-height:1.5}
+.pcu-header{margin-bottom:18px}
+.pcu-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+.pcu-tools .pcu-search{flex:1 1 250px;min-width:180px}
+.pcu-tools :is(input,select,button){padding:12px;border:1px solid var(--border-strong,var(--border,currentColor));border-radius:12px;background:transparent;color:inherit;font:inherit;min-height:44px}
+.pcu-tools select{flex:0 1 200px;min-width:145px}
+.pcu-tools option{background:var(--card,inherit);color:var(--text,inherit)}
+.pcu-link,.pcu-back{border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;padding:6px 0;text-align:left;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:4px}
+.pcu-link:focus-visible,.pcu-back:focus-visible{outline:2px solid var(--accent,currentColor);outline-offset:2px;border-radius:3px}
+.pcu-link:disabled{opacity:.45;cursor:not-allowed}
+.pcu-scroll{overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
+.pcu-table{border-collapse:collapse;width:100%;table-layout:auto;font-size:13px;text-align:left}
+.pcu-table th{font-size:11px;font-weight:500;color:var(--text-2,inherit)}
+.pcu-table :is(td,th){padding:15px 12px;vertical-align:middle;border-bottom:1px solid var(--border,currentColor)}
+.pcu-table td:first-child{min-width:210px}
+.pcu-table td:nth-child(2){min-width:150px}
+.pcu-table .pcu-price{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;font-weight:600}
+.pcu-table th:last-child{text-align:right}
+.pcu-pages{display:flex;align-items:center;gap:20px;justify-content:center;margin:15px}
+.pcu-detail{margin-top:15px}.pcu-detail h3{font-size:22px;margin:20px 0}.pcu-detail-head{display:flex;justify-content:space-between;align-items:center}
+.pcu-details{display:grid;grid-template-columns:minmax(155px,35%) minmax(0,1fr);margin:16px 0}
+.pcu-details :is(dt,dd){margin:0;padding:13px 0;border-bottom:1px solid var(--border,currentColor);overflow-wrap:anywhere;font-size:12px}
+.pcu-details dt{color:var(--text-2,inherit)}
+.pcu-details dd{font-variant-numeric:tabular-nums}
+.pcu-actions{display:flex;gap:16px;flex-wrap:wrap;margin-top:18px}
+.pcu-history{margin-top:15px;font-size:12px}
+.pcu-alert{border:1px dashed var(--down,var(--border,currentColor));padding:13px;border-radius:12px;font-size:12px}
+@media(max-width:700px){.pcu-root{padding:16px}.pcu-tools{flex-direction:column;align-items:stretch}.pcu-tools :is(input,select,button){width:100%;flex-basis:auto}.pcu-table{font-size:12px}.pcu-table :is(td,th){padding:12px 8px}.pcu-details{grid-template-columns:minmax(120px,40%) minmax(0,1fr)}}
