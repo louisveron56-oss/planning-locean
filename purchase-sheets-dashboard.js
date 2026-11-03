@@ -68,7 +68,7 @@ async function mountSuppliers(){
    const link=add(td,'button','ps-text-link',nameOf(row));link.type='button';link.onclick=()=>detail(row);
    [row.nb_factures,money(row.achats_ht_2024),money(row.achats_ht_2025),money(row.achats_ht_2026),row.derniere_facture||'—'].forEach(v=>add(tr,'td','',String(v??'')));
   });
-  note(content,'');
+
  }
  function detail(row){
   selected=row;content.replaceChildren();
@@ -216,7 +216,7 @@ async function mountProducts(){
   add(summary,'div','','Non rapprochées (indicatif) : '+unmatched.length);
   table(content,['Fournisseur','Référence','Désignation','Famille','Prix actuel HT','Prix initial HT','Évolution'],filtered.slice(0,200).map(x=>[x.fournisseur,x.code,x.designation,x.famille,money(x.prix_actuel_ht),money(x.prix_debut_ht),x.evolution||'—']));
   if(filtered.length>200)note(content,'200 lignes affichées au maximum ; affine les filtres pour retrouver une référence.');
-  note(content,'');
+
  }
  async function syncCatalog(){
   sync.disabled=true;state.textContent='Analyse des produits et des prix depuis Google Sheets…';
