@@ -45,7 +45,7 @@ function renderList(query){listHost.replaceChildren();const q=norm(query),matche
   btn.onclick=()=>loadProduct(p).catch(e=>info(e.message,true));listHost.appendChild(btn);}
  if(!matched.length)listHost.appendChild(el("p","Aucune référence correspondante."));}
 function chart(rows){
- const valid=rows.filter(r=>r.priceHT!==null&&r.priceHT>0&&/^\\d{4}-\\d{2}-\\d{2}$/.test(r.date)).sort((a,b)=>a.date.localeCompare(b.date));
+ const valid=rows.filter(r=>r.priceHT!==null&&r.priceHT>0&&/^\d{4}-\d{2}-\d{2}$/.test(r.date)).sort((a,b)=>a.date.localeCompare(b.date));
  const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");svg.setAttribute("viewBox","0 0 740 220");svg.setAttribute("class","ph-chart");svg.setAttribute("role","img");svg.setAttribute("aria-label","Évolution chronologique des prix HT de chaque facture");
  if(!valid.length)return svg;
  const vals=valid.map(x=>Number(x.priceHT)),min=Math.min(...vals),max=Math.max(...vals),low=min===max?min*.9:min,high=min===max?max*1.1:max;
