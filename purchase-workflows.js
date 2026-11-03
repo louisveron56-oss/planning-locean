@@ -7,8 +7,7 @@ function createPage(id,title,lead){
  var shell=document.createElement('div');shell.className='module-shell';
  var kicker=document.createElement('div');kicker.className='module-kicker';kicker.textContent='Achats & Réceptions';
  var heading=document.createElement('div');heading.className='module-title';heading.textContent=title;
- var intro=document.createElement('div');intro.className='module-lead';intro.textContent=lead;
- shell.append(kicker,heading,intro);page.appendChild(shell);
+ shell.append(heading);page.appendChild(shell);
  var after=document.getElementById('module-suppliers');after.insertAdjacentElement('afterend',page);
  return page;
 }
