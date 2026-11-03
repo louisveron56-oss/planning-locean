@@ -61,7 +61,7 @@ function redraw(){
  var nav=elem('div','sales-period-nav');nav.appendChild(button('‹',function(){anchor=nextPeriod(anchor,period,-1);redraw();}));
  nav.appendChild(elem('strong','sales-period-title',periodLabel(range,period)));
  nav.appendChild(button('›',function(){anchor=nextPeriod(anchor,period,1);redraw();}));
- var picker=elem('input','sales-date');picker.type='date';picker.value=key(anchor);picker.title='Choisir une date';picker.addEventListener('change',function(){if(picker.value){anchor=fromKey(picker.value);redraw();}});nav.appendChild(picker);controls.appendChild(nav);container.appendChild(controls);
+ var picker=elem('input','sales-date');picker.type='date';picker.value=key(anchor);picker.title='Choisir une date';picker.addEventListener('change',function(){if(picker.value){anchor=fromKey(picker.value);redraw();}});nav.appendChild(picker);controls.appendChild(nav);controls.appendChild(button('↻ Actualiser',function(){load(true);}));container.appendChild(controls);
  var grid=elem('div','sales-stats');
  var caCard=card('Chiffre d’affaires TTC',euro.format(ca),'');
  var caCompare=caCard.querySelector('.sales-card-sub');caCompare.replaceChildren();
@@ -127,8 +127,7 @@ function sidebarFix(){
 function install(){
  sidebarFix();
  var page=document.getElementById('module-sales');if(!page)return;
- var banner=page.querySelector('.data-source-banner');
- if(banner){var pill=banner.querySelector('.data-source-pill');if(pill)pill.textContent='Google Sheets · Lecture seule';var sub=banner.querySelector('.data-source-sub');if(sub)sub.textContent='LOCEAN_DATA_API · Synchronisation depuis les exports KSD';var refresh=button('↻ Actualiser',function(){load(true);});banner.appendChild(refresh);}
+
  new MutationObserver(function(){if(page.classList.contains('open'))load(false);}).observe(page,{attributes:true,attributeFilter:['class']});
  // Si le chargement initial précède l'authentification, relancer dès la connexion.
  if(window.netlifyIdentity&&typeof netlifyIdentity.on==='function'){

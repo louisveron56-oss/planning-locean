@@ -18,14 +18,18 @@ function run(){
  var bl=createPage('delivery-notes','Bons de livraison','Réceptions du matin · écarts de livraison · litiges fournisseurs');
  var invoices=createPage('purchase-invoices','Factures','Contrôle des prix HT · variations tarifaires · rapprochement des livraisons');
  var base=nav.parentElement;
+ function activate(id,kind){
+  const holder=document.querySelector('#module-'+id+' .module-shell');
+  const source=document.querySelector('#module-delivery-notes .pd-root, #module-purchase-invoices .pd-root, #module-suppliers .pd-root');
+  if(holder&&source&&source.parentElement!==holder)holder.appendChild(source);
+  window.dispatchEvent(new CustomEvent('locean-purchase-section',{detail:{kind}}));
+ }
  function menu(label,id,kind,icon){
   var button=document.createElement('button');button.type='button';button.className='app-nav-item';
   button.dataset.page=id;button.innerHTML='<span class="app-nav-icon">'+icon+'</span>'+label;
   button.addEventListener('click',function(){
    if(typeof window.navigateApp==='function')window.navigateApp(id);
-   var source=document.querySelector('#module-suppliers .pd-root, #module-delivery-notes .pd-root, #module-purchase-invoices .pd-root');
-   if(source)document.querySelector('#module-'+id+' .module-shell').appendChild(source);
-   window.dispatchEvent(new CustomEvent('locean-purchase-section',{detail:{kind:kind}}));
+   activate(id,kind);
   });
   // Sous-onglets natifs Achats & Stocks, chacun conservant sa route propre.
   // Insérer avant Inventaires pour garder : Produits, Fournisseurs, BL, Factures.
@@ -33,20 +37,19 @@ function run(){
  }
  menu('Bons de livraison','delivery-notes','BL','☷');
  menu('Factures','purchase-invoices','facture','▤');
- // Move the shared document controls out of the products catalogue as soon as they mount.
- function relocate(){
-  var source=document.querySelector('#module-suppliers .pd-root');
-  if(!source)return false;
-  bl.querySelector('.module-shell').appendChild(source);
-  window.dispatchEvent(new CustomEvent('locean-purchase-section',{detail:{kind:'BL'}}));
-  return true;
+ // BL and invoices share the document editor, never the Products page.
+ // Also follow programmatic navigation (dashboard shortcuts, mobile menu).
+ let lastSection='';
+ function sync(){
+  const invoicesOpen=invoices.classList.contains('open'),blOpen=bl.classList.contains('open');
+  const section=invoicesOpen?'purchase-invoices':blOpen?'delivery-notes':'';
+  if(section&&section!==lastSection){lastSection=section;activate(section,section==='delivery-notes'?'BL':'facture');}
+  if(!section)lastSection='';
  }
- if(!relocate()){
-  var observer=new MutationObserver(function(){if(relocate())observer.disconnect();});
-  observer.observe(catalog,{childList:true,subtree:true});
- }
- // Limit the legacy catalog page to its original product catalogue.
- // If a user returns to Products, the document UI remains in the last dedicated document page.
+ const observer=new MutationObserver(sync);
+ observer.observe(bl,{attributes:true,attributeFilter:['class']});
+ observer.observe(invoices,{attributes:true,attributeFilter:['class']});
+ sync();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);else run();
 })();

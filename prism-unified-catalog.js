@@ -79,8 +79,14 @@ const fetchJson=async(url,token)=>{
 function hideLegacy(hidden){
  const page=document.getElementById(PAGE);if(!page)return;
  const legacy=page.querySelector('.purchases-root'),sheet=page.querySelector('.ps-products');
- if(legacy){legacy.hidden=hidden;legacy.style.setProperty('display',hidden?'none':'block','important');}
- if(sheet){sheet.hidden=hidden;sheet.style.setProperty('display',hidden?'none':'block','important');}
+ if(legacy){
+  if(legacy.hidden!==hidden)legacy.hidden=hidden;
+  if(legacy.style.getPropertyValue('display')!==(hidden?'none':'block'))legacy.style.setProperty('display',hidden?'none':'block','important');
+ }
+ if(sheet){
+  if(sheet.hidden!==hidden)sheet.hidden=hidden;
+  if(sheet.style.getPropertyValue('display')!==(hidden?'none':'block'))sheet.style.setProperty('display',hidden?'none':'block','important');
+ }
  // A late-mounted old view must also be suppressed once the unified data has loaded.
 }
 function backToSupplier(supplier){
@@ -88,50 +94,156 @@ function backToSupplier(supplier){
  if(nav)nav.click();else if(typeof window.navigateApp==='function')window.navigateApp('supplier-directory');
  window.dispatchEvent(new CustomEvent('prism-show-supplier',{detail:{supplier}}));
 }
-function detail(item){
- const content=make(listHost,'div','pcu-detail');
- const h=make(content,'div','pcu-detail-head');
- const back=make(h,'button','pcu-back','← Tous les produits');back.type='button';back.onclick=()=>{detailId='';drawList();};
- make(content,'h3','',item.name);
- const fields=make(content,'dl','pcu-details');
+
+const historyApi='/.netlify/functions/purchase-history';
+let historyIndex=null,historyIndexError='',historyIndexLoading=null,detailRequest=0;
+function compactKey(x){return norm(x).replace(/\s+/g,' ');}
+function historyKey(supplier,ref){return compactKey(supplier)+'|'+compactKey(ref);}
+async function historicalIndex(){
+ if(historyIndex)return historyIndex;
+ if(historyIndexLoading)return historyIndexLoading;
+ historyIndexLoading=(async()=>{
+  const user=window.netlifyIdentity?.currentUser?.();
+  if(!user)throw Error('Connexion nécessaire');
+  const token=await user.jwt();
+  const res=await fetch(historyApi,{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+  const data=await res.json();
+  if(!res.ok)throw Error(data.error||'Historique indisponible');
+  historyIndex=data.ready?(data.products||[]):[];
+  historyIndexError='';
+  return historyIndex;
+ })();
+ try{return await historyIndexLoading;}catch(e){historyIndexError=e.message;throw e;}finally{historyIndexLoading=null;}
+}
+function matchingHistory(item,products){
+ const supplier=compactKey(item.supplier),reference=compactKey(item.supplierReference);
+ if(!supplier||supplier==='non renseigné')return null;
+ if(reference){
+  const exact=products.filter(p=>historyKey(p.supplier,p.reference)===historyKey(item.supplier,item.supplierReference));
+  return exact.length===1?exact[0]:null;
+ }
+ // For missing reference only: one exact supplier+description candidate is safe enough to suggest, but not assert linkage.
+ const matches=products.filter(p=>compactKey(p.supplier)===supplier&&compactKey(p.description)===compactKey(item.name));
+ return matches.length===1?matches[0]:null;
+}
+function statusLine(container,message,warning){
+ const line=make(container,'p',warning?'pcu-warning':'pcu-muted',message);
+ if(warning)line.setAttribute('role','status');
+ return line;
+}
+function infoModal(item){
+ const layer=document.createElement('div');layer.className='pcu-info-layer';
+ const modal=make(layer,'section','pcu-info-panel');
+ modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.setAttribute('aria-label','Informations produit');
+ const close=make(modal,'button','pcu-info-close','Fermer ×');close.type='button';close.onclick=()=>layer.remove();
+ make(modal,'h3','','Informations produit');
+ const fields=make(modal,'dl','pcu-details');
  const attr=(label,value)=>{make(fields,'dt','',label);make(fields,'dd','',value||'Non renseigné');};
- attr('Fournisseur',item.supplier);attr('Référence fournisseur',item.supplierReference);
- attr('Catégorie',item.category);attr('Prix HT',item.price.text);
- attr('Date du dernier prix',showDate(item.date));
+ attr('Désignation',item.name);
+ attr('Fournisseur',item.supplier);
+ attr('Référence fournisseur',item.supplierReference);
+ attr('Famille / catégorie',item.category);
+ attr('Prix catalogue HT',item.price.text);
+ attr('Dernier prix renseigné',showDate(item.date));
  attr('Date d’ajout au catalogue',showDate(item.added));
  attr('Source principale',item.source);
- attr('Correspondance des sources',item.confirmed?'Catalogue Prism + Sheets liés par fournisseur et référence':'Référence non rapprochée automatiquement');
+ attr('Rapprochement des sources',item.confirmed?'Référence rapprochée':'Non rapprochée automatiquement');
  if(item.catalog){
   const p=item.catalog,pack=p.packaging;
   attr('Conditionnement',pack&&pack.quantity?pack.quantity+' '+(pack.unit||p.unit||'')+' · '+money(pack.purchasePrice):p.unit||'Non renseigné');
-  attr('Origine du prix',p.sourcePrice||p.source||'Non renseignée');
-  attr('Statut du prix',p.priceStatus==='indicatif_a_rapprocher_facture'?'Indicatif · facture à rapprocher':'Non signalé comme indicatif');
-  const history=Array.isArray(p.priceHistory)?p.priceHistory.filter(h=>!h.invalidatedAt):[];
-  if(history.length){
-   const wrapper=make(content,'div','pcu-history');
-   make(wrapper,'h4','','Historique des prix');
-   history.slice(-8).reverse().forEach(h=>make(wrapper,'p','',showDate(h.at)+' · '+money(h.price)+' / '+(h.unit||p.unit||'unité non renseignée')));
-  }
+  attr('Origine du prix',p.sourcePrice||p.source);
+  attr('Fiabilité du prix',p.priceStatus==='indicatif_a_rapprocher_facture'?'Indicatif : facture à rapprocher':'À confirmer selon les sources');
  }
  if(item.sheet){
-  const p=item.sheet;
-  attr('Prix Sheets',money(p.prix_actuel_ht)+' · '+(p.unite||'unité non vérifiée'));
-  attr('Prix initial Sheets',money(p.prix_debut_ht));
-  attr('Date du dernier achat Sheets',showDate(p.date_dernier_achat));
-  if(item.warning)make(content,'p','pcu-alert','Écart de tarif entre les sources : aucun prix n’a été écrasé.');
+  attr('Prix Sheets',money(item.sheet.prix_actuel_ht));
+  attr('Prix initial Sheets',money(item.sheet.prix_debut_ht));
+  attr('Dernier achat Sheets',showDate(item.sheet.date_dernier_achat));
  }
- const actions=make(content,'div','pcu-actions');
- if(item.supplier&&item.supplier!=='Non renseigné'){
-  const go=make(actions,'button','pcu-link','Ouvrir la fiche fournisseur');go.type='button';go.onclick=()=>backToSupplier(item.supplier);
-  const only=make(actions,'button','pcu-link','Voir ses produits');only.type='button';only.onclick=()=>{supplierFilter=item.supplier;detailId='';pageIndex=0;render();};
+ if(item.warning)statusLine(modal,'Écart de tarif entre les sources : contrôle nécessaire.',true);
+ layer.addEventListener('click',e=>{if(e.target===layer)layer.remove()});
+ const key=e=>{if(e.key==='Escape'){layer.remove();document.removeEventListener('keydown',key)}};
+ document.addEventListener('keydown',key);
+ document.body.appendChild(layer);
+ close.focus();
+}
+function purchasesChart(host,lines){
+ host.replaceChildren();
+ const comparable=lines.filter(r=>Number.isFinite(Number(r.priceHT))&&Number(r.priceHT)>0&&/^\d{4}-\d\d-\d\d$/.test(r.date)&&unitLabel(r.unit));
+ const groups=new Map();
+ comparable.forEach(r=>{const u=unitLabel(r.unit);if(!groups.has(u))groups.set(u,[]);groups.get(u).push(r)});
+ const eligible=[...groups.entries()].sort((a,b)=>b[1].length-a[1].length);
+ const pair=eligible[0],series=pair?.[1]?.slice().sort((a,b)=>a.date.localeCompare(b.date))||[];
+ if(series.length<2){statusLine(host,'Graphique indisponible : moins de deux achats datés dans une unité comparable.',true);return;}
+ if(eligible.length>1||lines.length>series.length)statusLine(host,'Courbe limitée aux achats comparables ('+pair[0]+'). Les autres observations restent dans le tableau.',true);
+ const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+ const ns=svg.namespaceURI;svg.setAttribute('viewBox','0 0 760 255');svg.setAttribute('role','img');svg.setAttribute('aria-label','Prix d’achat HT constatés dans le temps, en '+pair[0]);
+ const nums=series.map(x=>Number(x.priceHT)),dates=series.map(x=>Date.parse(x.date+'T12:00:00Z'));
+ let min=Math.min(...nums),max=Math.max(...nums);const margin=Math.max((max-min)*.16,Math.abs(max)*.05,.01);
+ min=Math.max(0,min-margin);max+=margin;
+ const first=Math.min(...dates),last=Math.max(...dates);
+ const X=i=>52+(last===first?(i/(series.length-1))*665:((dates[i]-first)/(last-first))*665);
+ const Y=v=>205-(v-min)/(max-min)*160;
+ const shape=(tag,attrs,text)=>{const e=document.createElementNS(ns,tag);for(const [k,v] of Object.entries(attrs||{}))e.setAttribute(k,String(v));if(text!==undefined)e.textContent=text;svg.appendChild(e);return e};
+ for(let i=0;i<4;i++){
+  const y=45+i*53.3;
+  shape('line',{x1:52,y1:y,x2:720,y2:y,stroke:'currentColor','stroke-opacity':'.13'});
+  shape('text',{x:46,y:y+4,'text-anchor':'end',fill:'currentColor','font-size':11},(max-(max-min)*i/3).toFixed(2));
  }
- if(item.catalog){
-  const action=make(actions,'button','pcu-link','Modifier la fiche produit');action.type='button';
-  action.onclick=()=>{
-   const page=document.getElementById(PAGE),legacy=page?.querySelector('.purchases-root');
-   if(legacy){window.dispatchEvent(new CustomEvent('prism-catalog-edit-request',{detail:{productId:item.catalog.id}}));}
-  };
- }
+ const solid=series.every(r=>r.verified);
+ if(solid)shape('polyline',{points:series.map((r,i)=>X(i)+','+Y(Number(r.priceHT))).join(' '),fill:'none',stroke:'currentColor','stroke-width':2,'stroke-linejoin':'round','stroke-opacity':'.5'});
+ series.forEach((r,i)=>{
+  const c=shape('circle',{cx:X(i),cy:Y(Number(r.priceHT)),r:r.verified?4:5,fill:r.verified?'currentColor':'none',stroke:'currentColor','stroke-width':r.verified?0:2});
+  const title=document.createElementNS(ns,'title');title.textContent=showDate(r.date)+' · '+money(r.priceHT)+'/'+pair[0];c.appendChild(title);
+ });
+ shape('text',{x:52,y:242,fill:'currentColor','font-size':12},showDate(series[0].date));
+ shape('text',{x:720,y:242,'text-anchor':'end',fill:'currentColor','font-size':12},showDate(series[series.length-1].date));
+ svg.classList.add('pcu-chart');host.appendChild(svg);
+ const certified=series.filter(r=>r.verified);
+ if(certified.length>=2){const delta=(Number(certified[certified.length-1].priceHT)/Number(certified[0].priceHT)-1)*100;
+  statusLine(host,certified.length+' achats fiables · variation '+(delta>=0?'+':'')+delta.toFixed(1).replace('.',',')+' % ('+pair[0]+')',false);
+ }else statusLine(host,'Points cerclés : achats à vérifier. Variation non calculée faute de données suffisamment fiables.',true);
+}
+async function purchasesFor(item,slot){
+ const stamp=++detailRequest;
+ try{
+  const index=await historicalIndex();
+  if(stamp!==detailRequest||detailId!==item.id)return;
+  const match=matchingHistory(item,index);
+  if(!match){statusLine(slot,'Aucun historique relié avec certitude à cette référence. Les achats importés restent consultables dans Historique achats.',true);return;}
+  const user=window.netlifyIdentity?.currentUser?.(),token=await user.jwt();
+  const res=await fetch(historyApi+'?mode=product&key='+encodeURIComponent(match.key),{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+  const data=await res.json();if(!res.ok)throw Error(data.error||'Historique non disponible');
+  if(stamp!==detailRequest||detailId!==item.id)return;
+  const lines=Array.isArray(data.rows)?data.rows:[];
+  if(!lines.length){statusLine(slot,'Aucun achat disponible pour ce produit.',true);return;}
+  const graph=make(slot,'div','pcu-graph');purchasesChart(graph,lines);
+  make(slot,'h4','pcu-section-heading','Derniers achats');
+  const wrap=make(slot,'div','pcu-scroll'),table=make(wrap,'table','pcu-table pcu-purchases');
+  const thead=make(make(table,'thead'),'tr');
+  ['Date','Prix HT','Quantité','Facture','Contrôle'].forEach(t=>make(thead,'th','',t));
+  const body=make(table,'tbody');
+  lines.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,12).forEach(r=>{
+   const tr=make(body,'tr');
+   make(tr,'td','',showDate(r.date));make(tr,'td','',r.priceHT==null?'—':money(r.priceHT)+' / '+(unitLabel(r.unit)||'unité ?'));
+   make(tr,'td','',r.quantity??'—');make(tr,'td','',r.invoice||'—');
+   make(tr,'td',r.verified?'':'pcu-issue',r.verified?'OK':'À vérifier');
+  });
+ }catch(e){if(stamp===detailRequest&&detailId===item.id)statusLine(slot,'Historique indisponible : '+e.message,true);}
+}
+function detail(item){
+ const content=make(listHost,'section','pcu-detail');
+ const head=make(content,'div','pcu-detail-head');
+ const back=make(head,'button','pcu-back','← Produits');back.type='button';back.onclick=()=>{detailId='';detailRequest++;drawList();};
+ const info=make(head,'button','pcu-info-button','i');info.type='button';info.title='Informations complètes';info.setAttribute('aria-label','Informations complètes sur le produit');info.onclick=()=>infoModal(item);
+ make(content,'h3','pcu-product-name',item.name);
+ make(content,'p','pcu-product-supplier',item.supplier);
+ const metrics=make(content,'div','pcu-metrics');
+ const price=make(metrics,'div','pcu-metric');make(price,'small','','Dernier prix catalogue HT');make(price,'strong','',item.price.text);
+ const when=make(metrics,'div','pcu-metric');make(when,'small','','Dernier prix renseigné');make(when,'strong','',showDate(item.date));
+ make(content,'h4','pcu-section-heading','Historique des prix d’achat');
+ const slot=make(content,'section','pcu-purchases-host');
+ statusLine(slot,'Chargement de l’historique…',false);
+ purchasesFor(item,slot);
 }
 function visibleRows(){
  const q=norm(search),filter=norm(supplierFilter);
@@ -146,22 +258,30 @@ function drawList(){
  if(!listHost)return;listHost.replaceChildren();
  const selected=rows.find(p=>p.id===detailId);
  if(selected){detail(selected);return;}
- const filtered=visibleRows(),count=make(listHost,'p','pcu-count',filtered.length+' référence(s) affichable(s) · '+rows.length+' sources consolidées en lecture');
+ detailRequest++;
+ const filtered=visibleRows();make(listHost,'p','pcu-count',filtered.length+' produits');
  if(!filtered.length){make(listHost,'p','pcu-empty','Aucun produit pour ces filtres.');return;}
  const wrap=make(listHost,'div','pcu-scroll'),table=make(wrap,'table','pcu-table');
  const tr=make(make(table,'thead'),'tr');
- ['Produit','Fournisseur','Prix HT'].forEach(x=>make(tr,'th','',x));
+ ['Produit','Fournisseur','Prix HT','Dernier prix'].forEach(x=>make(tr,'th','',x));
  const body=make(table,'tbody');
  filtered.slice(pageIndex*PAGE_SIZE,(pageIndex+1)*PAGE_SIZE).forEach(p=>{
   const row=make(body,'tr');
-  const name=make(row,'td'),link=make(name,'button','pcu-link',p.name);
-  link.type='button';link.onclick=()=>{detailId=p.id;drawList();};
-  const sup=make(row,'td');
-  if(p.supplier&&p.supplier!=='Non renseigné'){
-   const b=make(sup,'button','pcu-link',p.supplier);b.type='button';b.onclick=()=>{supplierFilter=p.supplier;pageIndex=0;render();};
-  }else sup.textContent='—';
-  const price=make(row,'td','pcu-price',p.price.text);
-  price.title='Origine : '+p.source+(p.price.valid?'':' · Unité à confirmer');
+  row.className='pcu-product-row';
+  const name=make(row,'td');
+  const link=make(name,'button','pcu-product-link',p.name);link.type='button';
+  link.onclick=()=>{detailId=p.id;drawList();};
+  if(!p.price.valid||p.warning){
+   const issue=make(name,'span','pcu-mini-issue','!');
+   issue.title=p.warning?'Écart de prix entre les sources':'Unité ou prix à contrôler';
+   issue.setAttribute('aria-label',issue.title);
+  }
+  make(row,'td','pcu-supplier-cell',p.supplier||'—');
+  make(row,'td','pcu-price',p.price.valid?p.price.text:money(p.catalog?.price??p.sheet?.prix_actuel_ht)+' HT');
+  make(row,'td','pcu-date-cell',p.date?showDate(p.date):'—');
+  row.tabIndex=0;row.setAttribute('aria-label','Ouvrir '+p.name);
+  row.addEventListener('click',e=>{if(e.target.closest('button'))return;detailId=p.id;drawList();});
+  row.addEventListener('keydown',e=>{if(e.key==='Enter'){detailId=p.id;drawList();}});
  });
  if(filtered.length>PAGE_SIZE){
   const bar=make(listHost,'div','pcu-pages');
@@ -169,14 +289,14 @@ function drawList(){
   make(bar,'span','',(pageIndex+1)+' / '+Math.ceil(filtered.length/PAGE_SIZE));
   const next=make(bar,'button','pcu-link','Suivant →');next.disabled=(pageIndex+1)*PAGE_SIZE>=filtered.length;next.onclick=()=>{pageIndex++;drawList();};
  }
- make(listHost,'p','pcu-note','Les prix sont en HT. Si l’unité est inconnue, elle reste à confirmer. Deux produits ne sont rapprochés automatiquement que si le fournisseur et sa référence correspondent exactement.');
+
 }
 function render(){
  const root=document.getElementById('prismUnifiedCatalog');if(!root)return;
  root.replaceChildren();
  const header=make(root,'div','pcu-header');
  make(header,'h3','','Tous les produits');
- make(header,'p','','Catalogue Prism et références fournisseurs · consultation centralisée');
+
  const tools=make(root,'div','pcu-tools');
  const q=make(tools,'input','pcu-search');q.type='search';q.placeholder='Rechercher un produit, une référence…';q.value=search;
  q.oninput=()=>{search=q.value;pageIndex=0;detailId='';drawList();};
@@ -208,23 +328,24 @@ async function load(){
   rows=joinSources(catalog?.products||[],sheets?.rows||[]);
   loadedOnce=true;
   partialSources=!(catalog&&sheets);
-  hideLegacy(!partialSources);
+  hideLegacy(true);
   render();
   if((!catalog||!sheets)&&root)make(root,'p','pcu-alert','Une source est indisponible : la liste est partielle. Aucun produit ni prix n’a été modifié.');
  }catch(err){
-  hideLegacy(false);
-  if(root){root.replaceChildren();make(root,'p','pcu-alert','Vue unifiée indisponible : '+err.message+' · Le catalogue historique reste accessible ci-dessous.');}
+  hideLegacy(true);
+  if(root){root.replaceChildren();make(root,'p','pcu-alert','Catalogue indisponible : '+err.message);const retry=make(root,'button','pcu-link','Réessayer');retry.type='button';retry.onclick=()=>load();}
  }finally{loading=false;}
 }
 function init(){
  const page=document.getElementById(PAGE);if(!page||initialized)return;initialized=true;
  const shell=page.querySelector('.module-shell');if(!shell)return;
- const root=document.createElement('section');root.id='prismUnifiedCatalog';root.className='pcu-root';
+ const root=document.createElement('section');root.id='prismUnifiedCatalog';root.className='pcu-root';root.textContent='Chargement des produits…';
+ hideLegacy(true);
  const legacy=shell.querySelector('.purchases-root');
  if(legacy)legacy.insertAdjacentElement('beforebegin',root);
  else shell.appendChild(root);
  const observer=new MutationObserver(()=>{
-  if(loadedOnce)hideLegacy(!partialSources);
+  hideLegacy(true);
   if(page.classList.contains('open')&&!loadedOnce&&!loading)load();
  });
  observer.observe(page,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
