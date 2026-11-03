@@ -1,3 +1,17 @@
+
+/* PRISM design tokens — definitive source of truth */
+:root{
+  --bg:#0B0D12;--sidebar:#0F1218;--card:#14171F;--card-hover:#1A1E28;
+  --border:#1F2330;--border-strong:#2A2F3D;--text:#F2F1EC;
+  --text-2:#A3A7B4;--text-3:#6B7080;--accent:#E3BC72;
+  --up:#7DB8FF;--down:#F0A15A;--n1:#5A5F70;
+  --prism-bg:var(--bg);--prism-card:var(--card);--prism-inset:var(--sidebar);
+  --prism-border:var(--border);--prism-text:var(--text);
+  --prism-secondary:var(--text-2);--prism-muted:var(--text-3);
+  --prism-accent:var(--accent);--prism-up:var(--up);--prism-down:var(--down);--prism-n1:var(--n1);
+  --app-sidebar-bg:var(--sidebar);--app-sidebar-border:var(--border);
+  --app-sidebar-text:var(--text-2);--app-sidebar-active-bg:var(--card-hover)
+}
 /* PRISM / Fintech dark theme — CSS presentation only; no business logic changes. */
 :root{
 color-scheme:dark;
@@ -283,4 +297,82 @@ table:not(.p1t) tbody tr:hover{background:var(--prism-inset)!important}
  #prismRecipeSimulator .rc-line{grid-template-columns:repeat(2,minmax(0,1fr))!important}
  #prismRecipeSimulator .rc-panel details>div{grid-template-columns:1fr!important}
  #prismRecipeSimulator #rc-results .rc-header{grid-template-columns:1fr!important}
+}
+
+/* Consistent executive UI (styles only) */
+html,body{background:var(--bg)!important;color:var(--text)!important}
+body{font-family:'Inter',sans-serif!important;font-weight:400!important}
+:is(h1,h2,h3,h4,h5,h6,.module-title,.rc-stat strong,.prism-overview-card-value,.sales-card-value,.fp-value,.me-kpi-value){font-family:'Inter Tight','Inter',sans-serif!important;font-weight:600!important}
+:is(.brand-name,.app-sidebar-brand strong){font-family:'Cormorant Garamond',serif!important;font-weight:600!important;text-transform:uppercase!important;letter-spacing:.08em!important}
+:is(.brand-name,.app-sidebar-brand strong){font-size:22px!important}
+:is(.module-page,.module-page.open,#planningPage,#teamPage){background:var(--bg)!important;color:var(--text)!important}
+:is(.module-title){font-size:36px!important;line-height:1.2!important}
+:is(.module-kicker){font-size:12px!important;color:var(--accent)!important;letter-spacing:.1em!important;text-transform:uppercase!important}
+:is(.prism-overview-title h3,.sales-summary h3,.rc-panel h3){font-size:20px!important}
+:is(.prism-overview-card-value,.sales-card-value,.fp-value,.me-kpi-value){font-size:34px!important;line-height:1.15!important;font-variant-numeric:tabular-nums!important}
+:is(.sales-card,.prism-overview-card,.me-kpi,.future-panel,.rc-panel,.module-placeholder,.pointage-summary-card){background:var(--card)!important;border:1px solid var(--border)!important;border-radius:20px!important;padding:24px!important;box-shadow:none!important}
+:is(.prism-overview-card-label,.sales-card-label,.fp-label,.me-kpi-label){color:var(--text-2)!important;font-size:12px!important}
+:is(.prism-overview-card-note,.sales-card-sub,.fp-sub,.me-kpi-sub){color:var(--text-3)!important;font-size:12px!important}
+.app-sidebar{background:var(--sidebar)!important;border-right:1px solid var(--border)!important}
+.app-sidebar .app-nav-item{min-height:44px!important;border-radius:12px!important;transition:background-color .12s ease!important}
+.app-sidebar .app-nav-item.active,
+.app-sidebar .app-nav-item:hover{background:var(--card-hover)!important;color:var(--text)!important}
+.app-sidebar .app-nav-item.active .app-nav-icon{color:var(--accent)!important}
+.app-sidebar .app-nav-icon{opacity:1!important;color:var(--text-3)!important}
+.app-sidebar .app-sidebar-head{height:76px!important}
+.header{background:var(--bg)!important;border-bottom:1px solid var(--border)!important}
+.header .brand-name{color:var(--text)!important}
+button{box-shadow:none!important}
+:is(.btn-primary,.btn-gold,.auth-login){min-height:44px!important;background:var(--accent)!important;color:var(--bg)!important;border:1px solid var(--accent)!important;border-radius:12px!important}
+:is(.btn-outline,.btn-secondary,.btn-ghost,.prism-overview-btn,.rc-btn){border:1px solid var(--border-strong)!important;border-radius:12px!important;color:var(--text)!important;background:transparent!important;min-height:44px!important}
+.prism-overview-btn.selected{background:var(--border-strong)!important;border-color:var(--border-strong)!important;color:var(--text)!important}
+.prism-overview-controls{display:flex!important;align-items:center!important;flex-wrap:wrap!important;gap:8px!important;margin:24px 0!important}
+.prism-overview-controls>.prism-overview-btn:nth-child(-n+3){border-radius:10px!important}
+.prism-overview-nav{display:flex!important;align-items:center!important;gap:8px!important}
+.prism-overview-grid{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:16px!important}
+.prism-overview-card{min-width:0!important}
+.prism-overview-card:nth-child(2){grid-column:span 4!important;grid-row:1!important;padding:28px!important}
+.prism-overview-card:nth-child(2) .prism-overview-card-value{font-size:clamp(50px,5vw,72px)!important;letter-spacing:-.035em!important;line-height:1.05!important}
+.prism-overview-card:nth-child(1){grid-column:span 2!important;grid-row:2!important}
+.prism-overview-card:nth-child(3){grid-column:span 1!important;grid-row:2!important}
+.prism-overview-card:nth-child(4){grid-column:span 1!important;grid-row:2!important}
+.prism-overview-card:nth-child(5),.prism-overview-card:nth-child(6){grid-column:span 2!important;grid-row:3!important}
+.prism-overview{margin:24px 0!important;background:transparent!important;border:0!important;padding:0!important}
+.prism-overview-title{color:var(--text)!important;gap:12px!important}
+.prism-overview-title h3{font-size:20px!important}
+.prism-overview-title span{color:var(--text-2)!important}
+.prism-overview-warnings{background:var(--card)!important;color:var(--down)!important;border:1px solid var(--border)!important;border-radius:20px!important;padding:24px!important}
+.prism-overview-warnings strong{color:var(--down)!important}
+.prism-overview-next{background:var(--card)!important;color:var(--text-2)!important;border:1px dashed var(--border-strong)!important;border-radius:20px!important;padding:24px!important}
+.prism-overview-next strong{color:var(--text-3)!important}
+.prism-overview-info,.prism-overview-source{color:var(--text-2)!important}
+.prism-empty-module{border:1px dashed var(--border-strong)!important;border-radius:20px!important;background:var(--card)!important;color:var(--text-3)!important;padding:24px!important}
+.prism-establishments{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-left:auto}
+.prism-establishments button{height:36px;min-height:36px;border-radius:999px!important;background:transparent!important;border:1px solid var(--border-strong)!important;color:var(--text-2)!important;padding:7px 13px!important;font-family:'Inter',sans-serif!important;font-size:11px!important;font-weight:500!important}
+.prism-establishments button[aria-pressed=true]{background:var(--text)!important;border-color:var(--text)!important;color:var(--bg)!important}
+.prism-establishments button:disabled{opacity:.38!important;cursor:not-allowed!important}
+:is(.sales-table-wrap,.purchases-scroll,.pd-table-wrap,.inventory-table-wrap,.table-scroll){max-width:100%;overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+:is(.sales-table,.purchases-table,.pd-table,.inventory-table) td{color:var(--text)!important;font-variant-numeric:tabular-nums!important}
+:is(.sales-table,.purchases-table,.pd-table,.inventory-table) th{color:var(--text-2)!important}
+:is(.sales-n1-label,.sales-n1-amount,.sales-n1-missing){color:var(--n1)!important}
+:is(.pos,.positive,.up,.badge-up){color:var(--up)!important}
+:is(.neg,.negative,.down,.alert-e,.alert-w,.badge-down){color:var(--down)!important}
+:is(.purchases-delta,.sales-n1-delta,.me-badge,.data-source-pill){border-radius:999px!important}
+:where(svg) [data-prism-current-year]{stroke:var(--accent)!important;stroke-width:2.5px!important;fill:transparent!important}
+:where(svg) [data-prism-last-year]{stroke:var(--n1)!important;stroke-dasharray:6 6!important}
+@media(max-width:1080px){
+ .prism-overview-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .prism-overview-card:nth-child(2){grid-column:span 2!important;grid-row:1!important}
+ .prism-overview-card:nth-child(n+1):not(:nth-child(2)){grid-column:span 1!important;grid-row:auto!important}
+ .prism-establishments{margin-left:0}
+}
+@media(max-width:680px){
+ .prism-overview-grid{grid-template-columns:1fr!important}
+ .prism-overview-card:nth-child(n){grid-column:1!important;grid-row:auto!important}
+ .prism-overview-card:nth-child(2){grid-row:1!important}
+ .prism-overview-card:nth-child(2) .prism-overview-card-value{font-size:clamp(42px,12vw,58px)!important}
+ .prism-establishments{width:100%;padding:0 12px 10px!important}
+ .module-title{font-size:32px!important}
+ .module-page{padding:24px 16px 50px!important}
+ :is(.sales-card,.prism-overview-card,.me-kpi,.future-panel,.rc-panel){padding:20px!important}
 }
