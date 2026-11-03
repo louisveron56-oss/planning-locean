@@ -39,7 +39,7 @@ export default async function(req){
    if(payload.action==="import-coco-reference"){
     const doc=payload.document;
     if(doc?.schema!=="prism-coco-reference-v1"||doc?.sourceEstablishment!=="COCO"||!Array.isArray(doc.ingredients)||doc.ingredients.length>300||!Array.isArray(doc.recipeLines)||doc.recipeLines.length>1500||!Array.isArray(doc.recipePrices)||doc.recipePrices.length>300)return send({error:"Fichier COCO non reconnu"},400);
-    const cleanName=x=>normalize(x).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("fr").replace(/\\s+/g," ");
+    const cleanName=x=>normalize(x).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("fr").replace(/\s+/g," ");
     const known=new Set(products.filter(p=>!p.archivedAt).map(p=>cleanName(p.name)));
     const imported=[],already=[],review=[];
     const unique=new Set();
