@@ -350,7 +350,7 @@ function renderDetail(){
  }
 }
 function install(){
- var page=document.getElementById('module-suppliers');if(!page)return;
+ var page=document.getElementById('module-delivery-notes');if(!page)return;
  var holder=page.querySelector('.module-shell');if(!holder)return;
  root=add(holder,'div','pd-root');uploadCard();
  add(root,'div','pd-list');add(root,'div','pd-detail');renderList();renderDetail();
