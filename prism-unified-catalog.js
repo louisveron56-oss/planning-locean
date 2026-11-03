@@ -33,7 +33,8 @@ function normalizedPrice(price,unit){
 }
 function supplierKey(supplier,ref){return norm(supplier)+'|'+norm(ref);}
 function joinSources(catalog,sheets){
- const items=[],matched=new Set(),sheetsByRef=new Map();
+ const items=[],matched=new Set(),sheetsByRef=new Map(),catalogRefCounts=new Map();
+ (catalog||[]).filter(p=>!p.archivedAt).forEach(p=>{if(norm(p.supplier)&&norm(p.supplierReference)){const k=supplierKey(p.supplier,p.supplierReference);catalogRefCounts.set(k,(catalogRefCounts.get(k)||0)+1);}});
  sheets.forEach((x,i)=>{
   const key=supplierKey(x.fournisseur,x.code);
   if(norm(x.fournisseur)&&norm(x.code)){
@@ -45,7 +46,7 @@ function joinSources(catalog,sheets){
   const key=supplierKey(p.supplier,p.supplierReference);
   if(norm(p.supplier)&&norm(p.supplierReference)){
    const candidates=sheetsByRef.get(key)||[];
-   if(candidates.length===1&&!matched.has(candidates[0])){match=sheets[candidates[0]];matched.add(candidates[0]);sourceCount=1;}
+   if(catalogRefCounts.get(key)===1&&candidates.length===1&&!matched.has(candidates[0])){match=sheets[candidates[0]];matched.add(candidates[0]);sourceCount=1;}
   }
   const price=normalizedPrice(p.price,p.unit);
   items.push({
@@ -69,7 +70,7 @@ function joinSources(catalog,sheets){
  });
  return items;
 }
-let rows=[],loading=false,loadedOnce=false,initialized=false,search='',supplierFilter='',sort='name',pageIndex=0,detailId='',pendingSupplier='',listHost=null,stateHost=null;
+let rows=[],loading=false,loadedOnce=false,partialSources=false,initialized=false,search='',supplierFilter='',sort='name',pageIndex=0,detailId='',pendingSupplier='',listHost=null,stateHost=null;
 const fetchJson=async(url,token)=>{
  const r=await fetch(url,{headers:{Authorization:'Bearer '+token},cache:'no-store'});
  const json=await r.json();if(!r.ok)throw Error(json.error||'Données indisponibles');
@@ -206,7 +207,8 @@ async function load(){
   if(!catalog&&!sheets)throw Error('Catalogue indisponible : '+[results[0],results[1]].map(x=>x.status==='rejected'?x.reason.message:'').filter(Boolean).join(' ; '));
   rows=joinSources(catalog?.products||[],sheets?.rows||[]);
   loadedOnce=true;
-  hideLegacy(true);
+  partialSources=!(catalog&&sheets);
+  hideLegacy(!partialSources);
   render();
   if((!catalog||!sheets)&&root)make(root,'p','pcu-alert','Une source est indisponible : la liste est partielle. Aucun produit ni prix n’a été modifié.');
  }catch(err){
@@ -222,7 +224,7 @@ function init(){
  if(legacy)legacy.insertAdjacentElement('beforebegin',root);
  else shell.appendChild(root);
  const observer=new MutationObserver(()=>{
-  if(loadedOnce)hideLegacy(true);
+  if(loadedOnce)hideLegacy(!partialSources);
   if(page.classList.contains('open')&&!loadedOnce&&!loading)load();
  });
  observer.observe(page,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
