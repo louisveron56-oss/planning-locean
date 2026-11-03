@@ -8,7 +8,7 @@ const PAGE='module-suppliers', PAGE_SIZE=60;
 const fmt=new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2});
 const norm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
 const make=(parent,tag,cls,label)=>{const x=document.createElement(tag);if(cls)x.className=cls;if(label!==undefined)x.textContent=String(label);parent.appendChild(x);return x;};
-const money=x=>Number.isFinite(Number(x))?fmt.format(Number(x)):'—';
+const money=x=>x!==null&&x!==undefined&&String(x).trim()!==''&&Number.isFinite(Number(x))?fmt.format(Number(x)):'—';
 const iso=x=>{const v=String(x||'').trim();return /^\d{4}-\d\d-\d\d/.test(v)?v.slice(0,10):'';};
 const showDate=x=>{let d=iso(x);return d?new Date(d+'T12:00:00').toLocaleDateString('fr-FR'):'Non renseignée';};
 const number=x=>{if(x===null||x===undefined||String(x).trim()==='')return null;const n=Number(String(x).replace(/[\s\u00a0\u202f€]/g,'').replace(',','.'));return Number.isFinite(n)&&n>=0?n:null;};
@@ -137,7 +137,7 @@ function visibleRows(){
  return rows.filter(p=>(!filter||norm(p.supplier)===filter)&&(!q||norm([p.name,p.supplier,p.supplierReference,p.category].join(' ')).includes(q)))
  .sort((a,b)=>{
   if(sort==='supplier')return a.supplier.localeCompare(b.supplier,'fr')||a.name.localeCompare(b.name,'fr');
-  if(sort==='newest')return String(b.added||b.date).localeCompare(String(a.added||a.date))||a.name.localeCompare(b.name,'fr');
+  if(sort==='newest')return String(b.added||'').localeCompare(String(a.added||''))||a.name.localeCompare(b.name,'fr');
   return a.name.localeCompare(b.name,'fr')||a.supplier.localeCompare(b.supplier,'fr');
  });
 }
@@ -185,7 +185,7 @@ function render(){
  sup.value=supplierFilter;if(sup.selectedIndex<0){sup.value='';supplierFilter='';}
  sup.onchange=()=>{supplierFilter=sup.value;pageIndex=0;detailId='';render();};
  const ordering=make(tools,'select','pcu-select');
- [['name','Nom A → Z'],['supplier','Fournisseur'],['newest','Ajout récent']].forEach(([value,label])=>{const o=make(ordering,'option','',label);o.value=value;});
+ [['name','Nom A → Z'],['supplier','Fournisseur'],['newest','Ajout récent (si connu)']].forEach(([value,label])=>{const o=make(ordering,'option','',label);o.value=value;});
  ordering.value=sort;ordering.onchange=()=>{sort=ordering.value;pageIndex=0;detailId='';drawList();};
  const refresh=make(tools,'button','pcu-link','Actualiser');refresh.type='button';refresh.disabled=loading;refresh.onclick=()=>load();
  if(supplierFilter){const clear=make(root,'button','pcu-link','× Effacer le filtre fournisseur : '+supplierFilter);clear.onclick=()=>{supplierFilter='';pageIndex=0;render();};}
