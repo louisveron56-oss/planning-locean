@@ -69,7 +69,7 @@ function joinSources(catalog,sheets){
  });
  return items;
 }
-let rows=[],loading=false,initialized=false,search='',supplierFilter='',sort='name',pageIndex=0,detailId='',pendingSupplier='',listHost=null,stateHost=null;
+let rows=[],loading=false,loadedOnce=false,initialized=false,search='',supplierFilter='',sort='name',pageIndex=0,detailId='',pendingSupplier='',listHost=null,stateHost=null;
 const fetchJson=async(url,token)=>{
  const r=await fetch(url,{headers:{Authorization:'Bearer '+token},cache:'no-store'});
  const json=await r.json();if(!r.ok)throw Error(json.error||'Données indisponibles');
@@ -78,8 +78,8 @@ const fetchJson=async(url,token)=>{
 function hideLegacy(hidden){
  const page=document.getElementById(PAGE);if(!page)return;
  const legacy=page.querySelector('.purchases-root'),sheet=page.querySelector('.ps-products');
- if(legacy)legacy.hidden=hidden;
- if(sheet)sheet.hidden=hidden;
+ if(legacy){legacy.hidden=hidden;legacy.style.setProperty('display',hidden?'none':'block','important');}
+ if(sheet){sheet.hidden=hidden;sheet.style.setProperty('display',hidden?'none':'block','important');}
  // A late-mounted old view must also be suppressed once the unified data has loaded.
 }
 function backToSupplier(supplier){
@@ -125,10 +125,10 @@ function detail(item){
   const only=make(actions,'button','pcu-link','Voir ses produits');only.type='button';only.onclick=()=>{supplierFilter=item.supplier;detailId='';pageIndex=0;render();};
  }
  if(item.catalog){
-  const action=make(actions,'button','pcu-link','Modifier dans le catalogue historique');action.type='button';
+  const action=make(actions,'button','pcu-link','Modifier la fiche produit');action.type='button';
   action.onclick=()=>{
    const page=document.getElementById(PAGE),legacy=page?.querySelector('.purchases-root');
-   if(legacy){legacy.hidden=false;legacy.scrollIntoView({behavior:'smooth',block:'start'});window.dispatchEvent(new CustomEvent('prism-catalog-edit-request',{detail:{productId:item.catalog.id}}));}
+   if(legacy){window.dispatchEvent(new CustomEvent('prism-catalog-edit-request',{detail:{productId:item.catalog.id}}));}
   };
  }
 }
@@ -205,6 +205,7 @@ async function load(){
   const sheets=results[1].status==='fulfilled'?results[1].value:null;
   if(!catalog&&!sheets)throw Error('Catalogue indisponible : '+[results[0],results[1]].map(x=>x.status==='rejected'?x.reason.message:'').filter(Boolean).join(' ; '));
   rows=joinSources(catalog?.products||[],sheets?.rows||[]);
+  loadedOnce=true;
   hideLegacy(true);
   render();
   if((!catalog||!sheets)&&root)make(root,'p','pcu-alert','Une source est indisponible : la liste est partielle. Aucun produit ni prix n’a été modifié.');
@@ -221,13 +222,13 @@ function init(){
  if(legacy)legacy.insertAdjacentElement('beforebegin',root);
  else shell.appendChild(root);
  const observer=new MutationObserver(()=>{
-  if(rows.length)hideLegacy(true);
-  if(page.classList.contains('open')&&!rows.length&&!loading)load();
+  if(loadedOnce)hideLegacy(true);
+  if(page.classList.contains('open')&&!loadedOnce&&!loading)load();
  });
- observer.observe(page,{childList:true,subtree:false,attributes:true,attributeFilter:['class']});
+ observer.observe(page,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
  window.addEventListener('prism-supplier-products',ev=>{
   pendingSupplier=String(ev.detail?.supplier||'');supplierFilter=pendingSupplier;detailId='';pageIndex=0;
-  if(rows.length)render();
+  if(loadedOnce)render();
  });
  window.addEventListener('prism-catalog-updated',()=>{if(page.classList.contains('open'))load();});
  if(page.classList.contains('open'))load();
