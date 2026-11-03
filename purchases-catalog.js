@@ -242,7 +242,7 @@ function render(){
  root.replaceChildren();
  var title=append(root,'div','purchases-heading');
  append(title,'h3','','Catalogue des prix d’achat — L’Océan');
- append(title,'p','','Référentiel de gestion · familles, catégories et emplacements · prix HT historisés');
+
  var trash=append(title,'button','purchases-archive-trigger',showArchived?'← Catalogue actif':'Corbeille des produits');
  trash.type='button';trash.onclick=async function(){showArchived=!showArchived;category='Tous';subcategory='Tous';offset=0;await load();};
  var stats=append(root,'div','purchases-stats');
@@ -264,7 +264,7 @@ function render(){
   chip.type='button';chip.onclick=function(){subcategory=label;offset=0;render();};
  });
  var unclassified=all.filter(x=>!x.subcategory).length;
- if(ready&&unclassified)append(root,'p','purchases-classification-note',unclassified+' produit(s) encore à classer. Les références existantes n’ont pas été recatégorisées automatiquement : ouvre Modifier pour choisir leur catégorie.');
+ if(ready&&unclassified)append(root,'p','purchases-classification-note',unclassified+' produits à classer');
  var tools=append(root,'div','purchases-tools');
  var search=append(tools,'input','purchases-search');search.type='search';search.placeholder='Rechercher un produit…';search.value=query;search.setAttribute('aria-label','Rechercher une référence');
  search.addEventListener('input',function(){query=this.value;offset=0;renderTable();});
@@ -276,7 +276,7 @@ function render(){
  var input=append(row,'input','purchases-file');input.type='file';input.accept='.csv,text/csv,text/plain';input.setAttribute('aria-label','Sélectionner le catalogue CSV');input.addEventListener('change',function(){selectedFile=this.files&&this.files[0]||null;importConfirmed=false;var b=root.querySelector('.purchases-primary');if(b)b.textContent=ready?'Remplacer le catalogue privé':'Importer le catalogue privé';var st=root.querySelector('.purchases-state');if(st&&selectedFile)st.textContent='Fichier sélectionné : '+selectedFile.name+' · Cliquer sur Importer.';});
  var btn=append(row,'button','purchases-primary',ready?'Remplacer le catalogue privé':'Importer le catalogue privé');btn.type='button';
  var status=append(upload,'p','purchases-state',ready?'Catalogue privé chargé'+(savedAt?' · enregistré le '+new Date(savedAt).toLocaleDateString('fr-FR'):''):'Charge le CSV extrait de ton inventaire pour activer le catalogue.');
- append(upload,'p','purchases-disclaimer','Import réservé aux comptes autorisés. Les prix ne sont pas publiés dans GitHub. Les conditionnements absents de la source restent indiqués comme non précisés.');
+
  btn.addEventListener('click',async function(event){
   event.preventDefault();
   if(importBusy)return;
