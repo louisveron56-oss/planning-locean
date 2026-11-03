@@ -44,7 +44,7 @@ function summarize(){
  const costRH=availableRH?total(rh,"cout_charge"):NaN,costMat=availableMat?total(mat,"total"):NaN;
  const warnings=[];
  if(s.invalid)warnings.push("Une ligne de vente présente un montant invalide.");
- if(!s.hasSales)warnings.push("Aucun Z renseigné pour la période.");
+ if(!s.hasSales)warnings.push("Pas encore de données pour cette période.");
  if(mode==="day")warnings.push("RH et achats matières : sources mensuelles, pas de coût journalier constaté.");
  if(mode==="year"&&(!availableRH||!availableMat))warnings.push("Exercice partiel : aucun ratio annuel RH ou matières extrapolé.");
  if(mat.some(x=>x.warnings?.length))warnings.push("Achats matières incomplets ou à rapprocher : voir Rapports.");
@@ -65,7 +65,7 @@ function render(){
  button(nav,"›",()=>shift(1));
  const picker=create(nav,"input","prism-overview-date");picker.type="date";picker.value=anchor;picker.onchange=()=>{if(picker.value){anchor=picker.value;render()}};
  button(controls,"↻ Actualiser",()=>load(true));
- if(!sources){create(root,"p","prism-overview-info",loading?"Chargement des ventes, des RH et des achats matières…":error||"Connexion aux données nécessaire.");return;}
+ if(!sources){create(root,"p","prism-overview-info",loading?"Chargement des ventes, des RH et des achats matières…":error||"Pas encore de données pour cette période.");return;}
  const d=summarize(),grid=create(root,"div","prism-overview-grid");
  const valid=d.s.hasSales&&!d.s.invalid;
  card(grid,"Chiffre d'affaires TTC",valid?money(d.s.ttc):"—","KSD · période sélectionnée");
