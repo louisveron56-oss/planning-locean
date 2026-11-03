@@ -31,3 +31,8 @@
 .pcu-history{margin-top:15px;font-size:12px}
 .pcu-alert{border:1px dashed var(--down,var(--border,currentColor));padding:13px;border-radius:12px;font-size:12px}
 @media(max-width:700px){.pcu-root{padding:16px}.pcu-tools{flex-direction:column;align-items:stretch}.pcu-tools :is(input,select,button){width:100%;flex-basis:auto}.pcu-table{font-size:12px}.pcu-table :is(td,th){padding:12px 8px}.pcu-details{grid-template-columns:minmax(120px,40%) minmax(0,1fr)}}
+
+/* Page Produits : un seul catalogue visible. L'ancien catalogue reste monté uniquement pour l'édition depuis les fiches. */
+#module-suppliers .purchases-root,
+#module-suppliers .ps-products,
+#module-suppliers .pd-root { display: none !important; }

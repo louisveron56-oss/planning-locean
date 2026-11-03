@@ -79,8 +79,14 @@ const fetchJson=async(url,token)=>{
 function hideLegacy(hidden){
  const page=document.getElementById(PAGE);if(!page)return;
  const legacy=page.querySelector('.purchases-root'),sheet=page.querySelector('.ps-products');
- if(legacy){legacy.hidden=hidden;legacy.style.setProperty('display',hidden?'none':'block','important');}
- if(sheet){sheet.hidden=hidden;sheet.style.setProperty('display',hidden?'none':'block','important');}
+ if(legacy){
+  if(legacy.hidden!==hidden)legacy.hidden=hidden;
+  if(legacy.style.getPropertyValue('display')!==(hidden?'none':'block'))legacy.style.setProperty('display',hidden?'none':'block','important');
+ }
+ if(sheet){
+  if(sheet.hidden!==hidden)sheet.hidden=hidden;
+  if(sheet.style.getPropertyValue('display')!==(hidden?'none':'block'))sheet.style.setProperty('display',hidden?'none':'block','important');
+ }
  // A late-mounted old view must also be suppressed once the unified data has loaded.
 }
 function backToSupplier(supplier){
@@ -146,7 +152,7 @@ function drawList(){
  if(!listHost)return;listHost.replaceChildren();
  const selected=rows.find(p=>p.id===detailId);
  if(selected){detail(selected);return;}
- const filtered=visibleRows(),count=make(listHost,'p','pcu-count',filtered.length+' référence(s) affichable(s) · '+rows.length+' sources consolidées en lecture');
+ const filtered=visibleRows();make(listHost,'p','pcu-count',filtered.length+' produits');
  if(!filtered.length){make(listHost,'p','pcu-empty','Aucun produit pour ces filtres.');return;}
  const wrap=make(listHost,'div','pcu-scroll'),table=make(wrap,'table','pcu-table');
  const tr=make(make(table,'thead'),'tr');
@@ -169,14 +175,14 @@ function drawList(){
   make(bar,'span','',(pageIndex+1)+' / '+Math.ceil(filtered.length/PAGE_SIZE));
   const next=make(bar,'button','pcu-link','Suivant →');next.disabled=(pageIndex+1)*PAGE_SIZE>=filtered.length;next.onclick=()=>{pageIndex++;drawList();};
  }
- make(listHost,'p','pcu-note','Les prix sont en HT. Si l’unité est inconnue, elle reste à confirmer. Deux produits ne sont rapprochés automatiquement que si le fournisseur et sa référence correspondent exactement.');
+
 }
 function render(){
  const root=document.getElementById('prismUnifiedCatalog');if(!root)return;
  root.replaceChildren();
  const header=make(root,'div','pcu-header');
  make(header,'h3','','Tous les produits');
- make(header,'p','','Catalogue Prism et références fournisseurs · consultation centralisée');
+
  const tools=make(root,'div','pcu-tools');
  const q=make(tools,'input','pcu-search');q.type='search';q.placeholder='Rechercher un produit, une référence…';q.value=search;
  q.oninput=()=>{search=q.value;pageIndex=0;detailId='';drawList();};
@@ -208,23 +214,24 @@ async function load(){
   rows=joinSources(catalog?.products||[],sheets?.rows||[]);
   loadedOnce=true;
   partialSources=!(catalog&&sheets);
-  hideLegacy(!partialSources);
+  hideLegacy(true);
   render();
   if((!catalog||!sheets)&&root)make(root,'p','pcu-alert','Une source est indisponible : la liste est partielle. Aucun produit ni prix n’a été modifié.');
  }catch(err){
-  hideLegacy(false);
-  if(root){root.replaceChildren();make(root,'p','pcu-alert','Vue unifiée indisponible : '+err.message+' · Le catalogue historique reste accessible ci-dessous.');}
+  hideLegacy(true);
+  if(root){root.replaceChildren();make(root,'p','pcu-alert','Catalogue indisponible : '+err.message);const retry=make(root,'button','pcu-link','Réessayer');retry.type='button';retry.onclick=()=>load();}
  }finally{loading=false;}
 }
 function init(){
  const page=document.getElementById(PAGE);if(!page||initialized)return;initialized=true;
  const shell=page.querySelector('.module-shell');if(!shell)return;
- const root=document.createElement('section');root.id='prismUnifiedCatalog';root.className='pcu-root';
+ const root=document.createElement('section');root.id='prismUnifiedCatalog';root.className='pcu-root';root.textContent='Chargement des produits…';
+ hideLegacy(true);
  const legacy=shell.querySelector('.purchases-root');
  if(legacy)legacy.insertAdjacentElement('beforebegin',root);
  else shell.appendChild(root);
  const observer=new MutationObserver(()=>{
-  if(loadedOnce)hideLegacy(!partialSources);
+  hideLegacy(true);
   if(page.classList.contains('open')&&!loadedOnce&&!loading)load();
  });
  observer.observe(page,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
