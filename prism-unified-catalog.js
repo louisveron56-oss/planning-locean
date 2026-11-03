@@ -255,22 +255,30 @@ function drawList(){
  if(!listHost)return;listHost.replaceChildren();
  const selected=rows.find(p=>p.id===detailId);
  if(selected){detail(selected);return;}
+ detailRequest++;
  const filtered=visibleRows();make(listHost,'p','pcu-count',filtered.length+' produits');
  if(!filtered.length){make(listHost,'p','pcu-empty','Aucun produit pour ces filtres.');return;}
  const wrap=make(listHost,'div','pcu-scroll'),table=make(wrap,'table','pcu-table');
  const tr=make(make(table,'thead'),'tr');
- ['Produit','Fournisseur','Prix HT'].forEach(x=>make(tr,'th','',x));
+ ['Produit','Fournisseur','Prix HT','Dernier prix'].forEach(x=>make(tr,'th','',x));
  const body=make(table,'tbody');
  filtered.slice(pageIndex*PAGE_SIZE,(pageIndex+1)*PAGE_SIZE).forEach(p=>{
   const row=make(body,'tr');
-  const name=make(row,'td'),link=make(name,'button','pcu-link',p.name);
-  link.type='button';link.onclick=()=>{detailId=p.id;drawList();};
-  const sup=make(row,'td');
-  if(p.supplier&&p.supplier!=='Non renseigné'){
-   const b=make(sup,'button','pcu-link',p.supplier);b.type='button';b.onclick=()=>{supplierFilter=p.supplier;pageIndex=0;render();};
-  }else sup.textContent='—';
-  const price=make(row,'td','pcu-price',p.price.text);
-  price.title='Origine : '+p.source+(p.price.valid?'':' · Unité à confirmer');
+  row.className='pcu-product-row';
+  const name=make(row,'td');
+  const link=make(name,'button','pcu-product-link',p.name);link.type='button';
+  link.onclick=()=>{detailId=p.id;drawList();};
+  if(!p.price.valid||p.warning){
+   const issue=make(name,'span','pcu-mini-issue','!');
+   issue.title=p.warning?'Écart de prix entre les sources':'Unité ou prix à contrôler';
+   issue.setAttribute('aria-label',issue.title);
+  }
+  make(row,'td','pcu-supplier-cell',p.supplier||'—');
+  make(row,'td','pcu-price',p.price.valid?p.price.text:money(p.catalog?.price??p.sheet?.prix_actuel_ht)+' HT');
+  make(row,'td','pcu-date-cell',p.date?showDate(p.date):'—');
+  row.tabIndex=0;row.setAttribute('aria-label','Ouvrir '+p.name);
+  row.addEventListener('click',e=>{if(e.target.closest('button'))return;detailId=p.id;drawList();});
+  row.addEventListener('keydown',e=>{if(e.key==='Enter'){detailId=p.id;drawList();}});
  });
  if(filtered.length>PAGE_SIZE){
   const bar=make(listHost,'div','pcu-pages');
