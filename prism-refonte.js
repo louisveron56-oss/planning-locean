@@ -20,7 +20,7 @@
   syncDarkLink();
 
   var brand = document.createElement('link');
-  brand.rel = 'stylesheet'; brand.href = './prism-refonte.css?v=2'; brand.id = 'prism-refonte-css';
+  brand.rel = 'stylesheet'; brand.href = './prism-refonte.css?v=3'; brand.id = 'prism-refonte-css';
   var mapped = document.createElement('style');
   mapped.id = 'prism-refonte-map';
 
@@ -401,12 +401,75 @@
     updateToggle();
   }
 
+  /* ---------- Établissement en haut à gauche, bandeau allégé ---------- */
+  function mountSiteSwitch() {
+    var src = document.querySelector('.header .prism-establishments');
+    var head = document.querySelector('#appSidebar .app-sidebar-head');
+    if (!src || !head || document.getElementById('prism-site-switch')) return;
+    var btns = [].slice.call(src.querySelectorAll('button'));
+    if (!btns.length) return;
+    var wrap = document.createElement('div');
+    wrap.id = 'prism-site-switch'; wrap.className = 'prism-site-switch';
+    var cur = document.createElement('button');
+    cur.type = 'button'; cur.className = 'prism-site-current'; cur.setAttribute('aria-expanded', 'false');
+    var list = document.createElement('div');
+    list.className = 'prism-site-list'; list.hidden = true;
+    function label() {
+      var on = btns.filter(function (b) { return b.getAttribute('aria-pressed') === 'true'; })[0] || btns[0];
+      cur.innerHTML = '<span class="prism-site-kicker">Établissement</span><span class="prism-site-name"></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+      cur.querySelector('.prism-site-name').textContent = on.textContent.trim();
+    }
+    btns.forEach(function (b) {
+      var o = document.createElement('button');
+      o.type = 'button'; o.className = 'prism-site-option';
+      o.disabled = b.disabled;
+      o.setAttribute('aria-pressed', b.getAttribute('aria-pressed') || 'false');
+      o.innerHTML = '<span></span>' + (b.disabled ? '<em>à brancher</em>' : '');
+      o.firstChild.textContent = b.textContent.trim();
+      o.addEventListener('click', function () { b.click(); list.hidden = true; cur.setAttribute('aria-expanded', 'false'); setTimeout(label, 0); });
+      list.appendChild(o);
+    });
+    cur.addEventListener('click', function () { list.hidden = !list.hidden; cur.setAttribute('aria-expanded', list.hidden ? 'false' : 'true'); });
+    document.addEventListener('click', function (e) { if (!wrap.contains(e.target)) { list.hidden = true; cur.setAttribute('aria-expanded', 'false'); } });
+    label();
+    wrap.appendChild(cur); wrap.appendChild(list);
+    head.parentNode.insertBefore(wrap, head.nextSibling);
+    root.classList.add('prism-has-site-switch');
+  }
+  function headerHasTools(h) {
+    var r = h.querySelector('.hright');
+    if (!r) return false;
+    var cs = getComputedStyle(r);
+    return cs.display !== 'none' && cs.visibility !== 'hidden' && r.getBoundingClientRect().width > 0 && r.children.length > 0;
+  }
+  function fixHeader() {
+    var h = document.querySelector('body>.header');
+    if (!h) return;
+    var name = h.querySelector('.brand-name');
+    if (name && name.textContent !== 'Prism') name.textContent = 'Prism';
+    if (!window.matchMedia('(min-width:901px)').matches) { h.classList.remove('prism-header-empty'); return; }
+    var empty = !headerHasTools(h);
+    h.classList.toggle('prism-header-empty', empty);
+    ['height', 'min-height', 'max-height'].forEach(function (p) { if (h.style.getPropertyValue(p) !== 'auto') h.style.setProperty(p, 'auto', 'important'); });
+  }
+  var headerTimer = null;
+  function scheduleHeader() { if (!headerTimer) headerTimer = setTimeout(function () { headerTimer = null; fixHeader(); }, 30); }
+  window.addEventListener('resize', scheduleHeader);
+
   /* L'impression reste dans les couleurs d'origine. */
   window.addEventListener('beforeprint', function () { printing = true; unscan(); mapped.disabled = true; brand.disabled = true; });
   window.addEventListener('afterprint', function () { if (!printing) return; printing = false; mapped.disabled = false; brand.disabled = false; pendingNodes.push(document.body); flush(); });
 
   function start() {
-    mountToggle(); setMeta();
+    mountToggle(); setMeta(); mountSiteSwitch(); fixHeader();
+    var hdr = document.querySelector('body>.header');
+    if (hdr) new MutationObserver(scheduleHeader).observe(hdr, { attributes: true, subtree: true, attributeFilter: ['style', 'class'] });
+    if (typeof window.navigateApp === 'function' && !window.navigateApp.__prism) {
+      var nav = window.navigateApp;
+      window.navigateApp = function () { var r = nav.apply(this, arguments); scheduleHeader(); return r; };
+      window.navigateApp.__prism = true;
+    }
+    window.addEventListener('load', function () { mountSiteSwitch(); scheduleHeader(); });
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'fill', 'stroke'], characterData: true });
     pendingSheets = true; pendingNodes.push(document.body); flush();
     window.addEventListener('load', function () { pendingSheets = true; schedule(); });
