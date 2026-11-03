@@ -20,7 +20,7 @@
   syncDarkLink();
 
   var brand = document.createElement('link');
-  brand.rel = 'stylesheet'; brand.href = './prism-refonte.css?v=3'; brand.id = 'prism-refonte-css';
+  brand.rel = 'stylesheet'; brand.href = './prism-refonte.css?v=4'; brand.id = 'prism-refonte-css';
   var mapped = document.createElement('style');
   mapped.id = 'prism-refonte-map';
 
@@ -462,6 +462,7 @@
 
   function start() {
     mountToggle(); setMeta(); mountSiteSwitch(); fixHeader();
+    if (!document.getElementById('prism-accueil-js')) { var sa = document.createElement('script'); sa.id = 'prism-accueil-js'; sa.src = './prism-accueil.js?v=1'; document.body.appendChild(sa); }
     var hdr = document.querySelector('body>.header');
     if (hdr) new MutationObserver(scheduleHeader).observe(hdr, { attributes: true, subtree: true, attributeFilter: ['style', 'class'] });
     if (typeof window.navigateApp === 'function' && !window.navigateApp.__prism) {
