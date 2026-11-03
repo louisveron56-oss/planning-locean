@@ -75,14 +75,36 @@ function parseCSV(s){
  for(let i=0;i<s.length;i++){const c=s[i];if(c==='"'){if(quoted&&s[i+1]==='"'){item+='"';i++;}else quoted=!quoted;}else if(!quoted&&c===delim){row.push(item);item="";}else if(!quoted&&(c==="\n"||c==="\r")){if(c==="\r"&&s[i+1]==="\n")i++;row.push(item);if(row.some(v=>v.trim()))out.push(row.slice());row.length=0;item="";}else item+=c;}
  row.push(item);if(row.some(v=>v.trim()))out.push(row);return out;
 }
+async function readPurchaseFile(file){
+ if(!/\\.xlsx?$/i.test(file.name))return parseCSV(await file.text());
+ if(!window.XLSX){
+  await new Promise((resolve,reject)=>{const script=document.createElement("script");
+   script.src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+   script.onload=resolve;script.onerror=()=>reject(Error("Impossible de charger le lecteur Excel. Vérifie la connexion internet."));document.head.appendChild(script);});
+ }
+ const workbook=window.XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:false});
+ const sheet=workbook.Sheets["Lignes"];if(!sheet)throw Error("Onglet Lignes introuvable dans le fichier Excel.");
+ const rows=window.XLSX.utils.sheet_to_json(sheet,{header:1,defval:"",raw:false,blankrows:false});
+ if(rows.length<2)throw Error("Onglet Lignes vide.");
+ // Les dates sont stockées comme numéros de série Excel dans certaines versions du classeur.
+ const dateCol=rows[0].findIndex(x=>norm(x)==="date");
+ if(dateCol>=0)for(let i=1;i<rows.length;i++){
+  const v=rows[i][dateCol];if(/^\\d{5}(?:\\.0+)?$/.test(String(v||""))){
+   const d=window.XLSX.SSF.parse_date_code(Number(v));
+   if(d)rows[i][dateCol]=String(d.y).padStart(4,"0")+"-"+String(d.m).padStart(2,"0")+"-"+String(d.d).padStart(2,"0");
+  }
+ }
+ return rows;
+}
 async function importFlow(){
- const input=el("input");input.type="file";input.accept=".csv,text/csv";input.onchange=async()=>{
+ const input=el("input");input.type="file";input.accept=".xlsx,.xls,.csv,text/csv";input.onchange=async()=>{
   try{
-   const file=input.files?.[0];if(!file)return;const rows=parseCSV(await file.text()),headers=rows.shift();if(!headers||!rows.length)throw Error("CSV vide");
+   const file=input.files?.[0];if(!file)return;info("Lecture locale du fichier "+file.name+"…");
+   const rows=await readPurchaseFile(file),headers=rows.shift();if(!headers||!rows.length)throw Error("Fichier vide");
    detailHost.replaceChildren();detailHost.appendChild(el("h3","Correspondance des colonnes"));
-   detailHost.appendChild(el("p","Sélectionne les colonnes du CSV : aucun prix n'est publié avant validation de l'import. Export CSV UTF-8 depuis Excel si nécessaire."));
+   detailHost.appendChild(el("p","Fichier Excel original ou CSV accepté. Vérifie la correspondance des colonnes avant de valider. Les données restent privées."));
    const mapping=el("div",undefined,"ph-map");detailHost.appendChild(mapping);
-   const fields={supplier:["fournisseur","supplier"],reference:["codeproduit","referenceproduit","reference","code","ref"],description:["designation","produit","description","libelle","label"],date:["datefacture","date","dateachat"],priceHT:["prixunitaireht","prixht","puht","unitpriceht","prixachatht","price"],quantity:["quantite","qte","quantity","qty"],unit:["unite","unit"],invoice:["numerofacture","facture","invoice"],document:["fichiersource","cheminfacture","document","file"],source:["source"],reading:["modelecture","lecture","ocr","read"],invoiceStatus:["statutfacture","controlefacture","completude","control"]};
+   const fields={supplier:["fournisseur","supplier"],reference:["codeproduit","referenceproduit","reference","code","ref"],description:["designation","produit","description","libelle","label"],date:["datefacture","date","dateachat"],priceHT:["prixunitaireht","prixht","puht","unitpriceht","prixachatht","price"],quantity:["quantite","qte","quantity","qty"],unit:["unite","unit"],invoice:["numerofacture","nfacture","facture","invoice"],document:["fichiersource","cheminfacture","document","fichier","file"],source:["source"],reading:["modelecture","lecture","ocr","read"],invoiceStatus:["statutfacture","controlefacture","completude","control"]};
    const selects={};for(const [field,hints] of Object.entries(fields)){
     const label=el("label",field),sel=el("select");sel.appendChild(new Option("— Non renseigné —",""));
     headers.forEach((h,i)=>sel.appendChild(new Option(h,i+"")));
