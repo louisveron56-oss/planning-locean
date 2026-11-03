@@ -1,0 +1,110 @@
+/* Prism — refonte visuelle : couche de marque, chargée en dernier par prism-refonte.js.
+   Présentation uniquement. html[data-theme] vaut "dark" ou "light". */
+
+/* ===================== Commun aux deux modes ===================== */
+.prism-theme-toggle{
+  display:flex;align-items:center;gap:10px;width:100%;min-height:44px;margin:0 0 10px;padding:0 12px;
+  border-radius:12px;font:500 13px/1.2 'Inter',system-ui,sans-serif;cursor:pointer;text-align:left
+}
+.prism-theme-toggle svg{flex:0 0 auto}
+.prism-theme-toggle-mobile{display:none}
+@media(max-width:760px){
+  .prism-theme-toggle-mobile{
+    display:flex;align-items:center;justify-content:center;position:absolute;right:14px;top:50%;transform:translateY(-50%);
+    width:44px;height:44px;border-radius:12px;cursor:pointer;z-index:3
+  }
+}
+.prism-establishments{display:flex;gap:4px;padding:4px;border-radius:999px;position:absolute;right:28px;top:50%;transform:translateY(-50%)}
+.prism-establishments button{min-height:36px;padding:0 16px;border-radius:999px;border:0;background:transparent;font:500 13px 'Inter',system-ui,sans-serif;cursor:pointer}
+.prism-establishments button[aria-pressed="true"]{font-weight:600}
+.prism-establishments button:disabled{cursor:not-allowed}
+@media(max-width:1100px){.prism-establishments{display:none!important}}
+
+/* ===================== Mode sombre ===================== */
+html[data-theme="dark"] body{background:#0B0D12!important;color:#F2F1EC}
+
+/* Bandeau et menu : un seul fond, plus de brun */
+html[data-theme="dark"] body .header,
+html[data-theme="dark"] body.app-nav-ready>.header,
+html[data-theme="dark"] body #appSidebar,
+html[data-theme="dark"] body #appSidebar>.app-sidebar-head,
+html[data-theme="dark"] body #appSidebar>.app-sidebar-foot,
+html[data-theme="dark"] body .oce-menu-header{
+  background:#0F1218!important;border-color:#1F2330!important;color:#F2F1EC!important
+}
+html[data-theme="dark"] body.app-nav-ready>.header .brand-name,
+html[data-theme="dark"] body>.header .brand-name{
+  font-family:'Cormorant Garamond',Didot,Georgia,serif!important;font-weight:600!important;
+  letter-spacing:.08em!important;color:#F2F1EC!important
+}
+html[data-theme="dark"] body #appSidebar .app-sidebar-brand strong{color:#F2F1EC!important}
+html[data-theme="dark"] body #appSidebar .app-sidebar-brand span{color:#8A8E9B!important}
+html[data-theme="dark"] body #appSidebar .prism-nav-section>summary{color:#A3A7B4!important}
+html[data-theme="dark"] body #appSidebar .prism-nav-section>summary:hover,
+html[data-theme="dark"] body #appSidebar .prism-nav-section[open]>summary{background:#1A1E28!important;color:#F2F1EC!important}
+html[data-theme="dark"] body #appSidebar .prism-nav-symbol,
+html[data-theme="dark"] body #appSidebar .prism-nav-chevron{color:#8A8E9B!important}
+html[data-theme="dark"] body #appSidebar .app-nav-item{color:#A3A7B4!important}
+html[data-theme="dark"] body #appSidebar .app-nav-item:hover{background:#1A1E28!important;color:#F2F1EC!important}
+html[data-theme="dark"] body #appSidebar .app-nav-item.active{background:#1A1E28!important;color:#F2F1EC!important;box-shadow:inset 2px 0 0 #E3BC72!important}
+html[data-theme="dark"] body #appSidebar .prism-nav-subheading{color:#8A8E9B!important}
+html[data-theme="dark"] body #appSidebar>.app-sidebar-foot .auth-user-email{color:#F2F1EC!important}
+html[data-theme="dark"] body #appSidebar>.app-sidebar-foot .auth-logout{color:#A3A7B4!important;border:1px solid #2A2F3D!important;background:transparent!important}
+html[data-theme="dark"] body #appSidebar>.app-sidebar-foot .auth-logout:hover{color:#F2F1EC!important;background:#1A1E28!important}
+html[data-theme="dark"] .prism-theme-toggle{background:transparent;border:1px solid #2A2F3D;color:#A3A7B4}
+html[data-theme="dark"] .prism-theme-toggle:hover{background:#1A1E28;color:#F2F1EC}
+html[data-theme="dark"] .prism-theme-toggle-mobile{background:#1A1E28;border:1px solid #2A2F3D;color:#F2F1EC}
+html[data-theme="dark"] body .header .app-menu-btn{background:#1A1E28!important;color:#F2F1EC!important;border:1px solid #2A2F3D!important}
+
+/* Sélecteur d'établissement */
+html[data-theme="dark"] .prism-establishments{background:#14171F;border:1px solid #1F2330}
+html[data-theme="dark"] .prism-establishments button{color:#8A8E9B}
+html[data-theme="dark"] .prism-establishments button[aria-pressed="true"]{background:#F2F1EC;color:#0B0D12}
+
+/* Titres de page */
+html[data-theme="dark"] body .module-kicker,
+html[data-theme="dark"] body .team-kicker{color:#E3BC72!important;letter-spacing:.12em!important}
+html[data-theme="dark"] body .module-title,
+html[data-theme="dark"] body .team-title,
+html[data-theme="dark"] body #module-dashboard .module-title{color:#F2F1EC!important;font-family:'Inter Tight','Inter',sans-serif!important;font-weight:600!important;letter-spacing:-.025em!important}
+html[data-theme="dark"] body .module-lead,
+html[data-theme="dark"] body .team-subtitle{color:#A3A7B4!important}
+
+/* Pages et blocs */
+html[data-theme="dark"] body.app-nav-ready>#planningPage,
+html[data-theme="dark"] body.app-nav-ready>#teamPage,
+html[data-theme="dark"] body.app-nav-ready>.module-page{background:#0B0D12!important;color:#F2F1EC}
+html[data-theme="dark"] body .module-page .module-placeholder:not(.purchases-root){
+  background:#14171F!important;border:1px solid #1F2330!important;border-radius:20px!important
+}
+html[data-theme="dark"] body .module-chip{background:#10131A!important;border:1px solid #1F2330!important;color:#A3A7B4!important}
+
+/* Mobile */
+html[data-theme="dark"] body .mobile-bottom-nav{background:#0F1218!important;border-color:#1F2330!important}
+html[data-theme="dark"] body .mobile-bottom-nav button{color:#8A8E9B!important}
+html[data-theme="dark"] body .mobile-bottom-nav button.active{color:#F2F1EC!important}
+html[data-theme="dark"] body .oce-drawer{background:#0B0D12!important}
+html[data-theme="dark"] body .oce-menu-link{background:#14171F!important;color:#F2F1EC!important;border-color:#1F2330!important}
+html[data-theme="dark"] body .oce-menu-symbol{background:#1A1E28!important;color:#F2F1EC!important}
+
+/* Barres de défilement discrètes */
+html[data-theme="dark"]{scrollbar-color:#2A2F3D #0B0D12}
+
+/* ===================== Mode clair ===================== */
+html[data-theme="light"] .prism-theme-toggle{background:transparent;border:1px solid rgba(250,247,242,.24);color:#EAE0D3}
+html[data-theme="light"] .prism-theme-toggle:hover{background:rgba(250,247,242,.12);color:#fff}
+html[data-theme="light"] .prism-theme-toggle-mobile{background:#EAE0D3;border:0;color:#332823}
+html[data-theme="light"] .prism-establishments{background:rgba(250,247,242,.1);border:1px solid rgba(250,247,242,.2)}
+html[data-theme="light"] .prism-establishments button{color:#D8C9B9}
+html[data-theme="light"] .prism-establishments button[aria-pressed="true"]{background:#FAF7F2;color:#332823}
+html[data-theme="light"] .prism-establishments button:disabled{color:#B4A69B}
+html[data-theme="light"] body .module-title,
+html[data-theme="light"] body .team-title{font-family:'Inter Tight','Inter',sans-serif!important;font-weight:600!important;letter-spacing:-.025em!important}
+html[data-theme="light"] body :is(.sales-card-value,.prism-overview-card-value,.me-kpi-value,.fp-value){font-family:'Inter Tight','Inter',sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+
+/* Ajustements après revue des écrans */
+html[data-theme="dark"] body .prism-overview{background:transparent!important;border:0!important}
+html[data-theme="dark"] body .btn-gold,
+html[data-theme="dark"] body .header .hright .btn-gold,
+html[data-theme="dark"] body .team-page .btn-gold{background:#E3BC72!important;border-color:#E3BC72!important;color:#0B0D12!important}
+html[data-theme="dark"] body .btn-gold:hover{background:#ECCB8E!important}
