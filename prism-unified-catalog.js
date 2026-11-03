@@ -79,8 +79,14 @@ const fetchJson=async(url,token)=>{
 function hideLegacy(hidden){
  const page=document.getElementById(PAGE);if(!page)return;
  const legacy=page.querySelector('.purchases-root'),sheet=page.querySelector('.ps-products');
- if(legacy){legacy.hidden=hidden;legacy.style.setProperty('display',hidden?'none':'block','important');}
- if(sheet){sheet.hidden=hidden;sheet.style.setProperty('display',hidden?'none':'block','important');}
+ if(legacy){
+  if(legacy.hidden!==hidden)legacy.hidden=hidden;
+  if(legacy.style.getPropertyValue('display')!==(hidden?'none':'block'))legacy.style.setProperty('display',hidden?'none':'block','important');
+ }
+ if(sheet){
+  if(sheet.hidden!==hidden)sheet.hidden=hidden;
+  if(sheet.style.getPropertyValue('display')!==(hidden?'none':'block'))sheet.style.setProperty('display',hidden?'none':'block','important');
+ }
  // A late-mounted old view must also be suppressed once the unified data has loaded.
 }
 function backToSupplier(supplier){
