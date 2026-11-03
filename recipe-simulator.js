@@ -21,7 +21,7 @@ async function createCatalogIngredient(){
  if(product.length<2||!Number.isFinite(qty)||qty<=0||!Number.isFinite(p)||p<0){
   msg="Renseigne un nom, un prix d'achat HT et une quantité totale de conditionnement supérieure à zéro.";render();return;
  }
- const duplicate=catalog.find(x=>x.name.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase()===product.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase());
+ const duplicate=catalog.find(x=>x.name.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()===product.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase());
  if(duplicate){msg="Ce produit existe déjà. Utilise la recherche dans le catalogue pour l'ajouter à la recette.";render();return}
  creating=true;msg="Enregistrement du produit dans le catalogue privé…";render();
  try{
