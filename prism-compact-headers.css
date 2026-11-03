@@ -1,0 +1,21 @@
+/* PRISM — En-têtes de navigation allégés.
+   La sidebar sert de repère sur ordinateur ; conserver les titres sur mobile.
+   Aucune couleur, aucun thème, aucun composant métier modifié. */
+@media (min-width: 761px) {
+  body.app-nav-ready .module-page > .module-shell > .module-kicker,
+  body.app-nav-ready .module-page > .module-shell > .module-title,
+  body.app-nav-ready .module-page > .module-shell > .module-lead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  body.app-nav-ready .module-page {
+    padding-top: 14px;
+  }
+}
