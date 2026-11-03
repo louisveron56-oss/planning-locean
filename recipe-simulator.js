@@ -134,7 +134,7 @@ function render(){
  let existing=make(main,"section");existing.className="rc-panel";make(existing,"h3","Brouillons de cet appareil");
  drafts.forEach(x=>{let row=make(existing,"div");row.className="rc-header";make(row,"span",x.name);button(row,"Ouvrir",()=>{savedId=x.id;name=x.name;price=x.price;vat=x.vat;lines=JSON.parse(JSON.stringify(x.lines));render()});button(row,"Supprimer",()=>{if(confirm("Supprimer ce brouillon ?")){drafts=drafts.filter(z=>z.id!==x.id);store();if(savedId===x.id)newDraft();else render()}})});
  let side=make(layout,"aside");side.id="rc-summary";side.className="rc-panel rc-side";drawSummary();
- let foot=make(root,"p","Brouillons enregistrés uniquement sur ce navigateur. Les ajouts manuels ne modifient pas la mercuriale centrale. La marge matière exclut main-d’œuvre, énergie et charges fixes.");foot.className="rc-note";
+ let foot=make(root,"p","Brouillons enregistrés sur ce navigateur. Les nouveaux produits enregistrés depuis une fiche technique sont ajoutés au catalogue privé des achats. La marge matière exclut main-d’œuvre, énergie et charges fixes.");foot.className="rc-note";
 }
 function updateCosts(){lines.forEach((x,i)=>{let a=document.getElementById("rc-line-"+i);if(a)a.textContent=Number.isFinite(calc(x))?euro.format(calc(x)):"Vérifier les unités"});drawSummary()}
 function renderCatalog(){let host=document.getElementById("rc-results");if(!host)return;host.replaceChildren();
