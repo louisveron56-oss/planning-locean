@@ -10,7 +10,7 @@ function initialize(){
  // Son intitulé visible devient Produits ; le répertoire est une page distincte.
  var title=old.querySelector('.module-title'),lead=old.querySelector('.module-lead');
  if(title)title.textContent='Produits';
- if(lead)lead.textContent='Catalogue des produits et références d’achat, prix et unités de conditionnement.';
+ if(lead)lead.remove();
  var chips=old.querySelector('.module-chips');
  if(chips&&old.querySelector('.module-placeholder strong')?.textContent==='Module prêt à être construit'){
   chips.replaceChildren();
@@ -28,7 +28,7 @@ function initialize(){
  nav.insertAdjacentElement('afterend',newNav);
  var section=document.createElement('section');section.className='module-page no-print';
  section.id='module-supplier-directory';section.dataset.module='supplier-directory';
- section.innerHTML='<div class="module-shell"><div class="module-kicker">Opérationnel</div><div class="module-title">Fournisseurs</div><div class="module-lead">Répertoire des fournisseurs, historique des achats et suivi de l’évolution tarifaire.</div><div class="module-placeholder"><div class="module-placeholder-icon">▤</div><strong>Répertoire fournisseurs à construire</strong><p>Les fiches et l’historique seront ajoutés progressivement. Aucun fournisseur ni achat fictif n’est enregistré.</p><div class="module-chips"><span class="module-chip">Fiches fournisseurs</span><span class="module-chip">Historique d’achats</span><span class="module-chip">Évolution des prix</span><span class="module-chip">Factures / BL</span></div></div></div>';
+ section.innerHTML='<div class="module-shell"><div class="module-title">Fournisseurs</div><div class="module-placeholder"><strong>Aucun fournisseur à afficher</strong></div></div>';
  old.insertAdjacentElement('afterend',section);
  // L'en-tête se fonde sur l'ancien nom de page; adapter sans toucher au routeur.
  var nativeHeader=window.setHeaderMode;
