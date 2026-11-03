@@ -168,12 +168,12 @@ function infoModal(item){
 }
 function purchasesChart(host,lines){
  host.replaceChildren();
- const verified=lines.filter(r=>r.verified&&Number.isFinite(Number(r.priceHT))&&Number(r.priceHT)>0&&/^\d{4}-\d\d-\d\d$/.test(r.date)&&unitLabel(r.unit));
+ const comparable=lines.filter(r=>Number.isFinite(Number(r.priceHT))&&Number(r.priceHT)>0&&/^\d{4}-\d\d-\d\d$/.test(r.date)&&unitLabel(r.unit));
  const groups=new Map();
- verified.forEach(r=>{const u=unitLabel(r.unit);if(!groups.has(u))groups.set(u,[]);groups.get(u).push(r)});
+ comparable.forEach(r=>{const u=unitLabel(r.unit);if(!groups.has(u))groups.set(u,[]);groups.get(u).push(r)});
  const eligible=[...groups.entries()].sort((a,b)=>b[1].length-a[1].length);
  const pair=eligible[0],series=pair?.[1]?.slice().sort((a,b)=>a.date.localeCompare(b.date))||[];
- if(series.length<2){statusLine(host,'Graphique indisponible : au moins deux achats datés, fiables et dans la même unité sont nécessaires.',true);return;}
+ if(series.length<2){statusLine(host,'Graphique indisponible : moins de deux achats datés dans une unité comparable.',true);return;}
  if(eligible.length>1||lines.length>series.length)statusLine(host,'Courbe limitée aux achats comparables ('+pair[0]+'). Les autres observations restent dans le tableau.',true);
  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
  const ns=svg.namespaceURI;svg.setAttribute('viewBox','0 0 760 255');svg.setAttribute('role','img');svg.setAttribute('aria-label','Prix d’achat HT constatés dans le temps, en '+pair[0]);
@@ -189,16 +189,19 @@ function purchasesChart(host,lines){
   shape('line',{x1:52,y1:y,x2:720,y2:y,stroke:'currentColor','stroke-opacity':'.13'});
   shape('text',{x:46,y:y+4,'text-anchor':'end',fill:'currentColor','font-size':11},(max-(max-min)*i/3).toFixed(2));
  }
- shape('polyline',{points:series.map((r,i)=>X(i)+','+Y(Number(r.priceHT))).join(' '),fill:'none',stroke:'currentColor','stroke-width':2,'stroke-linejoin':'round','stroke-opacity':'.5'});
+ const solid=series.every(r=>r.verified);
+ if(solid)shape('polyline',{points:series.map((r,i)=>X(i)+','+Y(Number(r.priceHT))).join(' '),fill:'none',stroke:'currentColor','stroke-width':2,'stroke-linejoin':'round','stroke-opacity':'.5'});
  series.forEach((r,i)=>{
-  const c=shape('circle',{cx:X(i),cy:Y(Number(r.priceHT)),r:4,fill:'currentColor'});
+  const c=shape('circle',{cx:X(i),cy:Y(Number(r.priceHT)),r:r.verified?4:5,fill:r.verified?'currentColor':'none',stroke:'currentColor','stroke-width':r.verified?0:2});
   const title=document.createElementNS(ns,'title');title.textContent=showDate(r.date)+' · '+money(r.priceHT)+'/'+pair[0];c.appendChild(title);
  });
  shape('text',{x:52,y:242,fill:'currentColor','font-size':12},showDate(series[0].date));
  shape('text',{x:720,y:242,'text-anchor':'end',fill:'currentColor','font-size':12},showDate(series[series.length-1].date));
  svg.classList.add('pcu-chart');host.appendChild(svg);
- const delta=(nums[nums.length-1]/nums[0]-1)*100;
- statusLine(host,series.length+' achats comparables · variation '+(delta>=0?'+':'')+delta.toFixed(1).replace('.',',')+' % ('+pair[0]+')',false);
+ const certified=series.filter(r=>r.verified);
+ if(certified.length>=2){const delta=(Number(certified[certified.length-1].priceHT)/Number(certified[0].priceHT)-1)*100;
+  statusLine(host,certified.length+' achats fiables · variation '+(delta>=0?'+':'')+delta.toFixed(1).replace('.',',')+' % ('+pair[0]+')',false);
+ }else statusLine(host,'Points cerclés : achats à vérifier. Variation non calculée faute de données suffisamment fiables.',true);
 }
 async function purchasesFor(item,slot){
  const stamp=++detailRequest;
