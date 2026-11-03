@@ -28,6 +28,10 @@ export default async function(req){
  if(!allowed.includes(user.email.toLowerCase()))return send({error:"Accès interdit"},403);
  try{
   const db=store(),saved=await db.get("ocean/latest",{type:"json",consistency:"strong"});
+  if(req.method==="GET"&&new URL(req.url).searchParams.get("coco")==="1"){
+   const coco=await db.get("ocean/coco-reference",{type:"json",consistency:"strong"});
+   return send({ready:!!coco,reference:coco||null});
+  }
   if(req.method==="GET")return send({ready:!!saved,reference:saved?.reference||null,savedAt:saved?.savedAt||null,products:(saved?.products||[]).filter(p=>new URL(req.url).searchParams.get("archived")==="1"?!!p.archivedAt:!p.archivedAt).map(p=>({...p,id:p.id||idFor(p),priceHistory:historyOf(p)}))});
   const raw=await req.text();if(raw.length>1700000)return send({error:"Requête trop volumineuse"},413);
   let payload;try{payload=JSON.parse(raw);}catch(_){return send({error:"JSON invalide"},400);}
