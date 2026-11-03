@@ -2,7 +2,7 @@
 "use strict";
 const id="prismRecipeSimulator",key="prism_recipe_drafts_v1",euro=new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR"});
 const factor={g:.001,kg:1,ml:.001,cl:.01,L:1,piece:1},base={g:"kg",kg:"kg",ml:"L",cl:"L",L:"L",piece:"piece"};
-let catalog=[],lines=[],drafts=[],name="",price=17,vat=10,msg="",savedId=null,search="";
+let catalog=[],lines=[],drafts=[],name="",price=17,vat=10,msg="",savedId=null,search="",creating=false,custom={name:"",packagePrice:"",packageQuantity:"",packageUnit:"kg",category:"Cuisine"};
 const make=(p,t,txt)=>{let a=document.createElement(t);if(txt!==undefined)a.textContent=txt;p.append(a);return a};
 const button=(p,t,fn)=>{let a=make(p,"button",t);a.type="button";a.className="rc-btn";a.onclick=fn;return a};
 const num=x=>Number(String(x).replace(",",".")),valid=n=>Number.isFinite(n)&&n>=0;
@@ -14,7 +14,34 @@ function total(){return lines.reduce((v,l)=>v+calc(l),0)}
 function store(){try{localStorage.setItem(key,JSON.stringify(drafts))}catch(e){msg="Sauvegarde locale indisponible"}}
 function newDraft(){lines=[];name="";price=17;vat=10;savedId=null;msg="Nouveau brouillon";render()}
 function saveDraft(){if(!name.trim()||!lines.length||!lines.every(x=>Number.isFinite(calc(x)))||!valid(num(price))||num(price)<=0){msg="Nom, prix HT et ingrédients valides obligatoires.";render();return}let row={id:savedId||Date.now(),name,price,vat,lines:JSON.parse(JSON.stringify(lines))};drafts=drafts.filter(x=>x.id!==row.id);drafts.unshift(row);savedId=row.id;store();msg="Recette enregistrée sur cet appareil";render()}
-function add(x){lines.push({name:x.name,cost:x.price,basis:x.basis,qty:x.basis==="kg"?100:x.basis==="L"?10:1,unit:x.basis==="kg"?"g":x.basis==="L"?"cl":"piece",source:x.source});msg=x.basis?"":"Confirme l’unité de prix du produit avant de calculer.";render()}
+function add(x){lines.push({productId:x.id||null,name:x.name,cost:x.price,basis:x.basis,qty:x.basis==="kg"?100:x.basis==="L"?10:1,unit:x.basis==="kg"?"g":x.basis==="L"?"cl":"piece",source:x.source});msg=x.basis?"":"Confirme l’unité de prix du produit avant de calculer.";render()}
+async function createCatalogIngredient(){
+ if(creating)return;
+ const qty=num(custom.packageQuantity),p=num(custom.packagePrice),product=custom.name.trim();
+ if(product.length<2||!Number.isFinite(qty)||qty<=0||!Number.isFinite(p)||p<0){
+  msg="Renseigne un nom, un prix d'achat HT et une quantité totale de conditionnement supérieure à zéro.";render();return;
+ }
+ const duplicate=catalog.find(x=>x.name.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase()===product.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase());
+ if(duplicate){msg="Ce produit existe déjà. Utilise la recherche dans le catalogue pour l'ajouter à la recette.";render();return}
+ creating=true;msg="Enregistrement du produit dans le catalogue privé…";render();
+ try{
+  const user=window.netlifyIdentity?.currentUser?.();if(!user)throw Error("Connexion Prism requise");
+  const response=await fetch("/.netlify/functions/purchases",{
+   method:"PATCH",headers:{"Authorization":"Bearer "+await user.jwt(),"Content-Type":"application/json"},
+   body:JSON.stringify({establishment:"LOCEAN",action:"create-from-recipe",product:{name:product,category:custom.category,packagePrice:p,packageQuantity:qty,packageUnit:custom.packageUnit}}),
+   cache:"no-store"
+  });
+  let result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||"Enregistrement impossible");
+  const x=result.product;
+  const fresh={id:x.id,name:x.name,price:Number(x.price),unit:x.unit,basis:basis(x.unit),source:"catalogue"};
+  catalog.push(fresh);
+  custom={name:"",packagePrice:"",packageQuantity:"",packageUnit:"kg",category:"Cuisine"};
+  window.dispatchEvent(new Event("prism-catalog-updated"));
+  add(fresh);
+  msg="Produit enregistré dans le catalogue central et ajouté à la recette.";
+ }catch(err){msg="Produit non enregistré : "+(err.message||"Erreur inconnue");}
+ finally{creating=false;render()}
+}
 function drawSummary(){
  let p=document.getElementById("rc-summary");if(!p)return;p.replaceChildren();make(p,"h3","Simulation en direct");
  let cost=total(),selling=num(price),ok=lines.length>0&&Number.isFinite(cost)&&valid(selling)&&selling>0;
@@ -40,11 +67,17 @@ function render(){
  let ingest=make(main,"section");ingest.className="rc-panel";make(ingest,"h3","2. Ajouter les ingrédients");
  input(ingest,"Chercher dans les produits existants",search,x=>{search=x;renderCatalog()});
  let results=make(ingest,"div");results.id="rc-results";renderCatalog();
- let custom=make(ingest,"details");let summary=make(custom,"summary","+ Ingrédient non référencé");let customBox=make(custom,"div");let c={name:"",price:"",basis:"kg"};
- input(customBox,"Nom de l’ingrédient","",x=>c.name=x);
- input(customBox,"Coût d’achat HT par unité (€)","",x=>c.price=x,"number");
- pick(customBox,"Unité du prix","kg",[["kg","€/kg"],["L","€/L"],["piece","€/pièce"]],x=>c.basis=x);
- button(customBox,"Ajouter l’ingrédient",()=>{if(!c.name.trim()||!valid(num(c.price))){msg="Renseigne le produit et son coût HT.";render();return}add({name:c.name.trim(),price:num(c.price),basis:c.basis,source:"manuel"})});
+ let customArea=make(ingest,"details");customArea.open=!!custom.name;make(customArea,"summary","+ Créer un produit dans le catalogue achats");
+ let customBox=make(customArea,"div");
+ input(customBox,"Nom du produit",custom.name,x=>custom.name=x);
+ pick(customBox,"Famille",custom.category,[["Cuisine","Cuisine"],["Bar","Bar"]],x=>custom.category=x);
+ input(customBox,"Prix d'achat HT du conditionnement (€)",custom.packagePrice,x=>custom.packagePrice=x,"number");
+ input(customBox,"Quantité totale dans le conditionnement",custom.packageQuantity,x=>custom.packageQuantity=x,"number");
+ pick(customBox,"Unité totale du conditionnement",custom.packageUnit,[["kg","kg"],["L","litres"],["pièce","pièces"]],x=>custom.packageUnit=x);
+ let hint=make(customBox,"p","Exemple : carton de 6 bouteilles d'1 L à 12 € HT → quantité totale 6, unité litres, prix du carton 12 €. Le produit est enregistré à 2 €/L.");
+ hint.className="rc-note";
+ let saveBtn=button(customBox,creating?"Enregistrement…":"Enregistrer au catalogue ET ajouter à la recette",createCatalogIngredient);
+ saveBtn.disabled=creating;
  make(ingest,"h3","3. Composition de la recette");
  if(!lines.length)make(ingest,"p","Aucun ingrédient sélectionné.");
  lines.forEach((x,i)=>{
