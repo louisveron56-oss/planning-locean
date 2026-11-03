@@ -92,8 +92,8 @@ async function importFlow(){
    const submit=el("button","Contrôler puis importer","ph-primary");detailHost.appendChild(submit);
    submit.onclick=async()=>{
     submit.disabled=true;try{
-     const mandatory=["supplier","reference","description","date","priceHT"];
-     if(mandatory.some(x=>selects[x].value===""))throw Error("Il manque une colonne obligatoire : fournisseur, référence, désignation, date ou prix HT.");
+     const mandatory=["supplier","description","date","priceHT"];
+     if(mandatory.some(x=>selects[x].value===""))throw Error("Il manque une colonne obligatoire : fournisseur, désignation, date ou prix HT.");
      const mapped=rows.map(r=>Object.fromEntries(Object.keys(fields).map(f=>[f,selects[f].value===""?"":r[Number(selects[f].value)]??""])));
      if(!confirm("Importer "+mapped.length+" lignes dans le stockage privé de PRISM ? Les prix du catalogue et les ratios ne seront pas modifiés.")){submit.disabled=false;return;}
      const run="historique-"+Date.now(),existing=products.length>0;
