@@ -112,8 +112,24 @@
       (d == null ? '.' : ', ' + (d >= 0 ? '+' : '−') + pct(d) + ' sur ' + f.prevLabel.replace(/ \(au \d+\)/, '') + '.') +
       (mat ? (mat.validated ? ' Ratio matière à ' + pct(mat.ratio) + '.' : ' Ratio matière provisoire : factures pas encore toutes dans Pennylane.') : '');
 
-    var seg = el('div', 'pa-seg', null, head); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Période');
-    [['month', cap(MONTHS[+state.sel.slice(5, 7) - 1]) + ' ' + state.sel.slice(0, 4)], ['ytd', 'Cumul ' + state.sel.slice(0, 4)]].forEach(function (o) {
+    var ctrl = el('div', 'pa-controls', null, head);
+    /* Navigation dans le temps : mois précédent / suivant et années disponibles */
+    var nav = el('div', 'pa-nav', null, ctrl);
+    var avail = Object.keys(state.months).filter(function (m) { return m <= state.lastDay.slice(0, 7); }).sort();
+    var at = avail.indexOf(state.sel);
+    var prevB = el('button', 'pa-nav-btn', '‹', nav); prevB.type = 'button'; prevB.setAttribute('aria-label', 'Mois précédent'); prevB.disabled = at <= 0;
+    prevB.onclick = function () { if (at > 0) { state.sel = avail[at - 1]; render(); } };
+    el('span', 'pa-nav-label', cap(MONTHS[+state.sel.slice(5, 7) - 1]) + ' ' + state.sel.slice(0, 4), nav);
+    var nextB = el('button', 'pa-nav-btn', '›', nav); nextB.type = 'button'; nextB.setAttribute('aria-label', 'Mois suivant'); nextB.disabled = at < 0 || at >= avail.length - 1;
+    nextB.onclick = function () { if (at < avail.length - 1) { state.sel = avail[at + 1]; render(); } };
+    var years = el('div', 'pa-years', null, ctrl); years.setAttribute('role', 'group'); years.setAttribute('aria-label', 'Année');
+    var ys = []; avail.forEach(function (m) { var yy = m.slice(0, 4); if (ys.indexOf(yy) < 0 && (avail.filter(function (q) { return q.slice(0, 4) === yy; }).length >= 3)) ys.push(yy); });
+    ys.slice(-4).forEach(function (yy) {
+      var b = el('button', yy === state.sel.slice(0, 4) ? 'is-on' : '', yy, years); b.type = 'button';
+      b.onclick = function () { var inY = avail.filter(function (q) { return q.slice(0, 4) === yy; }); var same = yy + state.sel.slice(4); state.sel = inY.indexOf(same) >= 0 ? same : inY[inY.length - 1]; render(); };
+    });
+    var seg = el('div', 'pa-seg', null, ctrl); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Période');
+    [['month', 'Mois'], ['ytd', 'Cumul ' + state.sel.slice(0, 4)]].forEach(function (o) {
       var b = el('button', state.mode === o[0] ? 'is-on' : '', o[1], seg); b.type = 'button'; b.setAttribute('aria-pressed', state.mode === o[0]);
       b.onclick = function () { state.mode = o[0]; render(); };
     });
@@ -155,16 +171,34 @@
   function yearMonths(y) { var a = []; for (var i = 1; i <= 12; i++) a.push(y + '-' + String(i).padStart(2, '0')); return a; }
   function sparkline() {
     var y = state.sel.slice(0, 4), ms = yearMonths(y).filter(function (m) { return state.months[m] && m <= state.lastDay.slice(0, 7); });
-    var W = 220, H = 64, svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, width: W, height: H, class: 'pa-spark', role: 'img', 'aria-label': 'Évolution du CA HT ' + y });
+    var W = 260, H = 76, svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, width: W, height: H, class: 'pa-spark', role: 'img', 'aria-label': 'Évolution du CA HT ' + y + ' : fais glisser le point pour changer de mois' });
     if (ms.length < 2) return svg;
     var vals = ms.map(function (m) { return state.months[m].ht; }), mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals), sp = (mx - mn) || 1;
-    var pts = vals.map(function (v, i) { return [Math.round(4 + i * (W - 8) / (vals.length - 1)), Math.round(H - 6 - (v - mn) / sp * (H - 14))]; });
+    var pts = vals.map(function (v, i) { return [Math.round(14 + i * (W - 28) / (vals.length - 1)), Math.round(H - 14 - (v - mn) / sp * (H - 28))]; });
     var line = pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0] + ' ' + p[1]; }).join(' ');
     svgEl('path', { d: line + ' L' + pts[pts.length - 1][0] + ' ' + H + ' L' + pts[0][0] + ' ' + H + ' Z', class: 'pa-spark-area' }, svg);
     svgEl('path', { d: line, class: 'pa-spark-line' }, svg);
-    var si = ms.indexOf(state.sel); if (si >= 0) svgEl('circle', { cx: pts[si][0], cy: pts[si][1], r: 4.5, class: 'pa-spark-dot' }, svg);
+    var si = ms.indexOf(state.sel);
+    if (si >= 0) {
+      svgEl('line', { x1: pts[si][0], x2: pts[si][0], y1: 0, y2: H, class: 'pa-spark-cursor' }, svg);
+      svgEl('circle', { cx: pts[si][0], cy: pts[si][1], r: 12, class: 'pa-spark-halo' }, svg);
+      svgEl('circle', { cx: pts[si][0], cy: pts[si][1], r: 6, class: 'pa-spark-dot' }, svg);
+    }
+    /* Glisser le point (souris ou doigt) : le mois et toute la page suivent. */
+    svg.addEventListener('pointerdown', function (e) { drag = { ms: ms, xs: pts.map(function (p) { return p[0]; }), W: W }; e.preventDefault(); scrub(e); });
     return svg;
   }
+  var drag = null;
+  function scrub(e) {
+    if (!drag) return;
+    var svg = document.querySelector('#prismAccueil .pa-spark'); if (!svg) return;
+    var r = svg.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * drag.W, best = 0;
+    for (var i = 1; i < drag.xs.length; i++) if (Math.abs(drag.xs[i] - x) < Math.abs(drag.xs[best] - x)) best = i;
+    if (drag.ms[best] !== state.sel) { state.sel = drag.ms[best]; render(); }
+  }
+  window.addEventListener('pointermove', function (e) { if (drag) { e.preventDefault(); scrub(e); } }, { passive: false });
+  window.addEventListener('pointerup', function () { drag = null; });
+  window.addEventListener('pointercancel', function () { drag = null; });
   function monthChart() {
     var y = state.sel.slice(0, 4), card = el('div', 'pa-card pa-chart');
     var h = el('div', 'pa-card-head', null, card);

@@ -20,7 +20,7 @@
   syncDarkLink();
 
   var brand = document.createElement('link');
-  brand.rel = 'stylesheet'; brand.href = './prism-refonte.css?v=5'; brand.id = 'prism-refonte-css';
+  brand.rel = 'stylesheet'; brand.href = './prism-refonte.css?v=6'; brand.id = 'prism-refonte-css';
   var mapped = document.createElement('style');
   mapped.id = 'prism-refonte-map';
 
@@ -409,6 +409,17 @@
     toggle.setAttribute('aria-pressed', dark ? 'true' : 'false');
     toggle.title = dark ? 'Passer en mode clair' : 'Passer en mode sombre';
   }
+  function mountDrawerToggle() {
+    var drawer = document.querySelector('#oceMobileMenu');
+    if (!drawer || document.getElementById('prism-theme-toggle-drawer')) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.id = 'prism-theme-toggle-drawer'; b.className = 'prism-theme-toggle prism-theme-toggle-drawer';
+    b.addEventListener('click', function () { apply(theme === 'dark' ? 'light' : 'dark'); });
+    drawer.appendChild(b);
+    var upd = updateToggle;
+    updateToggle = function () { upd(); b.innerHTML = (theme === 'dark' ? ICON_SUN : ICON_MOON) + '<span>' + (theme === 'dark' ? 'Mode clair' : 'Mode sombre') + '</span>'; };
+    updateToggle();
+  }
   function mountToggle() {
     if (document.getElementById('prism-theme-toggle')) return;
     toggle = document.createElement('button');
@@ -490,7 +501,7 @@
 
   function start() {
     mountToggle(); setMeta(); mountSiteSwitch(); fixHeader();
-    if (!document.getElementById('prism-accueil-js')) { var sa = document.createElement('script'); sa.id = 'prism-accueil-js'; sa.src = './prism-accueil.js?v=1'; document.body.appendChild(sa); }
+    if (!document.getElementById('prism-accueil-js')) { var sa = document.createElement('script'); sa.id = 'prism-accueil-js'; sa.src = './prism-accueil.js?v=3'; document.body.appendChild(sa); }
     var hdr = document.querySelector('body>.header');
     if (hdr) new MutationObserver(scheduleHeader).observe(hdr, { attributes: true, subtree: true, attributeFilter: ['style', 'class'] });
     if (typeof window.navigateApp === 'function' && !window.navigateApp.__prism) {
@@ -498,7 +509,8 @@
       window.navigateApp = function () { var r = nav.apply(this, arguments); scheduleHeader(); return r; };
       window.navigateApp.__prism = true;
     }
-    window.addEventListener('load', function () { mountSiteSwitch(); scheduleHeader(); });
+    window.addEventListener('load', function () { mountSiteSwitch(); scheduleHeader(); mountDrawerToggle(); });
+    mountDrawerToggle(); setTimeout(mountDrawerToggle, 1500);
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'fill', 'stroke'], characterData: true });
     pendingSheets = true; pendingNodes.push(document.body); flush();
     window.addEventListener('load', function () { pendingSheets = true; schedule(); });
