@@ -55,9 +55,31 @@ function drawSummary(){
  slider.oninput=()=>{price=slider.value;let inp=document.getElementById("rc-sell");if(inp)inp.value=price;drawSummary()};
  if(!ok){let w=make(p,"p","Confirme les unités et les montants des ingrédients pour obtenir une marge.");w.className="rc-warn"}
 }
+async function importCocoFile(file){
+ if(!file)return;
+ msg="Vérification du fichier COCO…";render();
+ try{
+  const document=JSON.parse(await file.text());
+  if(document?.schema!=="prism-coco-reference-v1"||!Array.isArray(document.ingredients)||!Array.isArray(document.recipePrices))throw Error("Le fichier sélectionné n’est pas l’export COCO préparé pour Prism.");
+  const candidates=document.ingredients.filter(x=>x.status==="candidate").length,review=document.ingredients.length-candidates;
+  if(!confirm("Importer "+candidates+" références candidates du classeur COCO comme tarifs indicatifs dans le catalogue achats L’Océan ? Les "+review+" lignes à vérifier seront conservées séparément. Les prix actuels ne seront pas remplacés.")){msg="Import annulé.";render();return}
+  const user=window.netlifyIdentity?.currentUser?.();if(!user)throw Error("Connexion Prism requise");
+  const response=await fetch("/.netlify/functions/purchases",{method:"PATCH",
+   headers:{Authorization:"Bearer "+await user.jwt(),"Content-Type":"application/json"},
+   body:JSON.stringify({establishment:"LOCEAN",action:"import-coco-reference",document}),cache:"no-store"});
+  const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||"Import refusé");
+  msg="COCO importé : "+result.created+" nouveaux produits, "+result.existing+" déjà présents, "+result.review+" à confirmer ; "+result.recipes+" fiches recettes enregistrées comme références. Aucun prix existant écrasé.";
+  window.dispatchEvent(new Event("prism-catalog-updated"));
+  await loadCatalog(true);
+ }catch(err){msg="Import COCO non terminé : "+(err.message||"Erreur");render()}
+}
 function render(){
  let root=document.getElementById(id);if(!root)return;root.replaceChildren();
  let top=make(root,"div");top.className="rc-header";make(top,"h2","Simulateur de recette");button(top,"+ Nouvelle recette",newDraft);
+ let importBox=make(root,"details");importBox.className="rc-panel";
+ make(importBox,"summary","Importer les tarifs et fiches techniques COCO");
+ make(importBox,"p","Importer le fichier JSON préparé depuis « COUTS DE REVIENTS.xlsx ». Seuls les produits vérifiables sont ajoutés au catalogue. Les tarifs COCO sont indicatifs, sans écraser les prix déjà en base.");
+ let importInput=make(importBox,"input");importInput.type="file";importInput.accept=".json,application/json";importInput.onchange=()=>importCocoFile(importInput.files?.[0]);
  let note=make(root,"p",msg||"Simulation basée sur les prix HT des achats. Les conditionnements ambigus nécessitent une confirmation.");note.className="rc-note";
  let layout=make(root,"div");layout.className="rc-layout";let main=make(layout,"div");let detail=make(main,"section");detail.className="rc-panel";
  make(detail,"h3","1. Recette et prix de vente");
@@ -102,12 +124,12 @@ function renderCatalog(){let host=document.getElementById("rc-results");if(!host
  button(row,"Ajouter",()=>{let p=list.find(p=>String(p.id)===sel.value);if(p)add(p)});
 }
 function eur(v){return euro.format(Number(v))}
-async function loadCatalog(){
+async function loadCatalog(keepMessage){
  try{let u=window.netlifyIdentity&&window.netlifyIdentity.currentUser();if(!u)throw Error("Connexion requise");
  let res=await fetch("/.netlify/functions/purchases",{headers:{Authorization:"Bearer "+await u.jwt()},cache:"no-store"});
  let d=await res.json();if(!res.ok)throw Error(d.error||"Catalogue indisponible");
  catalog=(d.products||[]).filter(p=>p.name&&!p.archivedAt&&Number.isFinite(Number(p.price))).map(p=>({id:p.id,name:p.name,price:Number(p.price),unit:p.unit,basis:basis(p.unit),source:"catalogue"}));
- msg=catalog.length?catalog.length+" produits disponibles depuis les achats.":"Catalogue achats vide.";
+ if(!keepMessage)msg=catalog.length?catalog.length+" produits disponibles depuis les achats.":"Catalogue achats vide.";
  }catch(e){msg="Catalogue achats : "+e.message}
  render();
 }
