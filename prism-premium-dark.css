@@ -114,3 +114,173 @@ html,body{background:#fff!important;color:#111!important}.app-sidebar{display:no
 :is(.prism-overview-card:first-child .prism-overview-card-value,.sales-card:first-child .sales-card-value){font-size:clamp(40px,12vw,56px)!important}
 :is(.module-placeholder,.future-panel,.me-kpi,.sales-card,.prism-overview-card,.pointage-summary-card,.rc-panel){padding:16px!important}
 }
+
+/* PRISM refinements v2 — authoritative page surface and recipe layout */
+body.app-nav-ready>.module-page,
+body.app-nav-ready>.module-page.open,
+body.app-nav-ready>#planningPage,
+body.app-nav-ready>#teamPage,
+.module-page,
+.module-page.open,
+.main,
+#planningPage,
+#teamPage{
+  background:var(--prism-bg)!important;
+  color:var(--prism-text)!important
+}
+.module-page{padding:40px clamp(20px,3.5vw,54px) 72px!important}
+.module-shell{max-width:1440px!important}
+.module-title{margin-top:8px!important;font-size:clamp(34px,3.2vw,48px)!important;line-height:1.08!important}
+.module-lead{margin-top:12px!important;font-size:13px!important;line-height:1.6!important}
+.module-kicker{color:var(--prism-muted)!important;font-size:10px!important;font-weight:600!important}
+.header{background:var(--prism-bg)!important;border-bottom:1px solid var(--prism-border)!important}
+.auth-gate,.app-sidebar{background:var(--prism-inset)!important}
+:is(.table-card,.table-scroll,.pt-history-card,.purchases-results,.purchases-stats,.pd-list,.inventory-results,.prism-overview-info,.prism-overview-source){
+  background:var(--prism-card)!important;color:var(--prism-text)!important;border-color:var(--prism-border)!important
+}
+:is(.table-card,.pt-history-card,.prism-overview-info,.purchases-stats){border-radius:var(--prism-radius)!important}
+table:not(.p1t){background:var(--prism-card);color:var(--prism-text)}
+table:not(.p1t) :is(th,td){color:var(--prism-text);background:transparent}
+table:not(.p1t) th{color:var(--prism-secondary)!important;border-bottom:1px solid var(--prism-border)}
+table:not(.p1t) td{border-bottom:1px solid var(--prism-border)}
+table:not(.p1t) tr{border-color:var(--prism-border)}
+table:not(.p1t) tbody tr:hover{background:var(--prism-inset)!important}
+:is(.module-chip,.data-source-pill){color:var(--prism-secondary)!important}
+#module-menu>.module-shell{max-width:1400px!important}
+#prismRecipeSimulator{margin-top:32px;color:var(--prism-text)!important;font-size:13px!important}
+#prismRecipeSimulator>.rc-header{
+  margin-bottom:22px!important;display:flex;align-items:center;justify-content:space-between;gap:16px
+}
+#prismRecipeSimulator>.rc-header h2{font-size:clamp(21px,2.4vw,28px)!important;line-height:1.2!important}
+#prismRecipeSimulator>.rc-header>.rc-btn{
+  background:var(--prism-accent)!important;color:var(--prism-bg)!important;
+  border-color:var(--prism-accent)!important;padding:13px 18px!important;font-weight:600!important
+}
+#prismRecipeSimulator>.rc-panel{
+  border:1px solid var(--prism-border)!important;background:var(--prism-inset)!important;
+  border-radius:16px!important;margin-bottom:16px!important;padding:0!important
+}
+#prismRecipeSimulator>.rc-panel>summary{
+  padding:18px 22px!important;cursor:pointer!important;color:var(--prism-secondary)!important;
+  font-weight:500!important;font-size:12px!important;list-style-position:inside
+}
+#prismRecipeSimulator>.rc-panel[open]{padding-bottom:20px!important}
+#prismRecipeSimulator>.rc-panel>p{margin:12px 22px!important;max-width:750px;color:var(--prism-secondary)!important;line-height:1.6}
+#prismRecipeSimulator>.rc-panel>input[type=file]{margin:4px 22px!important;max-width:calc(100% - 44px);width:calc(100% - 44px)}
+#prismRecipeSimulator>.rc-note{
+  color:var(--prism-secondary)!important;font-size:12px!important;line-height:1.6!important;
+  margin:12px 0 20px!important
+}
+#prismRecipeSimulator>.rc-layout{
+  display:grid!important;grid-template-columns:minmax(0,1fr) minmax(280px,340px)!important;
+  gap:20px!important;align-items:start!important
+}
+#prismRecipeSimulator>.rc-layout>div:first-child{min-width:0!important}
+#prismRecipeSimulator .rc-panel{
+  background:var(--prism-card)!important;border:1px solid var(--prism-border)!important;
+  border-radius:20px!important;padding:24px!important;margin-bottom:18px!important;
+  color:var(--prism-text)!important;box-shadow:none!important
+}
+#prismRecipeSimulator .rc-panel>h3{
+  color:var(--prism-text)!important;font-size:16px!important;
+  margin:0 0 20px!important;letter-spacing:-.015em!important;font-weight:600!important
+}
+#prismRecipeSimulator .rc-panel>label{
+  margin:0 0 18px 0!important;min-width:0!important;
+  width:100%!important;max-width:100%!important;display:flex!important;flex-direction:column!important;
+  gap:9px!important;color:var(--prism-secondary)!important;font-size:12px!important;
+  font-weight:500!important
+}
+#prismRecipeSimulator .rc-panel label span{color:var(--prism-secondary)!important}
+#prismRecipeSimulator .rc-panel input:not([type=range]):not([type=file]),
+#prismRecipeSimulator .rc-panel select{
+  display:block!important;min-height:46px!important;width:100%!important;
+  padding:12px 14px!important;background:var(--prism-inset)!important;
+  color:var(--prism-text)!important;font-size:13px!important;border:1px solid var(--prism-border)!important;
+  border-radius:12px!important;outline:none!important;margin:0!important
+}
+#prismRecipeSimulator .rc-panel input:focus,
+#prismRecipeSimulator .rc-panel select:focus{border-color:var(--prism-secondary)!important}
+#prismRecipeSimulator .rc-layout>div:first-child>.rc-panel:first-child{
+  display:grid!important;grid-template-columns:minmax(0,1.5fr) minmax(135px,.7fr) minmax(115px,.6fr)!important;
+  gap:12px 18px!important
+}
+#prismRecipeSimulator .rc-layout>div:first-child>.rc-panel:first-child>h3{grid-column:1/-1!important}
+#prismRecipeSimulator .rc-layout>div:first-child>.rc-panel:first-child>label{margin:0!important}
+#prismRecipeSimulator #rc-results{
+  margin:0 0 20px!important;padding:0!important;
+  color:var(--prism-secondary)!important
+}
+#prismRecipeSimulator #rc-results .rc-header{display:grid!important;grid-template-columns:minmax(0,1fr) 110px!important;gap:10px!important;align-items:end!important}
+#prismRecipeSimulator #rc-results select{min-width:0!important}
+#prismRecipeSimulator .rc-btn{
+  background:var(--prism-inset)!important;border:1px solid var(--prism-border)!important;
+  color:var(--prism-text)!important;border-radius:12px!important;font-size:12px!important;
+  font-weight:500!important;padding:12px 16px!important;margin:0!important;min-height:44px!important;
+  white-space:normal!important;line-height:1.25!important
+}
+#prismRecipeSimulator .rc-btn:hover{background:#20242F!important;border-color:#353B4A!important}
+#prismRecipeSimulator .rc-layout>div:first-child>.rc-btn{
+  background:var(--prism-accent)!important;color:var(--prism-bg)!important;
+  border-color:var(--prism-accent)!important;font-weight:600!important;margin:0 0 18px!important
+}
+#prismRecipeSimulator .rc-panel details{
+  border-top:1px solid var(--prism-border)!important;border-bottom:1px solid var(--prism-border)!important;
+  padding:14px 0!important;margin:14px 0 26px!important
+}
+#prismRecipeSimulator .rc-panel details>summary{
+  padding:6px 0!important;cursor:pointer!important;color:var(--prism-secondary)!important;
+  font-weight:500!important;font-size:12px!important
+}
+#prismRecipeSimulator .rc-panel details[open]>summary{color:var(--prism-text)!important;margin-bottom:14px!important}
+#prismRecipeSimulator .rc-panel details>div{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important}
+#prismRecipeSimulator .rc-panel details>div>p,#prismRecipeSimulator .rc-panel details>div>.rc-btn{grid-column:1/-1!important}
+#prismRecipeSimulator .rc-panel details label{
+  display:flex!important;flex-direction:column!important;gap:8px!important;
+  margin:0!important;min-width:0!important;color:var(--prism-secondary)!important;font-size:11px!important
+}
+#prismRecipeSimulator .rc-line{
+  background:var(--prism-inset)!important;padding:18px!important;margin:12px 0!important;
+  border:1px solid var(--prism-border)!important;border-radius:14px!important;
+  display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:12px!important;
+}
+#prismRecipeSimulator .rc-line>.rc-header{grid-column:1/-1!important}
+#prismRecipeSimulator .rc-line>label{margin:0!important;min-width:0!important}
+#prismRecipeSimulator .rc-line>.rc-cost{grid-column:1/-1!important;color:var(--prism-text)!important}
+#prismRecipeSimulator .rc-line .rc-btn{min-height:34px!important;padding:7px 11px!important}
+#prismRecipeSimulator #rc-summary{
+  background:var(--prism-card)!important;border:1px solid var(--prism-border)!important;
+  padding:28px!important;position:sticky!important;top:24px!important
+}
+#prismRecipeSimulator #rc-summary h3{font-size:18px!important;margin-bottom:24px!important}
+#prismRecipeSimulator .rc-stat{
+  display:flex!important;justify-content:space-between!important;gap:18px!important;
+  align-items:baseline!important;padding:15px 0!important;
+  border-bottom:1px solid var(--prism-border)!important
+}
+#prismRecipeSimulator .rc-stat span{color:var(--prism-secondary)!important;font-size:11px!important;line-height:1.4!important}
+#prismRecipeSimulator .rc-stat strong{
+  font-family:var(--prism-heading)!important;color:var(--prism-text)!important;
+  font-size:17px!important;letter-spacing:-.02em!important;text-align:right!important
+}
+#prismRecipeSimulator .rc-stat:first-of-type strong{font-size:clamp(26px,2.5vw,38px)!important}
+#prismRecipeSimulator #rc-summary>p{font-size:12px!important;color:var(--prism-secondary)!important;margin:22px 0 14px!important;line-height:1.5!important}
+#prismRecipeSimulator #rc-summary .rc-warn{color:var(--prism-down)!important;font-size:11px!important}
+#prismRecipeSimulator #rc-summary input[type=range]{display:block;width:100%!important;accent-color:var(--prism-accent)!important;margin:12px 0 0!important}
+#prismRecipeSimulator #rc-coco-recipes>details{padding:14px 0!important;border-top:1px solid var(--prism-border)!important;margin:0!important}
+#prismRecipeSimulator #rc-coco-recipes>details>summary{cursor:pointer;color:var(--prism-text)}
+#prismRecipeSimulator #rc-coco-recipes>details>p{padding:6px 0;color:var(--prism-secondary)!important}
+#prismRecipeSimulator .rc-header strong{color:var(--prism-text)!important}
+@media(max-width:1100px){
+ #prismRecipeSimulator>.rc-layout{grid-template-columns:minmax(0,1fr)!important}
+ #prismRecipeSimulator #rc-summary{position:static!important}
+}
+@media(max-width:650px){
+ .module-page{padding:22px 16px 50px!important}
+ #prismRecipeSimulator .rc-panel{padding:18px!important}
+ #prismRecipeSimulator .rc-layout>div:first-child>.rc-panel:first-child{grid-template-columns:1fr!important}
+ #prismRecipeSimulator .rc-layout>div:first-child>.rc-panel:first-child>h3{grid-column:auto!important}
+ #prismRecipeSimulator .rc-line{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ #prismRecipeSimulator .rc-panel details>div{grid-template-columns:1fr!important}
+ #prismRecipeSimulator #rc-results .rc-header{grid-template-columns:1fr!important}
+}
