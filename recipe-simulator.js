@@ -73,6 +73,23 @@ async function importCocoFile(file){
   await loadCatalog(true);
  }catch(err){msg="Import COCO non terminé : "+(err.message||"Erreur");render()}
 }
+async function loadCocoRecipes(){
+ try{
+  const user=window.netlifyIdentity?.currentUser?.();if(!user)throw Error("Connexion Prism requise");
+  const r=await fetch("/.netlify/functions/purchases?coco=1",{headers:{Authorization:"Bearer "+await user.jwt()},cache:"no-store"});
+  const d=await r.json();if(!r.ok)throw Error(d.error||"Référentiel COCO indisponible");
+  if(!d.ready){msg="Aucune recette COCO importée. Importe d’abord le fichier JSON ci-dessus.";render();return}
+  const ref=d.reference||{},host=document.getElementById("rc-coco-recipes");if(!host)return;
+  host.replaceChildren();
+  make(host,"p",(ref.recipePrices||[]).length+" recettes de référence COCO · tarifs provenant du classeur (à vérifier).");
+  (ref.recipePrices||[]).forEach(item=>{
+   const row=make(host,"details");row.className="rc-line";
+   make(row,"summary",item.recipe+" · coût matière de référence "+eur(item.foodCostHT)+" HT · prix indiqué "+eur(item.sellingPriceTTC)+" TTC");
+   const lines=(ref.recipeLines||[]).filter(l=>l.recipe===item.recipe);
+   lines.forEach(l=>make(row,"p",l.ingredient+" — "+l.quantity+" "+(l.unit||"unité")+" · "+eur(l.lineCost||0)+" HT"));
+  });
+ }catch(err){msg="Lecture des recettes COCO : "+err.message;render()}
+}
 function render(){
  let root=document.getElementById(id);if(!root)return;root.replaceChildren();
  let top=make(root,"div");top.className="rc-header";make(top,"h2","Simulateur de recette");button(top,"+ Nouvelle recette",newDraft);
@@ -111,6 +128,9 @@ function render(){
   let amount=make(card,"div");amount.id="rc-line-"+i;amount.className="rc-cost";amount.textContent=Number.isFinite(calc(x))?euro.format(calc(x)):"Unité à corriger";
  });
  button(main,savedId?"Mettre à jour le brouillon":"Enregistrer le brouillon",saveDraft);
+ let imported=make(main,"section");imported.className="rc-panel";make(imported,"h3","Recettes COCO importées · référence");
+ button(imported,"Afficher les recettes COCO enregistrées",loadCocoRecipes);
+ let importResults=make(imported,"div");importResults.id="rc-coco-recipes";
  let existing=make(main,"section");existing.className="rc-panel";make(existing,"h3","Brouillons de cet appareil");
  drafts.forEach(x=>{let row=make(existing,"div");row.className="rc-header";make(row,"span",x.name);button(row,"Ouvrir",()=>{savedId=x.id;name=x.name;price=x.price;vat=x.vat;lines=JSON.parse(JSON.stringify(x.lines));render()});button(row,"Supprimer",()=>{if(confirm("Supprimer ce brouillon ?")){drafts=drafts.filter(z=>z.id!==x.id);store();if(savedId===x.id)newDraft();else render()}})});
  let side=make(layout,"aside");side.id="rc-summary";side.className="rc-panel rc-side";drawSummary();
