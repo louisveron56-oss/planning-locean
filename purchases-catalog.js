@@ -66,6 +66,11 @@ function fromCSV(text){
 function showError(err){var status=root&&root.querySelector('.purchases-state');if(status)status.textContent=err.message||String(err);}
 
 function validHistory(p){return (p.priceHistory||[]).filter(h=>!h.invalidatedAt&&Number.isFinite(Number(h.price))).sort((a,b)=>String(a.at).localeCompare(String(b.at)));}
+function packagingLabel(p){
+ var pack=p&&p.packaging;
+ if(!pack||!Number.isFinite(Number(pack.quantity))||!Number.isFinite(Number(pack.purchasePrice)))return p.unit||'Non précisé';
+ return String(pack.quantity)+' '+String(pack.unit||p.unit)+' pour '+euro.format(Number(pack.purchasePrice))+' HT · prix unitaire '+euro.format(p.price)+' / '+String(p.unit||pack.unit);
+}
 function priceChange(p){
  var entries=validHistory(p).filter(h=>normalize(h.unit)===normalize(p.unit));
  if(entries.length<2)return null;
@@ -144,7 +149,7 @@ function openProduct(id,editFirst){
  function history(){
   content.replaceChildren();
   var summary=append(content,'div','purchases-detail-summary');
-  [['Prix HT courant',euro.format(product.price)],['Conditionnement',product.unit||'Non précisé'],['Évolution',badge(product).textContent]].forEach(([label,value])=>{var card=append(summary,'div','purchases-detail-stat');append(card,'small','',label);append(card,'strong','',value);});
+  [['Prix HT courant',euro.format(product.price)],['Conditionnement',packagingLabel(product)],['Évolution',badge(product).textContent]].forEach(([label,value])=>{var card=append(summary,'div','purchases-detail-stat');append(card,'small','',label);append(card,'strong','',value);});
   var heading=append(content,'div','purchases-history-heading');append(heading,'h4','','Historique tarifaire');
   var period=append(heading,'select','purchases-detail-select');
   [['month','1 mois'],['year','1 an'],['all','Tout l’historique']].forEach(([id,text])=>{var opt=append(period,'option','',text);opt.value=id;});
@@ -218,14 +223,14 @@ function renderTable(){
   var row=append(tbody,'tr');var nameCell=append(row,'td','purchases-name');var productLink=append(nameCell,'button','purchases-product-link',p.name);productLink.type='button';productLink.onclick=()=>openProduct(p.id,false);append(row,'td','',p.subcategory||'À classer');
   append(row,'td','purchases-price',euro.format(p.price));
   var diff=append(row,'td','');diff.appendChild(badge(p));
-  append(row,'td','',p.unit||'Non précisée');var editCell=append(row,'td','');var editAction=append(editCell,'button','purchases-edit-trigger','Modifier');editAction.type='button';editAction.onclick=()=>openProduct(p.id,true);
+  append(row,'td','',packagingLabel(p));var editCell=append(row,'td','');var editAction=append(editCell,'button','purchases-edit-trigger','Modifier');editAction.type='button';editAction.onclick=()=>openProduct(p.id,true);
   var tile=append(mobileCards,'article','purchases-mobile-item');
   var top=append(tile,'div','purchases-mobile-top');
   var mobileLink=append(top,'button','purchases-product-link purchases-mobile-name',p.name);mobileLink.type='button';mobileLink.onclick=()=>openProduct(p.id,false);
   append(top,'span','purchases-mobile-category',p.subcategory||'À classer');
   var cells=append(tile,'div','purchases-mobile-fields');
   var cost=append(cells,'div','purchases-mobile-field');append(cost,'small','','Prix d’achat HT');append(cost,'b','',euro.format(p.price));
-  var units=append(cells,'div','purchases-mobile-field');append(units,'small','','Conditionnement');append(units,'span','',p.unit||'Non précisée');
+  var units=append(cells,'div','purchases-mobile-field');append(units,'small','','Conditionnement');append(units,'span','',packagingLabel(p));
   var foot=append(tile,'div','purchases-mobile-source');foot.appendChild(badge(p));var editMobile=append(foot,'button','purchases-edit-trigger','Modifier');editMobile.type='button';editMobile.onclick=()=>openProduct(p.id,true);
  });
  if(!matches.length)append(host,'p','purchases-empty','Aucune référence trouvée.');
