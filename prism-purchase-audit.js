@@ -48,7 +48,7 @@ function draw(){
  const note=node("p","Une explication n’est jamais appliquée automatiquement à tous les achats. La validation des corrections reste une étape distincte.");note.style.cssText="font-size:12px;color:#697586";host.appendChild(note);
 }
 function init(){
- const host=document.getElementById("module-suppliers")||document.body;
+ const host=document.querySelector("#module-purchase-invoices .module-shell")||document.body;
  if(document.getElementById("prism-purchase-audit-open"))return;
  const b=node("button","Audit des factures · vocal");b.id="prism-purchase-audit-open";b.type="button";
  b.style.cssText="margin:10px;padding:10px 14px;border-radius:9px;background:#783f33;color:white;border:0;cursor:pointer";
