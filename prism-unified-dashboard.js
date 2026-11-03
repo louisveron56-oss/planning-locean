@@ -53,12 +53,12 @@ function summarize(){
   ratioRH:availableRH&&s.ca>0&&!s.invalid?costRH/s.ca*100:NaN,
   ratioMat:availableMat&&s.ca>0&&!s.invalid?costMat/s.ca*100:NaN};
 }
-function card(container,name,value,sub){const el=create(container,"div","prism-overview-card");create(el,"div","prism-overview-card-label",name);create(el,"strong","prism-overview-card-value",value);create(el,"p","prism-overview-card-note",sub);}
+function card(container,name,value,sub){const el=create(container,"div","prism-overview-card");create(el,"div","prism-overview-card-label",name);create(el,"strong","prism-overview-card-value",value);if(sub)create(el,"p","prism-overview-card-note",sub);}
 function button(container,name,fn,selected){const b=create(container,"button","prism-overview-btn"+(selected?" selected":""),name);b.type="button";b.onclick=fn;return b;}
 function render(){
  const host=document.querySelector("#module-dashboard .module-shell");if(!host)return;
  let root=host.querySelector("#prismOverview");if(!root){root=create(host,"section","prism-overview");root.id="prismOverview";const place=host.querySelector("#prismDashboardMount");if(place)place.replaceWith(root);}
- root.replaceChildren();const intro=create(root,"div","prism-overview-title");create(intro,"h3","","Indicateurs de pilotage");create(intro,"span","","L'Océan · CA et charges HT");
+ root.replaceChildren();
  const controls=create(root,"div","prism-overview-controls");["day","month","year"].forEach((x,i)=>button(controls,["Journalier","Mensuel","Annuel"][i],()=>{mode=x;render()},mode===x));
  const nav=create(controls,"div","prism-overview-nav");button(nav,"‹",()=>shift(-1));
  create(nav,"strong","",interval().title);
@@ -68,15 +68,15 @@ function render(){
  if(!sources){create(root,"p","prism-overview-info",loading?"Chargement des ventes, des RH et des achats matières…":error||"Pas encore de données pour cette période.");return;}
  const d=summarize(),grid=create(root,"div","prism-overview-grid");
  const valid=d.s.hasSales&&!d.s.invalid;
- card(grid,"Chiffre d'affaires TTC",valid?money(d.s.ttc):"—","KSD · période sélectionnée");
- card(grid,"Chiffre d'affaires HT",valid?money(d.s.ca):"—","Base commune des ratios");
- card(grid,"Couverts",d.s.hasSales?integer.format(d.s.covers):"—","Somme des couverts renseignés");
- card(grid,"Ticket moyen",d.s.hasSales&&Number.isFinite(d.s.ticket)?money(d.s.ticket):"—","Pondéré par les couverts, données KSD");
+ card(grid,"Chiffre d'affaires TTC",valid?money(d.s.ttc):"—","");
+ card(grid,"Chiffre d'affaires HT",valid?money(d.s.ca):"—","");
+ card(grid,"Couverts",d.s.hasSales?integer.format(d.s.covers):"—","");
+ card(grid,"Ticket moyen",d.s.hasSales&&Number.isFinite(d.s.ticket)?money(d.s.ticket):"—","");
  card(grid,"Ratio RH",percent(d.ratioRH),mode==="day"?"Non disponible au jour · coûts mensuels":d.availableRH?money(d.costRH)+" · brut + patronales":"Période RH incomplète");
  card(grid,"Ratio achats matières",percent(d.ratioMat),mode==="day"?"Non disponible au jour · achats mensuels":d.availableMat?money(d.costMat)+" · hors variation de stocks":"Période achats incomplète");
- const future=create(root,"div","prism-overview-next");create(future,"strong","","Prochaines mesures");create(future,"span","","Marge brute · seuil de rentabilité · prime cost (après rapprochement comptable)");
- if(d.warnings.length){const notes=create(root,"div","prism-overview-warnings");create(notes,"strong","","Contrôles utiles");d.warnings.forEach(w=>create(notes,"p","",w));}
- create(root,"p","prism-overview-source","Sources : KSD / Jours, MySilae / RH_Mensuel, achats / Ratios. Ratios opérationnels non certifiés ; les inventaires et le rapprochement des comptes restent nécessaires.");
+
+ if(d.warnings.length){const notes=create(root,"div","prism-overview-warnings");notes.setAttribute("role","status");d.warnings.forEach(w=>create(notes,"p","",w));}
+
 }
 function init(){
  const css=document.createElement("style");css.textContent=[

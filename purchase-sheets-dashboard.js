@@ -49,7 +49,7 @@ async function mountSuppliers(){
  if(!shell||shell.querySelector('.ps-root'))return;
  shell.querySelector('.module-placeholder')?.remove();
  const root=add(shell,'section','ps-root');
- const toolbar=add(root,'div','ps-toolbar'),reload=button(toolbar,'Actualiser depuis Google Sheets',()=>load(true));
+ const toolbar=add(root,'div','ps-toolbar'),reload=button(toolbar,'Actualiser',()=>load(true));
  const query=add(toolbar,'input','ps-search');query.type='search';query.placeholder='Rechercher un fournisseur';
  const content=add(root,'div','ps-content');
  let rows=[],profiles={},selected=null,selectedIncoming='';
@@ -68,7 +68,7 @@ async function mountSuppliers(){
    const link=add(td,'button','ps-text-link',nameOf(row));link.type='button';link.onclick=()=>detail(row);
    [row.nb_factures,money(row.achats_ht_2024),money(row.achats_ht_2025),money(row.achats_ht_2026),row.derniere_facture||'—'].forEach(v=>add(tr,'td','',String(v??'')));
   });
-  note(content,'Les montants proviennent de l’export Pennylane ; les éventuelles corrections du nom affiché sont conservées dans Prism, sans modifier Google Sheets.');
+
  }
  function detail(row){
   selected=row;content.replaceChildren();
@@ -117,7 +117,7 @@ async function mountPurchases(){
  const root=e('section','ps-root ps-invoices');
  const docUi=shell.querySelector('.pd-root');
  if(docUi)shell.insertBefore(root,docUi);else shell.appendChild(root);
- add(root,'h3','','Historique des achats · Google Sheets');
+ add(root,'h3','','Historique des achats');
  const toolbar=add(root,'div','ps-toolbar');
  const supplierSelect=add(toolbar,'select','ps-search ps-select');
  const search=add(toolbar,'input','ps-search');search.placeholder='N° de facture, catégorie, fournisseur…';search.type='search';
@@ -216,7 +216,7 @@ async function mountProducts(){
   add(summary,'div','','Non rapprochées (indicatif) : '+unmatched.length);
   table(content,['Fournisseur','Référence','Désignation','Famille','Prix actuel HT','Prix initial HT','Évolution'],filtered.slice(0,200).map(x=>[x.fournisseur,x.code,x.designation,x.famille,money(x.prix_actuel_ht),money(x.prix_debut_ht),x.evolution||'—']));
   if(filtered.length>200)note(content,'200 lignes affichées au maximum ; affine les filtres pour retrouver une référence.');
-  note(content,'Le tableur est la source d’import. Le catalogue privé Prism reste la base des inventaires : il est mis à jour seulement après confirmation.');
+
  }
  async function syncCatalog(){
   sync.disabled=true;state.textContent='Analyse des produits et des prix depuis Google Sheets…';
@@ -262,7 +262,9 @@ function initialize(){
  const obs=new MutationObserver(function(){mountIfVisible();});
  obs.observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']});
  function mountIfVisible(){
-  const map=[['module-supplier-directory',mountSuppliers],['module-purchase-invoices',mountPurchases],['module-suppliers',mountProducts]];
+  // Ne plus afficher un deuxième catalogue Pennylane sous la page Produits.
+  // La synchronisation et les sources restent disponibles côté services, sans doublon visuel.
+  const map=[['module-supplier-directory',mountSuppliers],['module-purchase-invoices',mountPurchases]];
   for(const [id,fn] of map){
    const page=document.getElementById(id);
    if(page?.classList.contains('open')&&!page.querySelector('.ps-root'))fn().catch(console.error);
