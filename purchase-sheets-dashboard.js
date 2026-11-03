@@ -262,7 +262,9 @@ function initialize(){
  const obs=new MutationObserver(function(){mountIfVisible();});
  obs.observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']});
  function mountIfVisible(){
-  const map=[['module-supplier-directory',mountSuppliers],['module-purchase-invoices',mountPurchases],['module-suppliers',mountProducts]];
+  // Ne plus afficher un deuxième catalogue Pennylane sous la page Produits.
+  // La synchronisation et les sources restent disponibles côté services, sans doublon visuel.
+  const map=[['module-supplier-directory',mountSuppliers],['module-purchase-invoices',mountPurchases]];
   for(const [id,fn] of map){
    const page=document.getElementById(id);
    if(page?.classList.contains('open')&&!page.querySelector('.ps-root'))fn().catch(console.error);
