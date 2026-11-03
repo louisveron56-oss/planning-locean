@@ -241,13 +241,11 @@ function renderTable(){
 function render(){
  root.replaceChildren();
  var title=append(root,'div','purchases-heading');
- append(title,'h3','','Catalogue des prix d’achat — L’Océan');
+
 
  var trash=append(title,'button','purchases-archive-trigger',showArchived?'← Catalogue actif':'Corbeille des produits');
  trash.type='button';trash.onclick=async function(){showArchived=!showArchived;category='Tous';subcategory='Tous';offset=0;await load();};
- var stats=append(root,'div','purchases-stats');
- ['Bar','Cuisine','Hygiène','À classer'].forEach(function(cat){var box=append(stats,'div','purchases-stat');
- append(box,'small','',cat);append(box,'strong','',ready?String(all.filter(x=>x.category===cat).length):'—');});
+
  var shelf=append(root,'div','purchases-category-shelf');
  ['Tous','Bar','Cuisine','Hygiène','À classer'].forEach(function(cat){
   var card=append(shelf,'button','purchases-category-card'+(category===cat?' active':''));card.type='button';
@@ -268,9 +266,6 @@ function render(){
  var tools=append(root,'div','purchases-tools');
  var search=append(tools,'input','purchases-search');search.type='search';search.placeholder='Rechercher un produit…';search.value=query;search.setAttribute('aria-label','Rechercher une référence');
  search.addEventListener('input',function(){query=this.value;offset=0;renderTable();});
- var filter=append(tools,'select','purchases-filter');
- ['Tous','Bar','Cuisine','Hygiène','À classer'].forEach(function(label){var opt=append(filter,'option','',label);opt.value=label;opt.selected=category===label;});
- filter.addEventListener('change',function(){category=this.value;subcategory='Tous';offset=0;render();});
  var upload=append(root,'div','purchases-upload');
  var row=append(upload,'div','purchases-upload-row');
  var input=append(row,'input','purchases-file');input.type='file';input.accept='.csv,text/csv,text/plain';input.setAttribute('aria-label','Sélectionner le catalogue CSV');input.addEventListener('change',function(){selectedFile=this.files&&this.files[0]||null;importConfirmed=false;var b=root.querySelector('.purchases-primary');if(b)b.textContent=ready?'Remplacer le catalogue privé':'Importer le catalogue privé';var st=root.querySelector('.purchases-state');if(st&&selectedFile)st.textContent='Fichier sélectionné : '+selectedFile.name+' · Cliquer sur Importer.';});
