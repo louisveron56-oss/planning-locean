@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="/prism-ios-icon-v3.png" sizes="180x180">
 <link rel="manifest" href="/manifest.webmanifest?v=3">
 <title>Prism · L’OCÉAN</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@600&family=Cormorant+Garamond:wght@600&display=swap" rel="stylesheet">
 <style>
 :root{--navy:#0A3D62;--gold:#F0A500;--cream:#F0F4F8;--g100:#F2F2F0;--g200:#E4E2DC;--g400:#ADAAA3;--g600:#6B6863;--g900:#1A1917;--r:8px;--rl:12px;--red-50:#FCEBEB;--red-800:#791F1F;--green-50:#EAF3DE;--green-800:#3B6D11;--amber-50:#FAEEDA;--amber-800:#633806;--blue-50:#E6F1FB;--blue-800:#0C447C}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1083,7 +1083,7 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
 @media(max-width:680px){.teamperf-roadmap{padding:13px}.teamperf-memo{padding:11px;gap:10px}.teamperf-memo-top{flex-direction:column;gap:4px}.teamperf-roadmap-count{font-size:9px}}
 </style>
 <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
-<link rel="stylesheet" href="./prism-premium-dark.css?v=2">
+<link rel="stylesheet" href="./prism-premium-dark.css?v=3">
 </head>
 <body class="app-nav-ready auth-locked">
 <div class="auth-gate" id="authGate">
@@ -1191,7 +1191,12 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
     <span class="brand-name">L'OCÉAN</span>
     <span class="brand-sub">— Planning équipe</span>
   </div>
-
+  <div class="prism-establishments no-print" role="group" aria-label="Établissements — seul L'Océan est connecté">
+    <button type="button" aria-pressed="true" title="Données de L'Océan">L'Océan</button>
+    <button type="button" disabled title="À brancher — données non disponibles">L'Escale</button>
+    <button type="button" disabled title="À brancher — données non disponibles">COCO</button>
+    <button type="button" disabled title="À brancher — données non disponibles">Groupe</button>
+  </div>
 </header>
 
 <main class="main" id="planningPage">
