@@ -1,34 +1,41 @@
-/* Prism — refonte visuelle (mode sombre / mode clair).
+/* Prism — DA « Sable & Or » (mode clair par défaut) et mode sombre brun chaud.
    Couche de présentation uniquement : aucun calcul, aucune donnée, aucun appel réseau.
    Pour tout annuler : retirer la ligne <script src="./prism-refonte.js"> de index.html.
 
-   Mode sombre : active prism-premium-dark.css + prism-refonte.css, puis traduit
-   automatiquement vers la palette sombre les couleurs écrites « en dur » par les
-   modules (feuilles de style injectées et attributs style), y compris celles des
-   écrans ajoutés plus tard. Mode clair : désactive tout cela et revient au thème
-   d'origine, poli par prism-refonte.css. L'impression reste toujours en clair. */
+   Les couleurs écrites « en dur » par les modules (feuilles de style injectées et
+   attributs style) sont traduites automatiquement vers la palette du mode choisi,
+   y compris celles des écrans ajoutés plus tard. prism-refonte.css ajoute la couche
+   de marque (menu flottant, typographie, boutons). L'impression reste en couleurs d'origine. */
 (function () {
   'use strict';
-  var KEY = 'prism-theme';
+  var KEY = 'prism-theme-v2';
   var root = document.documentElement;
-  var theme = 'dark';
-  try { theme = localStorage.getItem(KEY) === 'light' ? 'light' : 'dark'; } catch (e) {}
+  var theme = 'light';
+  try { theme = localStorage.getItem(KEY) === 'dark' ? 'dark' : 'light'; } catch (e) {}
   root.setAttribute('data-theme', theme);
 
   /* ---------- Feuilles gérées ---------- */
   function darkLink() { return document.querySelector('link[href*="prism-premium-dark"]'); }
-  function syncDarkLink() { var l = darkLink(); if (l) l.disabled = theme !== 'dark'; }
+  function syncDarkLink() { var l = darkLink(); if (l) l.disabled = true; } // remplacé par cette couche
   syncDarkLink();
 
   var brand = document.createElement('link');
-  brand.rel = 'stylesheet'; brand.href = './prism-refonte.css?v=1'; brand.id = 'prism-refonte-css';
+  brand.rel = 'stylesheet'; brand.href = './prism-refonte.css?v=2'; brand.id = 'prism-refonte-css';
   var mapped = document.createElement('style');
   mapped.id = 'prism-refonte-map';
 
   /* ---------- Couleurs ---------- */
-  var P = {
-    bg: '#0B0D12', inset: '#10131A', card: '#14171F', raised: '#1A1E28', line: '#1F2330', lineStrong: '#2A2F3D',
-    text: '#F2F1EC', text2: '#A3A7B4', text3: '#8A8E9B', accent: '#E3BC72', up: '#7DB8FF', down: '#F0A15A'
+  var PALS = {
+    dark: { bg: '#1D1816', inset: '#221C1A', card: '#272120', raised: '#2E2725', line: '#3A302C', lineStrong: '#4A3E39', mid: '#5A4D47',
+      text: '#F5EEE9', text2: '#C9B9B0', text3: '#A8968C', accent: '#E3BC72', up: '#7FD6A3', down: '#FF9C8A' },
+    light: { bg: '#F5F3EF', panel: '#FFFFFF', panel2: '#FAF8F4', soft: '#F1EEE8', line: '#E5E0D7', lineStrong: '#D4CDBF', track: '#DDD7CC',
+      ink: '#111317', ink2: '#55575E', ink3: '#6B6D73', side: '#111317', sidePill: '#262930', sand: '#F5F3EF', gold: '#B8893B', goldText: '#8A6420' }
+  };
+  var P = PALS[theme];
+  var FAM_LIGHT = {
+    soft: { green: '#E3F3EA', red: '#FBEAE1', brown: '#F4EBDA', amber: '#F4EBDA', blue: '#E6EEF9', violet: '#EEEAF8' },
+    fill: { green: '#1F7A4D', red: '#B4441C', brown: '#B8893B', amber: '#B8893B', blue: '#2F5FA7', violet: '#5B4BB7' },
+    text: { green: '#1F7A4D', red: '#B4441C', brown: '#8A6420', amber: '#8A6420', blue: '#2F5FA7', violet: '#5B4BB7' }
   };
   var NAMED = { white: [255, 255, 255, 1], black: [0, 0, 0, 1], transparent: [0, 0, 0, 0] };
   var COLOR_RE = /#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)|\b(?:white|black)\b/g;
@@ -77,15 +84,56 @@
   /* kind : bg | text | border | fill (SVG) ; ctx : 'chrome' (bandeau, menu) ou 'content' */
   var PALETTE = null;
   function inPalette(c) {
-    if (!PALETTE) PALETTE = Object.keys(P).map(function (k) { return parse(P[k]); }).concat([parse('#F2F1EC'), parse('#0B0D12')]);
+    if (!PALETTE) {
+      PALETTE = Object.keys(P).map(function (k) { return parse(P[k]); });
+      if (P.ink) ['soft', 'fill', 'text'].forEach(function (g) { Object.keys(FAM_LIGHT[g]).forEach(function (f) { PALETTE.push(parse(FAM_LIGHT[g][f])); }); });
+    }
     for (var i = 0; i < PALETTE.length; i++) { var q = PALETTE[i]; if (q[0] === c[0] && q[1] === c[1] && q[2] === c[2]) return true; }
-    return c[0] === 242 && c[1] === 241 && c[2] === 236; // voiles clairs
+    return false;
+  }
+  function mapLight(raw, c, s, kind, ctx) {
+    var a = c[3], fam = hueFamily(s.h), quiet = s.chroma < 0.12 || (fam === 'brown' && s.chroma < 0.32);
+    if (kind === 'bg') {
+      if (a < 0.5) return raw;
+      if (ctx === 'chrome') return s.l < 0.35 ? P.side : P.sidePill;
+      if (quiet) {
+        if (s.l > 0.96) return P.panel;
+        if (s.l > 0.9) return P.panel2;
+        if (s.l > 0.84) return P.soft;
+        if (s.l > 0.6) return P.line;
+        if (s.l > 0.3) return P.ink2;
+        return '@dark';
+      }
+      if (s.l > 0.82) return FAM_LIGHT.soft[fam];
+      if (s.l < 0.3) return '@dark';
+      return FAM_LIGHT.fill[fam];
+    }
+    if (kind === 'border') {
+      if (quiet || a < 0.5) return s.l > 0.75 ? P.line : P.lineStrong;
+      if (s.l > 0.8) return FAM_LIGHT.soft[fam];
+      return FAM_LIGHT.fill[fam];
+    }
+    if (kind === 'fill') {
+      if (quiet) return s.l < 0.35 ? P.ink : (s.l > 0.85 ? P.track : '#8E9096');
+      return FAM_LIGHT.fill[fam];
+    }
+    if (ctx === 'chrome') return raw;
+    if (quiet || s.chroma < 0.16) {
+      if (s.l > 0.9) return raw;
+      if (s.l < 0.45) return P.ink;
+      if (s.l < 0.62) return P.ink2;
+      return P.ink3;
+    }
+    if (s.l > 0.85) return raw;
+    if (s.l < 0.3) return P.ink;                         // bleu marine, brun foncé… : encre
+    return FAM_LIGHT.text[fam];
   }
   function mapColor(raw, kind, ctx) {
     var c = parse(raw);
     if (!c || c[3] === 0) return raw;
     if (inPalette(c)) return raw;
     var s = hsl(c), a = c[3], neutral = s.chroma < 0.12;
+    if (P.ink) return mapLight(raw, c, s, kind, ctx);
     if (kind === 'bg') {
       if (a < 0.5) {
         if (s.l > 0.6) return raw;                       // voile clair : déjà pensé pour un fond sombre
@@ -96,7 +144,7 @@
         if (s.l > 0.93) return P.card;
         if (s.l > 0.84) return P.raised;
         if (s.l > 0.6) return P.lineStrong;
-        if (s.l > 0.3) return '#3A4050';
+        if (s.l > 0.3) return P.mid;
         return '@dark';                                  // fond foncé : décidé avec la couleur du texte
       }
       var fam = hueFamily(s.h);
@@ -121,6 +169,7 @@
       return P.text3;
     }
     if (s.l > 0.85 && a > 0.5) return raw;
+    if (s.l < 0.3) return P.text;
     return semantic(hueFamily(s.h));
   }
 
@@ -168,7 +217,10 @@
       /* Fond foncé dans le contenu : bouton principal ou élément sélectionné.
          Texte clair dans la même règle → pastille inversée (fond clair, texte sombre). */
       var s = hsl(hadDarkBg), fill;
-      if (lightText) {
+      if (P.ink) {
+        fill = P.ink;
+        if (lightText) { out = out.filter(function (d) { return d[0] !== 'color'; }); out.push(['color', P.sand]); }
+      } else if (lightText) {
         fill = s.chroma < 0.12 ? P.text : P.accent;
         out = out.filter(function (d) { return d[0] !== 'color'; });
         out.push(['color', P.bg]);
@@ -274,12 +326,11 @@
   var pendingSheets = false, pendingNodes = [], timer = null, printing = false;
   function keepLast() {
     var head = document.head;
-    if (theme === 'dark') { if (mapped.parentNode !== head || head.lastElementChild !== brand) { head.appendChild(mapped); head.appendChild(brand); } }
-    else if (brand.parentNode !== head || head.lastElementChild !== brand) { if (mapped.parentNode) mapped.remove(); head.appendChild(brand); }
+    if (mapped.parentNode !== head || head.lastElementChild !== brand) { head.appendChild(mapped); head.appendChild(brand); }
   }
   function flush() {
     timer = null;
-    if (theme !== 'dark' || printing) { pendingNodes = []; pendingSheets = false; keepLast(); return; }
+    if (printing) { pendingNodes = []; pendingSheets = false; keepLast(); return; }
     if (pendingSheets) { pendingSheets = false; buildMap(); }
     var nodes = pendingNodes; pendingNodes = [];
     nodes.forEach(scan);
@@ -308,11 +359,15 @@
     root.setAttribute('data-theme', theme);
     try { localStorage.setItem(KEY, theme); } catch (e) {}
     syncDarkLink();
-    if (theme === 'dark') { pendingSheets = true; pendingNodes.push(document.body); flush(); }
-    else { mapped.textContent = ''; unscan(); keepLast(); }
-    var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', theme === 'dark' ? P.bg : '#332823');
+    P = PALS[theme]; PALETTE = null;
+    unscan(); pendingSheets = true; pendingNodes.push(document.body); flush();
+    setMeta();
     updateToggle();
+  }
+
+  function setMeta() {
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', theme === 'dark' ? PALS.dark.bg : PALS.light.bg);
   }
 
   /* ---------- Bouton de bascule ---------- */
@@ -347,11 +402,11 @@
   }
 
   /* L'impression reste dans les couleurs d'origine. */
-  window.addEventListener('beforeprint', function () { if (theme !== 'dark') return; printing = true; unscan(); });
-  window.addEventListener('afterprint', function () { if (!printing) return; printing = false; pendingNodes.push(document.body); flush(); });
+  window.addEventListener('beforeprint', function () { printing = true; unscan(); mapped.disabled = true; brand.disabled = true; });
+  window.addEventListener('afterprint', function () { if (!printing) return; printing = false; mapped.disabled = false; brand.disabled = false; pendingNodes.push(document.body); flush(); });
 
   function start() {
-    mountToggle();
+    mountToggle(); setMeta();
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'fill', 'stroke'], characterData: true });
     pendingSheets = true; pendingNodes.push(document.body); flush();
     window.addEventListener('load', function () { pendingSheets = true; schedule(); });

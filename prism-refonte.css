@@ -1,110 +1,127 @@
-/* Prism — refonte visuelle : couche de marque, chargée en dernier par prism-refonte.js.
-   Présentation uniquement. html[data-theme] vaut "dark" ou "light". */
+/* Prism — DA « Sable & Or » : couche de marque, chargée en dernier par prism-refonte.js.
+   Présentation uniquement. html[data-theme] vaut "light" (Sable & Or) ou "dark" (brun chaud). */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=Cormorant+Garamond:wght@600&display=swap');
 
-/* ===================== Commun aux deux modes ===================== */
-.prism-theme-toggle{
-  display:flex;align-items:center;gap:10px;width:100%;min-height:44px;margin:0 0 10px;padding:0 12px;
-  border-radius:12px;font:500 13px/1.2 'Inter',system-ui,sans-serif;cursor:pointer;text-align:left
+/* ============ Jetons ============ */
+html[data-theme="light"]{
+  --so-bg:#F5F3EF;--so-panel:#FFFFFF;--so-panel2:#FAF8F4;--so-line:#E5E0D7;--so-line2:#D4CDBF;
+  --so-ink:#111317;--so-ink2:#55575E;--so-ink3:#6B6D73;--so-gold:#B8893B;--so-gold-text:#8A6420;--so-gold-soft:#F4EBDA;
+  --so-side:#111317;--so-side-ink:#F5F3EF;--so-side-ink2:#A3A7B4;--so-side-pill:#262930;--so-side-active:#E3BC72;--so-side-line:rgba(255,255,255,.1);
+  --so-btn:#111317;--so-on-btn:#F5F3EF;--so-hero:#111317;--so-on-hero:#F5F3EF;--so-on-hero2:#B9BCC4;
+  --so-shadow:0 12px 32px rgba(17,19,23,.10);
 }
+html[data-theme="dark"]{
+  --so-bg:#1D1816;--so-panel:#272120;--so-panel2:#221C1A;--so-line:#3A302C;--so-line2:#4A3E39;
+  --so-ink:#F5EEE9;--so-ink2:#C9B9B0;--so-ink3:#A8968C;--so-gold:#E3BC72;--so-gold-text:#E3BC72;--so-gold-soft:rgba(227,188,114,.16);
+  --so-side:#0F1012;--so-side-ink:#F5EEE9;--so-side-ink2:#B4B7BF;--so-side-pill:#23262D;--so-side-active:#E3BC72;--so-side-line:rgba(255,255,255,.08);
+  --so-btn:#E3BC72;--so-on-btn:#111317;--so-hero:#352C29;--so-on-hero:#FFF8F3;--so-on-hero2:#D7C4BA;
+  --so-shadow:0 12px 32px rgba(0,0,0,.35);
+}
+
+/* ============ Fond et texte ============ */
+html[data-theme] body{background:var(--so-bg)!important;color:var(--so-ink)}
+html[data-theme] body.app-nav-ready>#planningPage,
+html[data-theme] body.app-nav-ready>#teamPage,
+html[data-theme] body.app-nav-ready>.module-page{background:var(--so-bg)!important}
+
+/* ============ Menu latéral flottant ============ */
+html[data-theme] body #appSidebar{background:var(--so-side)!important;color:var(--so-side-ink)!important;border:0!important}
+@media(min-width:901px){
+  html[data-theme] body #appSidebar{top:14px!important;bottom:14px!important;left:14px!important;height:auto!important;border-radius:26px!important;box-shadow:var(--so-shadow)!important;overflow:hidden}
+  html[data-theme] body.app-nav-ready>.header,
+  html[data-theme] body.app-nav-ready>#planningPage,
+  html[data-theme] body.app-nav-ready>#teamPage,
+  html[data-theme] body.app-nav-ready>.module-page{margin-left:calc(var(--app-sidebar-w) + 28px)!important;width:calc(100% - var(--app-sidebar-w) - 28px)!important}
+}
+html[data-theme] body #appSidebar>.app-sidebar-head{background:transparent!important;border:0!important;justify-content:center!important;gap:14px!important}
+html[data-theme] body #appSidebar .app-sidebar-logo.prism-mark-unframed,
+html[data-theme] body #appSidebar .prism-mark-image{width:58px!important;height:58px!important;flex:0 0 58px!important}
+html[data-theme] body #appSidebar .app-sidebar-brand strong{font-family:Fraunces,Georgia,serif!important;font-weight:600!important;font-size:36px!important;letter-spacing:-.025em!important;line-height:1!important;color:var(--so-side-ink)!important}
+html[data-theme] body #appSidebar .app-sidebar-brand span{display:none!important}
+html[data-theme] body #appSidebar .app-nav-item,
+html[data-theme] body #appSidebar .prism-nav-section>summary{border-radius:999px!important;color:var(--so-side-ink2)!important;background:transparent!important;box-shadow:none!important}
+html[data-theme] body #appSidebar .app-nav-item:hover,
+html[data-theme] body #appSidebar .prism-nav-section>summary:hover{background:rgba(255,255,255,.06)!important;color:var(--so-side-ink)!important}
+html[data-theme] body #appSidebar .prism-nav-section[open]>summary{background:rgba(255,255,255,.04)!important;color:var(--so-side-ink)!important}
+html[data-theme] body #appSidebar .app-nav-item.active{background:var(--so-side-pill)!important;color:var(--so-side-active)!important;font-weight:600!important}
+html[data-theme] body #appSidebar .prism-nav-symbol,
+html[data-theme] body #appSidebar .prism-nav-chevron,
+html[data-theme] body #appSidebar .prism-nav-subheading,
+html[data-theme] body #appSidebar .app-nav-label{color:var(--so-side-ink2)!important}
+html[data-theme] body #appSidebar>.app-sidebar-foot{background:transparent!important;border-top:1px solid var(--so-side-line)!important}
+html[data-theme] body #appSidebar>.app-sidebar-foot .auth-user-email{color:var(--so-side-ink)!important}
+html[data-theme] body #appSidebar>.app-sidebar-foot .auth-logout{border-radius:999px!important;border:1px solid var(--so-side-line)!important;background:transparent!important;color:var(--so-side-ink2)!important}
+html[data-theme] body #appSidebar .app-sidebar-close{color:var(--so-side-ink)!important;border-color:var(--so-side-line)!important}
+
+/* Bouton mode clair / sombre */
+.prism-theme-toggle{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;margin:0 0 10px;padding:0 14px;border-radius:999px;font:500 13px/1.2 Inter,system-ui,sans-serif;cursor:pointer;text-align:left;background:transparent;border:1px solid var(--so-side-line);color:var(--so-side-ink2)}
+.prism-theme-toggle:hover{background:rgba(255,255,255,.06);color:var(--so-side-ink)}
 .prism-theme-toggle svg{flex:0 0 auto}
 .prism-theme-toggle-mobile{display:none}
-@media(max-width:760px){
-  .prism-theme-toggle-mobile{
-    display:flex;align-items:center;justify-content:center;position:absolute;right:14px;top:50%;transform:translateY(-50%);
-    width:44px;height:44px;border-radius:12px;cursor:pointer;z-index:3
-  }
-}
-.prism-establishments{display:flex;gap:4px;padding:4px;border-radius:999px;position:absolute;right:28px;top:50%;transform:translateY(-50%)}
-.prism-establishments button{min-height:36px;padding:0 16px;border-radius:999px;border:0;background:transparent;font:500 13px 'Inter',system-ui,sans-serif;cursor:pointer}
-.prism-establishments button[aria-pressed="true"]{font-weight:600}
-.prism-establishments button:disabled{cursor:not-allowed}
-@media(max-width:1100px){.prism-establishments{display:none!important}}
 
-/* ===================== Mode sombre ===================== */
-html[data-theme="dark"] body{background:#0B0D12!important;color:#F2F1EC}
-
-/* Bandeau et menu : un seul fond, plus de brun */
-html[data-theme="dark"] body .header,
-html[data-theme="dark"] body.app-nav-ready>.header,
-html[data-theme="dark"] body #appSidebar,
-html[data-theme="dark"] body #appSidebar>.app-sidebar-head,
-html[data-theme="dark"] body #appSidebar>.app-sidebar-foot,
-html[data-theme="dark"] body .oce-menu-header{
-  background:#0F1218!important;border-color:#1F2330!important;color:#F2F1EC!important
-}
-html[data-theme="dark"] body.app-nav-ready>.header .brand-name,
-html[data-theme="dark"] body>.header .brand-name{
-  font-family:'Cormorant Garamond',Didot,Georgia,serif!important;font-weight:600!important;
-  letter-spacing:.08em!important;color:#F2F1EC!important
-}
-html[data-theme="dark"] body #appSidebar .app-sidebar-brand strong{color:#F2F1EC!important}
-html[data-theme="dark"] body #appSidebar .app-sidebar-brand span{color:#8A8E9B!important}
-html[data-theme="dark"] body #appSidebar .prism-nav-section>summary{color:#A3A7B4!important}
-html[data-theme="dark"] body #appSidebar .prism-nav-section>summary:hover,
-html[data-theme="dark"] body #appSidebar .prism-nav-section[open]>summary{background:#1A1E28!important;color:#F2F1EC!important}
-html[data-theme="dark"] body #appSidebar .prism-nav-symbol,
-html[data-theme="dark"] body #appSidebar .prism-nav-chevron{color:#8A8E9B!important}
-html[data-theme="dark"] body #appSidebar .app-nav-item{color:#A3A7B4!important}
-html[data-theme="dark"] body #appSidebar .app-nav-item:hover{background:#1A1E28!important;color:#F2F1EC!important}
-html[data-theme="dark"] body #appSidebar .app-nav-item.active{background:#1A1E28!important;color:#F2F1EC!important;box-shadow:inset 2px 0 0 #E3BC72!important}
-html[data-theme="dark"] body #appSidebar .prism-nav-subheading{color:#8A8E9B!important}
-html[data-theme="dark"] body #appSidebar>.app-sidebar-foot .auth-user-email{color:#F2F1EC!important}
-html[data-theme="dark"] body #appSidebar>.app-sidebar-foot .auth-logout{color:#A3A7B4!important;border:1px solid #2A2F3D!important;background:transparent!important}
-html[data-theme="dark"] body #appSidebar>.app-sidebar-foot .auth-logout:hover{color:#F2F1EC!important;background:#1A1E28!important}
-html[data-theme="dark"] .prism-theme-toggle{background:transparent;border:1px solid #2A2F3D;color:#A3A7B4}
-html[data-theme="dark"] .prism-theme-toggle:hover{background:#1A1E28;color:#F2F1EC}
-html[data-theme="dark"] .prism-theme-toggle-mobile{background:#1A1E28;border:1px solid #2A2F3D;color:#F2F1EC}
-html[data-theme="dark"] body .header .app-menu-btn{background:#1A1E28!important;color:#F2F1EC!important;border:1px solid #2A2F3D!important}
+/* ============ Bandeau du haut : intégré au fond ============ */
+html[data-theme] body.app-nav-ready>.header,
+html[data-theme] body>.header{background:var(--so-bg)!important;border:0!important;color:var(--so-ink)!important}
+html[data-theme] body.app-nav-ready>.header .brand-name,
+html[data-theme] body>.header .brand-name{font-family:'Cormorant Garamond',Didot,Georgia,serif!important;font-weight:600!important;letter-spacing:.1em!important;color:var(--so-ink)!important}
+html[data-theme] body .header .hright,
+html[data-theme] body .header .hright .week-range,
+html[data-theme] body .header #saveStatus{color:var(--so-ink2)!important}
+html[data-theme] body .header .hright .btn-ghost,
+html[data-theme] body .header .hright input[type=date]{background:var(--so-panel)!important;color:var(--so-ink)!important;border:1px solid var(--so-line)!important;border-radius:999px!important}
+html[data-theme] body .header .hright .btn-gold,
+html[data-theme] body .btn-gold{background:var(--so-btn)!important;color:var(--so-on-btn)!important;border-color:var(--so-btn)!important;border-radius:999px!important}
+html[data-theme] body .header .app-menu-btn{background:var(--so-panel)!important;color:var(--so-ink)!important;border:1px solid var(--so-line)!important;border-radius:14px!important}
 
 /* Sélecteur d'établissement */
-html[data-theme="dark"] .prism-establishments{background:#14171F;border:1px solid #1F2330}
-html[data-theme="dark"] .prism-establishments button{color:#8A8E9B}
-html[data-theme="dark"] .prism-establishments button[aria-pressed="true"]{background:#F2F1EC;color:#0B0D12}
+.prism-establishments{display:flex;gap:4px;padding:4px;border-radius:999px;position:absolute;right:28px;top:50%;transform:translateY(-50%);background:var(--so-panel);border:1px solid var(--so-line)}
+.prism-establishments button{min-height:36px;padding:0 16px;border-radius:999px;border:0;background:transparent;color:var(--so-ink3);font:500 13px Inter,system-ui,sans-serif;cursor:pointer}
+.prism-establishments button[aria-pressed="true"]{background:var(--so-btn);color:var(--so-on-btn);font-weight:600}
+.prism-establishments button:disabled{cursor:not-allowed;opacity:.75}
+@media(max-width:1100px){.prism-establishments{display:none!important}}
 
-/* Titres de page */
-html[data-theme="dark"] body .module-kicker,
-html[data-theme="dark"] body .team-kicker{color:#E3BC72!important;letter-spacing:.12em!important}
-html[data-theme="dark"] body .module-title,
-html[data-theme="dark"] body .team-title,
-html[data-theme="dark"] body #module-dashboard .module-title{color:#F2F1EC!important;font-family:'Inter Tight','Inter',sans-serif!important;font-weight:600!important;letter-spacing:-.025em!important}
-html[data-theme="dark"] body .module-lead,
-html[data-theme="dark"] body .team-subtitle{color:#A3A7B4!important}
+/* ============ Titres ============ */
+html[data-theme] body .module-kicker,
+html[data-theme] body .team-kicker{color:var(--so-gold-text)!important;letter-spacing:.12em!important;font-weight:700!important}
+html[data-theme] body .module-title,
+html[data-theme] body .team-title,
+html[data-theme] body #module-dashboard .module-title{font-family:Fraunces,Georgia,serif!important;font-weight:600!important;letter-spacing:-.02em!important;color:var(--so-ink)!important}
+html[data-theme] body .module-lead,
+html[data-theme] body .team-subtitle{color:var(--so-ink2)!important}
+html[data-theme] body :is(.prism-overview-title,.sales-period-title,.purchases-heading h3,.pd-heading h3,.sales-insight-section h3){font-family:Fraunces,Georgia,serif!important;font-weight:600!important;letter-spacing:-.01em!important;color:var(--so-ink)!important}
 
-/* Pages et blocs */
-html[data-theme="dark"] body.app-nav-ready>#planningPage,
-html[data-theme="dark"] body.app-nav-ready>#teamPage,
-html[data-theme="dark"] body.app-nav-ready>.module-page{background:#0B0D12!important;color:#F2F1EC}
-html[data-theme="dark"] body .module-page .module-placeholder:not(.purchases-root){
-  background:#14171F!important;border:1px solid #1F2330!important;border-radius:20px!important
+/* ============ Cartes et chiffres ============ */
+html[data-theme] body :is(.module-placeholder,.prism-overview-card,.sales-card,.sales-service-card,.sales-day-events,.sales-insight-section,.sales-table-wrap,.purchases-stat,.purchases-scroll,.pd-card,.pd-list,.pd-detail,.me-kpi,.me-card,.inventory-card,.rc-panel,.rc-side,.data-source-banner,.pointage-summary-card,.emp-config-box,.prism-overview-warnings,.sales-goal-strip){border-radius:24px!important;box-shadow:none!important}
+html[data-theme] body .module-page .module-placeholder:not(.purchases-root){background:var(--so-panel)!important;border:1px solid var(--so-line)!important}
+html[data-theme] body .prism-overview{background:transparent!important;border:0!important;padding:0!important}
+html[data-theme] body :is(.sales-card-value,.prism-overview-card-value,.me-kpi-value,.fp-value,.purchases-stat strong,.rc-stat strong){font-family:Fraunces,Georgia,serif!important;font-weight:600!important;letter-spacing:-.02em!important;font-variant-numeric:tabular-nums}
+/* Première carte du tableau de bord et des ventes : carte « héros » foncée */
+html[data-theme] body #module-dashboard .prism-overview-card:first-child,
+html[data-theme] body #module-sales .sales-stats>.sales-card:first-child{background:var(--so-hero)!important;border-color:var(--so-hero)!important;color:var(--so-on-hero)!important}
+html[data-theme] body #module-dashboard .prism-overview-card:first-child :is(.prism-overview-card-value,strong),
+html[data-theme] body #module-sales .sales-stats>.sales-card:first-child .sales-card-value{color:var(--so-on-hero)!important}
+html[data-theme] body #module-dashboard .prism-overview-card:first-child :is(.prism-overview-card-label,.prism-overview-card-note,span),
+html[data-theme] body #module-sales .sales-stats>.sales-card:first-child :is(.sales-card-label,.sales-card-sub,span){color:var(--so-on-hero2)!important}
+
+/* ============ Boutons, onglets, puces ============ */
+html[data-theme] body :is(.btn-primary,.prism-overview-btn.primary,.pd-primary,.auth-login,.purchases-primary,.pd-action:not(.pd-secondary),.sales-goal-button){background:var(--so-btn)!important;color:var(--so-on-btn)!important;border-color:var(--so-btn)!important;border-radius:999px!important}
+html[data-theme] body :is(.prism-overview-controls button,.sales-action,.dept-tab,.sales-subtab,.module-chip,.data-source-pill,.prism-overview-btn,.pd-secondary,.btn-ghost){border-radius:999px!important}
+html[data-theme] body :is(.prism-overview-controls button.active,.prism-overview-controls button[aria-pressed="true"],#module-sales .sales-action.selected,.dept-tab.active){background:var(--so-btn)!important;color:var(--so-on-btn)!important;border-color:var(--so-btn)!important}
+html[data-theme] body #module-sales .sales-subtab.active{background:var(--so-panel)!important;color:var(--so-ink)!important}
+html[data-theme] body :is(input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea){border-radius:12px}
+
+/* ============ Mobile ============ */
+@media(max-width:760px){
+  .prism-theme-toggle-mobile{display:flex;align-items:center;justify-content:center;position:absolute;right:14px;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:14px;cursor:pointer;z-index:3;background:var(--so-panel);border:1px solid var(--so-line);color:var(--so-ink)}
+  html[data-theme] body .mobile-bottom-nav{background:var(--so-panel)!important;border-color:var(--so-line)!important}
+  html[data-theme] body .mobile-bottom-nav button{color:var(--so-ink3)!important}
+  html[data-theme] body .mobile-bottom-nav button.active{color:var(--so-ink)!important}
 }
-html[data-theme="dark"] body .module-chip{background:#10131A!important;border:1px solid #1F2330!important;color:#A3A7B4!important}
+html[data-theme] body .oce-menu-header{background:var(--so-side)!important;color:var(--so-side-ink)!important}
+html[data-theme] body .oce-drawer{background:var(--so-bg)!important}
+html[data-theme] body .oce-menu-link{background:var(--so-panel)!important;color:var(--so-ink)!important;border-color:var(--so-line)!important;border-radius:16px!important}
+html[data-theme] body .oce-menu-symbol{background:var(--so-gold-soft)!important;color:var(--so-ink)!important}
+html[data-theme="dark"]{scrollbar-color:#4A3E39 #1D1816}
 
-/* Mobile */
-html[data-theme="dark"] body .mobile-bottom-nav{background:#0F1218!important;border-color:#1F2330!important}
-html[data-theme="dark"] body .mobile-bottom-nav button{color:#8A8E9B!important}
-html[data-theme="dark"] body .mobile-bottom-nav button.active{color:#F2F1EC!important}
-html[data-theme="dark"] body .oce-drawer{background:#0B0D12!important}
-html[data-theme="dark"] body .oce-menu-link{background:#14171F!important;color:#F2F1EC!important;border-color:#1F2330!important}
-html[data-theme="dark"] body .oce-menu-symbol{background:#1A1E28!important;color:#F2F1EC!important}
-
-/* Barres de défilement discrètes */
-html[data-theme="dark"]{scrollbar-color:#2A2F3D #0B0D12}
-
-/* ===================== Mode clair ===================== */
-html[data-theme="light"] .prism-theme-toggle{background:transparent;border:1px solid rgba(250,247,242,.24);color:#EAE0D3}
-html[data-theme="light"] .prism-theme-toggle:hover{background:rgba(250,247,242,.12);color:#fff}
-html[data-theme="light"] .prism-theme-toggle-mobile{background:#EAE0D3;border:0;color:#332823}
-html[data-theme="light"] .prism-establishments{background:rgba(250,247,242,.1);border:1px solid rgba(250,247,242,.2)}
-html[data-theme="light"] .prism-establishments button{color:#D8C9B9}
-html[data-theme="light"] .prism-establishments button[aria-pressed="true"]{background:#FAF7F2;color:#332823}
-html[data-theme="light"] .prism-establishments button:disabled{color:#B4A69B}
-html[data-theme="light"] body .module-title,
-html[data-theme="light"] body .team-title{font-family:'Inter Tight','Inter',sans-serif!important;font-weight:600!important;letter-spacing:-.025em!important}
-html[data-theme="light"] body :is(.sales-card-value,.prism-overview-card-value,.me-kpi-value,.fp-value){font-family:'Inter Tight','Inter',sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-
-/* Ajustements après revue des écrans */
-html[data-theme="dark"] body .prism-overview{background:transparent!important;border:0!important}
-html[data-theme="dark"] body .btn-gold,
-html[data-theme="dark"] body .header .hright .btn-gold,
-html[data-theme="dark"] body .team-page .btn-gold{background:#E3BC72!important;border-color:#E3BC72!important;color:#0B0D12!important}
-html[data-theme="dark"] body .btn-gold:hover{background:#ECCB8E!important}
+/* Écarts dans la carte héros */
+html[data-theme] body #module-sales .sales-stats>.sales-card:first-child :is([class*="delta"],[class*="badge"],[class*="pill"]){background:rgba(255,255,255,.12)!important;color:#9BE3BC!important}
