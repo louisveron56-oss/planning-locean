@@ -36,3 +36,63 @@
 #module-suppliers .purchases-root,
 #module-suppliers .ps-products,
 #module-suppliers .pd-root { display: none !important; }
+
+
+/* Product V2: compact management table and focused chart-first product detail.
+   Inherit all surface, accent and typography tokens from the visual theme. */
+.pcu-root{padding:20px 24px}
+.pcu-header{margin-bottom:12px}
+.pcu-header h3{margin:0;font-size:19px;line-height:1.2}
+.pcu-tools{gap:10px;margin-bottom:12px}
+.pcu-list>.pcu-count{margin:10px 0 4px}
+.pcu-table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:13px}
+.pcu-table th{font-weight:650;letter-spacing:.02em}
+.pcu-table th:first-child{width:42%}
+.pcu-table th:nth-child(2){width:25%}
+.pcu-table th:nth-child(3){width:19%}
+.pcu-table th:nth-child(4){width:14%}
+.pcu-table :is(td,th){padding:14px 12px;overflow-wrap:anywhere}
+.pcu-product-row{cursor:pointer;transition:background .12s ease}
+.pcu-product-row:hover,.pcu-product-row:focus-visible{background:var(--hover,rgba(128,128,128,.07));outline-offset:-2px}
+.pcu-product-link{border:0;padding:0;background:none;color:inherit;font:inherit;font-weight:650;text-align:left;cursor:pointer;text-decoration:none;line-height:1.35}
+.pcu-product-row:hover .pcu-product-link{text-decoration:underline;text-underline-offset:3px}
+.pcu-supplier-cell,.pcu-date-cell{color:var(--text-2,inherit)}
+.pcu-date-cell{white-space:nowrap;font-variant-numeric:tabular-nums}
+.pcu-mini-issue{display:inline-grid;place-items:center;margin-left:8px;width:17px;height:17px;border:1px solid var(--down,var(--border,currentColor));border-radius:100%;font-size:11px;font-weight:750;color:var(--down,inherit)}
+.pcu-table td.pcu-price{font-weight:700}
+.pcu-detail{margin-top:0}
+.pcu-detail-head{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.pcu-detail .pcu-product-name{font-size:clamp(21px,2.4vw,28px);margin:20px 0 5px;line-height:1.25}
+.pcu-product-supplier{color:var(--text-2,inherit);font-size:13px;margin:0 0 24px}
+.pcu-info-button{width:38px;height:38px;border:1px solid var(--border-strong,var(--border,currentColor));border-radius:50%;background:transparent;color:inherit;font:bold 19px/1 Georgia,serif;cursor:pointer;flex-shrink:0;text-align:center}
+.pcu-info-button:hover{background:var(--hover,rgba(128,128,128,.07))}
+.pcu-metrics{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:26px}
+.pcu-metric{display:grid;gap:6px;padding:15px 18px;min-width:min(230px,100%);border:1px solid var(--border,currentColor);border-radius:12px}
+.pcu-metric small{font-size:11px;color:var(--text-2,inherit)}
+.pcu-metric strong{font-size:22px;font-variant-numeric:tabular-nums}
+.pcu-section-heading{margin:20px 0 14px;font-size:15px;font-weight:700}
+.pcu-purchases-host{min-height:120px}
+.pcu-graph{padding:10px 4px}
+.pcu-chart{display:block;width:100%;max-height:290px;overflow:visible;color:var(--text,inherit)}
+.pcu-muted{font-size:12px;color:var(--text-2,inherit);margin:12px 0}
+.pcu-warning{font-size:12px;color:var(--down,inherit);border-left:2px solid var(--down,currentColor);padding-left:11px;margin:12px 0}
+.pcu-purchases th:first-child{width:16%}
+.pcu-purchases th:nth-child(2){width:24%}
+.pcu-purchases th:nth-child(3){width:15%}
+.pcu-purchases th:nth-child(4){width:30%}
+.pcu-purchases th:nth-child(5){width:15%}
+.pcu-purchases .pcu-issue{color:var(--down,inherit);font-weight:700}
+.pcu-info-layer{position:fixed;inset:0;z-index:100005;background:rgba(0,0,0,.45);padding:24px;display:flex;justify-content:flex-end}
+.pcu-info-panel{position:relative;background:var(--card,var(--surface,#fff));color:var(--text,inherit);border:1px solid var(--border,currentColor);border-radius:18px;width:min(570px,100%);height:100%;overflow:auto;padding:24px;box-shadow:0 12px 42px rgba(0,0,0,.15)}
+.pcu-info-close{float:right;background:transparent;border:1px solid var(--border,currentColor);border-radius:10px;color:inherit;padding:9px 13px;cursor:pointer}
+.pcu-info-panel h3{margin:12px 0 22px;font-size:21px}
+.pcu-info-panel .pcu-details{grid-template-columns:minmax(120px,40%) minmax(0,1fr)}
+@media(max-width:760px){
+ .pcu-root{padding:14px}
+ .pcu-table{font-size:12px;min-width:640px}
+ .pcu-metrics{flex-direction:column}
+ .pcu-metric{min-width:0}
+ .pcu-info-layer{padding:0}
+ .pcu-info-panel{width:100%;height:100%;border-radius:0}
+ .pcu-detail .pcu-product-name{font-size:22px}
+}
