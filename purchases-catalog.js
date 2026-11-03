@@ -304,6 +304,12 @@ async function load(){
  catch(err){if(importBusy)return;ready=false;all=[];render();showError(err);}
 }
 window.addEventListener('prism-catalog-updated',function(){load();});
+window.addEventListener('prism-catalog-edit-request',function(event){
+ var id=event.detail&&event.detail.productId;
+ if(!id||!root)return;
+ if(all.some(function(p){return String(p.id)===String(id);})){openProduct(id,true);}
+ else load().then(function(){if(all.some(function(p){return String(p.id)===String(id);}))openProduct(id,true);});
+});
 function install(){
  var page=document.getElementById('module-suppliers');if(!page)return;root=page.querySelector('.module-placeholder');if(!root)return;
  root.classList.add('purchases-root');root.style.textAlign='left';root.style.display='block';
