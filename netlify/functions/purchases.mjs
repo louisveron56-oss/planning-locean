@@ -36,6 +36,29 @@ export default async function(req){
   if(req.method==="PATCH"){
    if(!saved)return send({error:"Catalogue non importé"},404);
    const products=Array.isArray(saved.products)?saved.products:[];
+   if(payload.action==="create-from-recipe"){
+    const raw=payload.product||{},name=normalize(raw.name,250),category=normalize(raw.category,60);
+    const packageQty=Number(raw.packageQuantity),packagePrice=priceNumber(raw.packagePrice),packageUnit=normalize(raw.packageUnit,12);
+    if(!name||name.length<2||!["Bar","Cuisine"].includes(category))return send({error:"Nom et famille Bar ou Cuisine obligatoires"},400);
+    if(!["kg","L","pièce"].includes(packageUnit)||!Number.isFinite(packageQty)||packageQty<=0||packageQty>100000||packagePrice===null)return send({error:"Indique le conditionnement, sa quantité et son prix d'achat HT"},400);
+    const unitPrice=Math.round(packagePrice/packageQty*1000000)/1000000;
+    if(!Number.isFinite(unitPrice)||unitPrice>100000)return send({error:"Prix unitaire hors limites"},400);
+    const key=name.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLocaleLowerCase("fr");
+    const match=products.find(p=>!p.archivedAt&&normalize(p.name).normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLocaleLowerCase("fr")===key);
+    if(match)return send({error:"Produit déjà présent dans le catalogue : "+match.name,existingProductId:match.id||idFor(match)},409);
+    if(products.length>=5000)return send({error:"Catalogue plein"},409);
+    const product={
+     id:"prd-"+crypto.randomUUID(),name,category,subcategory:"",locations:[],
+     price:unitPrice,unit:packageUnit,inventoryQuantity:null,
+     packaging:{quantity:packageQty,unit:packageUnit,purchasePrice:packagePrice},
+     source:"Fiche technique",sourcePrice:"manuel",sourceRow:"",
+     priceHistory:[entry(unitPrice,packageUnit,"Création depuis fiche technique — conditionnement "+packageQty+" "+packageUnit+" à "+packagePrice+" € HT",actor,now,"fiche-technique")],
+     archivedAt:null,archivedBy:null,createdAt:now,createdBy:actor
+    };
+    products.push(product);
+    await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
+    return send({ok:true,product,savedAt:now,created:true},201);
+   }
    const index=products.findIndex(p=>(p.id||idFor(p))===payload.productId);
    if(index<0)return send({error:"Produit introuvable. Actualise le catalogue."},404);
    const p={...products[index],id:products[index].id||idFor(products[index])};
@@ -94,7 +117,7 @@ export default async function(req){
   // Conserver les références ajoutées depuis les factures validées lors d'un réimport CSV.
   const importedNames=new Set(products.map(p=>normalize(p.name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()));
   for(const prior of saved?.products||[]){
-   if(!["Facture validée","Sheets Pennylane"].includes(prior.source)&&!prior.archivedAt)continue;
+   if(!["Facture validée","Sheets Pennylane","Fiche technique"].includes(prior.source)&&!prior.archivedAt)continue;
    const key=normalize(prior.name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
    if(!importedNames.has(key)){products.push(prior);importedNames.add(key);}
   }
