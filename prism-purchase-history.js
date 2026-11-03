@@ -76,7 +76,7 @@ function parseCSV(s){
  row.push(item);if(row.some(v=>v.trim()))out.push(row);return out;
 }
 async function readPurchaseFile(file){
- if(!/\\.xlsx?$/i.test(file.name))return parseCSV(await file.text());
+ if(!/\.xlsx?$/i.test(file.name))return parseCSV(await file.text());
  if(!window.XLSX){
   await new Promise((resolve,reject)=>{const script=document.createElement("script");
    script.src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
@@ -89,7 +89,7 @@ async function readPurchaseFile(file){
  // Les dates sont stockées comme numéros de série Excel dans certaines versions du classeur.
  const dateCol=rows[0].findIndex(x=>norm(x)==="date");
  if(dateCol>=0)for(let i=1;i<rows.length;i++){
-  const v=rows[i][dateCol];if(/^\\d{5}(?:\\.0+)?$/.test(String(v||""))){
+  const v=rows[i][dateCol];if(/^\d{5}(?:\.0+)?$/.test(String(v||""))){
    const d=window.XLSX.SSF.parse_date_code(Number(v));
    if(d)rows[i][dateCol]=String(d.y).padStart(4,"0")+"-"+String(d.m).padStart(2,"0")+"-"+String(d.d).padStart(2,"0");
   }
