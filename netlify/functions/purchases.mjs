@@ -43,8 +43,8 @@ export default async function(req){
     if(!["kg","L","pièce"].includes(packageUnit)||!Number.isFinite(packageQty)||packageQty<=0||packageQty>100000||packagePrice===null)return send({error:"Indique le conditionnement, sa quantité et son prix d'achat HT"},400);
     const unitPrice=Math.round(packagePrice/packageQty*1000000)/1000000;
     if(!Number.isFinite(unitPrice)||unitPrice>100000)return send({error:"Prix unitaire hors limites"},400);
-    const key=name.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLocaleLowerCase("fr");
-    const match=products.find(p=>!p.archivedAt&&normalize(p.name).normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLocaleLowerCase("fr")===key);
+    const key=name.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("fr");
+    const match=products.find(p=>!p.archivedAt&&normalize(p.name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("fr")===key);
     if(match)return send({error:"Produit déjà présent dans le catalogue : "+match.name,existingProductId:match.id||idFor(match)},409);
     if(products.length>=5000)return send({error:"Catalogue plein"},409);
     const product={
