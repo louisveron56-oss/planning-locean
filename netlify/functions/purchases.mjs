@@ -36,6 +36,40 @@ export default async function(req){
   if(req.method==="PATCH"){
    if(!saved)return send({error:"Catalogue non importé"},404);
    const products=Array.isArray(saved.products)?saved.products:[];
+   if(payload.action==="import-coco-reference"){
+    const doc=payload.document;
+    if(doc?.schema!=="prism-coco-reference-v1"||doc?.sourceEstablishment!=="COCO"||!Array.isArray(doc.ingredients)||doc.ingredients.length>300||!Array.isArray(doc.recipeLines)||doc.recipeLines.length>1500||!Array.isArray(doc.recipePrices)||doc.recipePrices.length>300)return send({error:"Fichier COCO non reconnu"},400);
+    const cleanName=x=>normalize(x).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("fr").replace(/\\s+/g," ");
+    const known=new Set(products.filter(p=>!p.archivedAt).map(p=>cleanName(p.name)));
+    const imported=[],already=[],review=[];
+    const unique=new Set();
+    for(const raw of doc.ingredients){
+      const name=normalize(raw.name),category=normalize(raw.category,60),unit=normalize(raw.packageUnit,12),price=priceNumber(raw.packagePrice),qty=Number(raw.packageQuantity);
+      const key=cleanName(name);
+      if(!key||!name||!["Cuisine","Bar"].includes(category)){review.push({name:normalize(raw.name),reason:"Nom ou catégorie invalide"});continue}
+      if(raw.status!=="candidate"||!["kg","L","pièce"].includes(unit)||price===null||!Number.isFinite(qty)||qty<=0){review.push({name,reason:(raw.reviewIssues||[]).join(", ")||"Conditionnement à confirmer"});continue}
+      if(unique.has(key)){review.push({name,reason:"Doublon dans le fichier COCO"});continue}
+      unique.add(key);
+      if(known.has(key)){already.push(name);continue}
+      if(products.length>=5000)return send({error:"Catalogue plein"},409);
+      const priceUnit=Math.round(price/qty*1000000)/1000000;
+      const product={id:"prd-"+crypto.randomUUID(),name,category,subcategory:"",locations:[],price:priceUnit,unit,inventoryQuantity:null,
+       packaging:{quantity:qty,unit,purchasePrice:price},yield:Number(raw.yield)||1,
+       source:"COCO - fichier référence",sourceEstablishment:"COCO",sourceRow:String(raw.row||""),
+       priceStatus:"indicatif_a_rapprocher_facture",sourcePrice:"import COCO",createdAt:now,createdBy:actor,
+       priceHistory:[entry(priceUnit,unit,"Prix indicatif du classeur COCO (à rapprocher des factures)",actor,now,"import-coco")],
+       archivedAt:null,archivedBy:null};
+      products.push(product);known.add(key);imported.push(name);
+    }
+    const batch={schema:doc.schema,sourceFile:normalize(doc.sourceFile,200),importedAt:now,importedBy:actor,
+      ingredients:doc.ingredients,recipeLines:doc.recipeLines,recipePrices:doc.recipePrices,
+      summary:{imported:imported.length,existing:already.length,review:review.length}};
+    await db.setJSON("ocean/coco-reference",batch);
+    await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
+    return send({ok:true,created:imported.length,existing:already.length,review:review.length,
+      importedNames:imported,existingNames:already,toReview:review,recipes:doc.recipePrices.length,recipeLines:doc.recipeLines.length,
+      note:"Tarifs COCO indicatifs, prix fournisseurs existants conservés"},200);
+   }
    if(payload.action==="create-from-recipe"){
     const raw=payload.product||{},name=normalize(raw.name,250),category=normalize(raw.category,60);
     const packageQty=Number(raw.packageQuantity),packagePrice=priceNumber(raw.packagePrice),packageUnit=normalize(raw.packageUnit,12);
@@ -117,7 +151,7 @@ export default async function(req){
   // Conserver les références ajoutées depuis les factures validées lors d'un réimport CSV.
   const importedNames=new Set(products.map(p=>normalize(p.name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()));
   for(const prior of saved?.products||[]){
-   if(!["Facture validée","Sheets Pennylane","Fiche technique"].includes(prior.source)&&!prior.archivedAt)continue;
+   if(!["Facture validée","Sheets Pennylane","Fiche technique","COCO - fichier référence"].includes(prior.source)&&!prior.archivedAt)continue;
    const key=normalize(prior.name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
    if(!importedNames.has(key)){products.push(prior);importedNames.add(key);}
   }
