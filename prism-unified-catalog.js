@@ -49,10 +49,11 @@ function prettySupplier(raw){
 }
 function supplierKey(supplier,ref){return norm(supplier)+'|'+norm(ref);}
 function joinSources(catalog,sheets){
- const items=[],matched=new Set(),sheetsByRef=new Map(),catalogRefCounts=new Map();
- (catalog||[]).filter(p=>!p.archivedAt).forEach(p=>{if(norm(p.supplier)&&norm(p.supplierReference)){const k=supplierKey(p.supplier,p.supplierReference);catalogRefCounts.set(k,(catalogRefCounts.get(k)||0)+1);}});
+ const items=[],matched=new Set(),sheetsByRef=new Map(),catalogRefCounts=new Map(),sheetsByName=new Map(),catalogNameCounts=new Map();
+ (catalog||[]).filter(p=>!p.archivedAt).forEach(p=>{if(norm(p.supplier)&&norm(p.supplierReference)){const k=supplierKey(p.supplier,p.supplierReference);catalogRefCounts.set(k,(catalogRefCounts.get(k)||0)+1);}else if(norm(p.supplier)&&norm(p.name)){const k=supplierKey(p.supplier,p.name);catalogNameCounts.set(k,(catalogNameCounts.get(k)||0)+1);}});
  sheets.forEach((x,i)=>{
   const key=supplierKey(x.fournisseur,x.code);
+  if(norm(x.fournisseur)&&norm(x.designation)){const nameKey=supplierKey(x.fournisseur,x.designation);const found=sheetsByName.get(nameKey)||[];found.push(i);sheetsByName.set(nameKey,found);}
   if(norm(x.fournisseur)&&norm(x.code)){
    const list=sheetsByRef.get(key)||[];list.push(i);sheetsByRef.set(key,list);
   }
@@ -63,6 +64,9 @@ function joinSources(catalog,sheets){
   if(norm(p.supplier)&&norm(p.supplierReference)){
    const candidates=sheetsByRef.get(key)||[];
    if(catalogRefCounts.get(key)===1&&candidates.length===1&&!matched.has(candidates[0])){match=sheets[candidates[0]];matched.add(candidates[0]);sourceCount=1;}
+  }else if(norm(p.supplier)&&norm(p.name)){
+   const exact=supplierKey(p.supplier,p.name),candidates=sheetsByName.get(exact)||[];
+   if(catalogNameCounts.get(exact)===1&&candidates.length===1&&!matched.has(candidates[0])){match=sheets[candidates[0]];matched.add(candidates[0]);sourceCount=1;}
   }
   const price=normalizedPrice(p.price,p.unit);
   items.push({
