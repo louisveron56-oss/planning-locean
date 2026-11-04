@@ -436,6 +436,10 @@ function init(){
   if(page.classList.contains('open')&&!loadedOnce&&!loading)load();
  });
  observer.observe(page,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
+ window.addEventListener('prism-find-product',ev=>{
+  search=String(ev.detail?.query||'');supplierFilter='';groupFilter='Tous';pageIndex=0;detailId='';
+  if(loadedOnce)render();
+ });
  window.addEventListener('prism-supplier-products',ev=>{
   pendingSupplier=String(ev.detail?.supplier||'');supplierFilter=pendingSupplier;detailId='';pageIndex=0;
   if(loadedOnce)render();
