@@ -335,3 +335,53 @@ html[data-theme] body .team-page :is(.team-kicker,.team-subtitle){display:none!i
   .pa-seg button,.pa-years button{flex:1}
   .pa-spark{width:100%;height:auto}
 }
+
+/* ============ Produits — lisibilité (v6) ============ */
+html[data-theme] body .pcu-header h3{margin:0 0 14px!important}
+html[data-theme] body .pcu-tools{display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:10px!important;margin-bottom:12px!important}
+html[data-theme] body .pcu-tools .pcu-search{flex:1 1 280px!important;min-width:0!important;padding-left:44px!important;
+  background:var(--so-panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%239A9CA3' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='5.5'/%3E%3Cpath d='m11.5 11.5 3 3'/%3E%3C/svg%3E") no-repeat 18px center!important}
+html[data-theme] body .pcu-tools .pcu-select{flex:0 1 auto!important;max-width:240px!important;-webkit-appearance:none!important;appearance:none!important;padding-right:38px!important;font:500 14px Inter,sans-serif!important;cursor:pointer;
+  background:var(--so-panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%239A9CA3' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m3 4.5 3 3 3-3'/%3E%3C/svg%3E") no-repeat right 16px center!important}
+html[data-theme] body .pcu-tools :is(input,select,button):focus-visible{outline:2px solid var(--so-gold)!important;outline-offset:2px}
+html[data-theme] body .pcu-tools button{font:500 14px Inter,sans-serif!important;cursor:pointer}
+html[data-theme] body .pcu-tools .pcu-toggle[aria-pressed="true"]{background:var(--so-gold-soft)!important;border-color:var(--so-gold)!important;color:var(--so-gold-text)!important}
+html[data-theme] body .pcu-count{margin:4px 2px 12px!important}
+
+html[data-theme] body .pcu-table{table-layout:fixed}
+html[data-theme] body .pcu-table th:nth-child(1){width:46%}
+html[data-theme] body .pcu-table th:nth-child(2){width:24%}
+html[data-theme] body .pcu-table th:nth-child(3){width:16%}
+html[data-theme] body .pcu-table th:nth-child(4){width:14%;text-align:right!important}
+html[data-theme] body .pcu-table td{padding:14px 20px!important}
+html[data-theme] body .pcu-name-cell{overflow:hidden}
+html[data-theme] body .pcu-product-link{display:inline;font:600 15px/1.35 Inter,sans-serif!important;overflow-wrap:anywhere}
+html[data-theme] body .pcu-product-meta{display:block;margin-top:3px;color:var(--so-ink3);font:400 12px/1.4 Inter,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html[data-theme] body .pcu-check-pill{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:999px;font:600 11px/1.5 Inter,sans-serif;vertical-align:1px;white-space:nowrap;
+  color:var(--down);background:color-mix(in srgb,var(--down) 12%,transparent)}
+html[data-theme] body .pcu-supplier-cell{font-size:14px!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html[data-theme] body .pcu-price{text-align:right!important}
+html[data-theme] body .pcu-price-amount{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:17px;color:var(--so-ink)}
+html[data-theme] body .pcu-price-unit{margin-left:4px;font:500 12px Inter,sans-serif;color:var(--so-ink3)}
+html[data-theme] body .pcu-price-missing{font:italic 400 13px Inter,sans-serif;color:var(--so-ink3)}
+html[data-theme] body .pcu-date-cell{text-align:right}
+html[data-theme] body .pcu-product-row:focus-visible td{background:var(--so-panel2)!important;outline:none}
+html[data-theme] body .pcu-product-row:hover .pcu-product-link{color:var(--so-gold-text)!important}
+html[data-theme] body .pcu-empty{padding:28px;text-align:center;color:var(--so-ink3);background:var(--so-panel);border:1px solid var(--so-line);border-radius:24px}
+
+/* Mobile : chaque produit devient une carte lisible */
+@media(max-width:760px){
+  html[data-theme] body .pcu-tools{flex-direction:row!important;align-items:center!important}
+  html[data-theme] body .pcu-tools .pcu-search{flex:1 1 100%!important;width:auto!important}
+  html[data-theme] body .pcu-tools .pcu-select{flex:1 1 calc(50% - 5px)!important;width:auto!important;max-width:none!important;min-width:0!important}
+  html[data-theme] body .pcu-tools button{flex:1 1 calc(50% - 5px)!important;width:auto!important}
+  html[data-theme] body .pcu-table,html[data-theme] body .pcu-table tbody{display:block;min-width:0!important;width:100%!important}
+  html[data-theme] body .pcu-table thead{display:none}
+  html[data-theme] body .pcu-table tr.pcu-product-row{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:14px 16px;border-top:1px solid var(--so-line)}
+  html[data-theme] body .pcu-table tbody tr:first-child{border-top:0}
+  html[data-theme] body .pcu-table tr.pcu-product-row td{display:block;padding:0!important;border:0!important;background:transparent!important}
+  html[data-theme] body .pcu-name-cell{grid-column:1/-1}
+  html[data-theme] body .pcu-supplier-cell{grid-column:1;font-size:13px!important;color:var(--so-ink3)!important;margin-top:6px}
+  html[data-theme] body .pcu-price{grid-column:2;grid-row:2/4;align-self:end}
+  html[data-theme] body .pcu-date-cell{grid-column:1;text-align:left;font-size:12px!important}
+}

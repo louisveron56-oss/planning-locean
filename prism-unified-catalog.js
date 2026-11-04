@@ -31,6 +31,22 @@ function normalizedPrice(price,unit){
  if(!u)return {text:money(value)+' HT · unité à vérifier',normal:null,unit:'',valid:false};
  return {text:money(value)+'/'+u,normal:value,unit:u,valid:true};
 }
+/* Affichage uniquement : nom lisible + clé de tri. Le nom d'origine reste dans p.name (info-bulle). */
+const SMALL_WORDS={de:1,du:1,des:1,et:1,la:1,le:1,les:1,en:1,au:1,aux:1,a:1,sur:1};
+function cleanName(raw){
+ const t=String(raw||'').trim();
+ let x=t.replace(/^\d{8,}\s*/,'').replace(/^\d{1,3}\s*[_\[\]“”"'‘’=…\-—.+]+\s*/,'').replace(/^[_\[\]“”"'‘’=…\-—.+]+\s*/,'');
+ x=x.replace(/(\s+\d+[.,]\d{2}\s*€?)+\s*$/,'').trim();
+ while(/^[\d.,]+\s+\S/.test(x)&&/[A-Za-zÀ-ÿ]{3}\S*\s+\S/.test(x.replace(/^[\d.,]+\s+/,'')))x=x.replace(/^[\d.,]+\s+/,'');
+ const letters=x.replace(/[^A-Za-zÀ-ÿ]/g,''),upper=letters.replace(/[^A-ZÀ-Þ]/g,'');
+ if(letters.length>=3&&upper.length/letters.length>0.7){x=x.toLowerCase().replace(/(^|\s)([a-zà-ÿ])/,(_,a,b)=>a+b.toUpperCase()).replace(/(\d)l\b/g,'$1L');}
+ return x||t||'Sans nom';
+}
+function prettySupplier(raw){
+ const t=String(raw||'').trim();const letters=t.replace(/[^A-Za-zÀ-ÿ]/g,'');
+ if(letters.length<3||letters.replace(/[^A-ZÀ-Þ]/g,'').length/letters.length<=0.7)return t;
+ return t.toLowerCase().split(/(\s+|-)/).map((w,i)=>(i&&SMALL_WORDS[w])?w:w.charAt(0).toUpperCase()+w.slice(1)).join('');
+}
 function supplierKey(supplier,ref){return norm(supplier)+'|'+norm(ref);}
 function joinSources(catalog,sheets){
  const items=[],matched=new Set(),sheetsByRef=new Map(),catalogRefCounts=new Map();
@@ -70,7 +86,7 @@ function joinSources(catalog,sheets){
  });
  return items;
 }
-let rows=[],loading=false,loadedOnce=false,partialSources=false,initialized=false,search='',supplierFilter='',sort='name',pageIndex=0,detailId='',pendingSupplier='',listHost=null,stateHost=null;
+let familyFilter='',onlyIssues=false,rows=[],loading=false,loadedOnce=false,partialSources=false,initialized=false,search='',supplierFilter='',sort='name',pageIndex=0,detailId='',pendingSupplier='',listHost=null,stateHost=null;
 const fetchJson=async(url,token)=>{
  const r=await fetch(url,{headers:{Authorization:'Bearer '+token},cache:'no-store'});
  const json=await r.json();if(!r.ok)throw Error(json.error||'Données indisponibles');
@@ -246,40 +262,51 @@ function detail(item){
  purchasesFor(item,slot);
 }
 function visibleRows(){
- const q=norm(search),filter=norm(supplierFilter);
- return rows.filter(p=>(!filter||norm(p.supplier)===filter)&&(!q||norm([p.name,p.supplier,p.supplierReference,p.category].join(' ')).includes(q)))
+ const q=norm(search),filter=norm(supplierFilter),fam=norm(familyFilter);
+ return rows.filter(p=>(!filter||norm(p.supplier)===filter)&&(!fam||norm(p.category)===fam)&&(!onlyIssues||needsCheck(p))&&(!q||norm([p.name,p.supplier,p.supplierReference,p.category].join(' ')).includes(q)))
  .sort((a,b)=>{
-  if(sort==='supplier')return a.supplier.localeCompare(b.supplier,'fr')||a.name.localeCompare(b.name,'fr');
-  if(sort==='newest')return String(b.added||'').localeCompare(String(a.added||''))||a.name.localeCompare(b.name,'fr');
-  return a.name.localeCompare(b.name,'fr')||a.supplier.localeCompare(b.supplier,'fr');
+  if(sort==='supplier')return a.supplier.localeCompare(b.supplier,'fr')||a.display.localeCompare(b.display,'fr',{sensitivity:'base'});
+  if(sort==='newest')return String(b.added||'').localeCompare(String(a.added||''))||a.display.localeCompare(b.display,'fr',{sensitivity:'base'});
+  return a.display.localeCompare(b.display,'fr',{sensitivity:'base'})||a.supplier.localeCompare(b.supplier,'fr');
  });
+}
+function needsCheck(p){return !p.price.valid||p.warning;}
+function drawPrice(cell,p){
+ const raw=p.price.valid?p.price.normal:number(p.catalog?.price??p.sheet?.prix_actuel_ht);
+ if(raw===null||raw===undefined){make(cell,'span','pcu-price-missing','à brancher');return;}
+ make(cell,'span','pcu-price-amount',money(raw));
+ make(cell,'span','pcu-price-unit',p.price.valid?'/ '+p.price.unit:'HT');
 }
 function drawList(){
  if(!listHost)return;listHost.replaceChildren();
  const selected=rows.find(p=>p.id===detailId);
  if(selected){detail(selected);return;}
  detailRequest++;
- const filtered=visibleRows();make(listHost,'p','pcu-count',filtered.length+' produits');
+ const filtered=visibleRows(),issues=filtered.filter(needsCheck).length,fr=new Intl.NumberFormat('fr-FR');
+ make(listHost,'p','pcu-count',fr.format(filtered.length)+' produit'+(filtered.length>1?'s':'')+(issues?' · '+fr.format(issues)+' à vérifier':''));
  if(!filtered.length){make(listHost,'p','pcu-empty','Aucun produit pour ces filtres.');return;}
  const wrap=make(listHost,'div','pcu-scroll'),table=make(wrap,'table','pcu-table');
  const tr=make(make(table,'thead'),'tr');
- ['Produit','Fournisseur','Prix HT','Dernier prix'].forEach(x=>make(tr,'th','',x));
+ ['Produit','Fournisseur','Prix HT','Date du prix'].forEach(x=>make(tr,'th','',x));
  const body=make(table,'tbody');
  filtered.slice(pageIndex*PAGE_SIZE,(pageIndex+1)*PAGE_SIZE).forEach(p=>{
   const row=make(body,'tr');
   row.className='pcu-product-row';
-  const name=make(row,'td');
-  const link=make(name,'button','pcu-product-link',p.name);link.type='button';
+  const name=make(row,'td','pcu-name-cell');
+  const link=make(name,'button','pcu-product-link',p.display);link.type='button';link.title=p.name;link.dataset.prismPretty=p.display;
   link.onclick=()=>{detailId=p.id;drawList();};
   if(!p.price.valid||p.warning){
-   const issue=make(name,'span','pcu-mini-issue','!');
+   const issue=make(name,'span','pcu-check-pill','À vérifier');
    issue.title=p.warning?'Écart de prix entre les sources':'Unité ou prix à contrôler';
    issue.setAttribute('aria-label',issue.title);
   }
-  make(row,'td','pcu-supplier-cell',p.supplier||'—');
-  make(row,'td','pcu-price',p.price.valid?p.price.text:money(p.catalog?.price??p.sheet?.prix_actuel_ht)+' HT');
+  const meta=[p.category&&p.category!=='À classer'?p.category:'',p.supplierReference?'Réf. '+p.supplierReference:''].filter(Boolean).join(' · ');
+  if(meta)make(name,'span','pcu-product-meta',meta);
+  const sc=make(row,'td','pcu-supplier-cell',p.supplierDisplay||p.supplier||'—');sc.dataset.prismPretty=sc.textContent;sc.title=p.supplier||'';
+  const priceCell=make(row,'td','pcu-price');priceCell.dataset.prismPretty='1';
+  drawPrice(priceCell,p);
   make(row,'td','pcu-date-cell',p.date?showDate(p.date):'—');
-  row.tabIndex=0;row.setAttribute('aria-label','Ouvrir '+p.name);
+  row.tabIndex=0;row.setAttribute('aria-label','Ouvrir '+p.display);
   row.addEventListener('click',e=>{if(e.target.closest('button'))return;detailId=p.id;drawList();});
   row.addEventListener('keydown',e=>{if(e.key==='Enter'){detailId=p.id;drawList();}});
  });
@@ -305,6 +332,14 @@ function render(){
  [...new Set(rows.map(x=>x.supplier).filter(x=>x&&x!=='Non renseigné'))].sort((a,b)=>a.localeCompare(b,'fr')).forEach(x=>{let o=make(sup,'option','',x);o.value=x;});
  sup.value=supplierFilter;if(sup.selectedIndex<0){sup.value='';supplierFilter='';}
  sup.onchange=()=>{supplierFilter=sup.value;pageIndex=0;detailId='';render();};
+ const fam=make(tools,'select','pcu-select');
+ option=make(fam,'option','','Toutes les familles');option.value='';
+ [...new Set(rows.map(x=>x.category).filter(x=>x&&x!=='À classer'))].sort((a,b)=>a.localeCompare(b,'fr')).forEach(x=>{let o=make(fam,'option','',x);o.value=x;});
+ fam.value=familyFilter;if(fam.selectedIndex<0){fam.value='';familyFilter='';}
+ fam.onchange=()=>{familyFilter=fam.value;pageIndex=0;detailId='';drawList();};
+ const check=make(tools,'button','pcu-link pcu-toggle',onlyIssues?'✓ À vérifier':'À vérifier');check.type='button';check.setAttribute('aria-pressed',String(onlyIssues));
+ check.title='Afficher seulement les produits dont le prix ou l’unité est à contrôler';
+ check.onclick=()=>{onlyIssues=!onlyIssues;check.textContent=onlyIssues?'✓ À vérifier':'À vérifier';check.setAttribute('aria-pressed',String(onlyIssues));pageIndex=0;detailId='';drawList();};
  const ordering=make(tools,'select','pcu-select');
  [['name','Nom A → Z'],['supplier','Fournisseur'],['newest','Ajout récent (si connu)']].forEach(([value,label])=>{const o=make(ordering,'option','',label);o.value=value;});
  ordering.value=sort;ordering.onchange=()=>{sort=ordering.value;pageIndex=0;detailId='';drawList();};
@@ -325,7 +360,7 @@ async function load(){
   const catalog=results[0].status==='fulfilled'?results[0].value:null;
   const sheets=results[1].status==='fulfilled'?results[1].value:null;
   if(!catalog&&!sheets)throw Error('Catalogue indisponible : '+[results[0],results[1]].map(x=>x.status==='rejected'?x.reason.message:'').filter(Boolean).join(' ; '));
-  rows=joinSources(catalog?.products||[],sheets?.rows||[]);
+  rows=joinSources(catalog?.products||[],sheets?.rows||[]).map(p=>Object.assign(p,{display:cleanName(p.name),supplierDisplay:prettySupplier(p.supplier)}));
   loadedOnce=true;
   partialSources=!(catalog&&sheets);
   hideLegacy(true);
