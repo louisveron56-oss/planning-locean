@@ -1,165 +1,446 @@
-(function(){
-"use strict";
-const id="prismRecipeSimulator",key="prism_recipe_drafts_v1",euro=new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR"});
-const factor={g:.001,kg:1,ml:.001,cl:.01,L:1,piece:1},base={g:"kg",kg:"kg",ml:"L",cl:"L",L:"L",piece:"piece"};
-let catalog=[],lines=[],drafts=[],name="",price=17,vat=10,msg="",savedId=null,search="",creating=false,custom={name:"",packagePrice:"",packageQuantity:"",packageUnit:"kg",category:"Cuisine"};
-const make=(p,t,txt)=>{let a=document.createElement(t);if(txt!==undefined)a.textContent=txt;p.append(a);return a};
-const button=(p,t,fn)=>{let a=make(p,"button",t);a.type="button";a.className="rc-btn";a.onclick=fn;return a};
-const num=x=>Number(String(x).replace(",",".")),valid=n=>Number.isFinite(n)&&n>=0;
-const basis=x=>{let u=String(x||"").trim().toLowerCase();return /^(kg|kilo|kilogramme)$/.test(u)?"kg":/^(l|litre)$/.test(u)?"L":/^(pièce|piece|pcs|unité|unite)$/.test(u)?"piece":""};
-function input(p,title,value,cb,type="text"){let l=make(p,"label");make(l,"span",title);let a=make(l,"input");a.type=type;a.value=value;if(type==="number"){a.step="any";a.min="0"}a.oninput=()=>cb(a.value);return a}
-function pick(p,title,value,values,cb){let l=make(p,"label");make(l,"span",title);let a=make(l,"select");values.forEach(([v,t])=>{let o=make(a,"option",t);o.value=v});a.value=value;a.onchange=()=>cb(a.value);return a}
-function calc(x){let qty=num(x.qty),cost=num(x.cost);return valid(qty)&&qty>0&&valid(cost)&&base[x.unit]===x.basis?qty*factor[x.unit]*cost:NaN}
-function total(){return lines.reduce((v,l)=>v+calc(l),0)}
-function store(){try{localStorage.setItem(key,JSON.stringify(drafts))}catch(e){msg="Sauvegarde locale indisponible"}}
-function newDraft(){lines=[];name="";price=17;vat=10;savedId=null;msg="Nouveau brouillon";render()}
-function saveDraft(){if(!name.trim()||!lines.length||!lines.every(x=>Number.isFinite(calc(x)))||!valid(num(price))||num(price)<=0){msg="Nom, prix HT et ingrédients valides obligatoires.";render();return}let row={id:savedId||Date.now(),name,price,vat,lines:JSON.parse(JSON.stringify(lines))};drafts=drafts.filter(x=>x.id!==row.id);drafts.unshift(row);savedId=row.id;store();msg="Recette enregistrée sur cet appareil";render()}
-function add(x){lines.push({productId:x.id||null,name:x.name,cost:x.price,basis:x.basis,qty:x.basis==="kg"?100:x.basis==="L"?10:1,unit:x.basis==="kg"?"g":x.basis==="L"?"cl":"piece",source:x.source});msg=x.basis?"":"Confirme l’unité de prix du produit avant de calculer.";render()}
-async function createCatalogIngredient(){
- if(creating)return;
- const qty=num(custom.packageQuantity),p=num(custom.packagePrice),product=custom.name.trim();
- if(product.length<2||!Number.isFinite(qty)||qty<=0||!Number.isFinite(p)||p<0){
-  msg="Renseigne un nom, un prix d'achat HT et une quantité totale de conditionnement supérieure à zéro.";render();return;
- }
- const duplicate=catalog.find(x=>x.name.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()===product.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase());
- if(duplicate){msg="Ce produit existe déjà. Utilise la recherche dans le catalogue pour l'ajouter à la recette.";render();return}
- creating=true;msg="Enregistrement du produit dans le catalogue privé…";render();
- try{
-  const user=window.netlifyIdentity?.currentUser?.();if(!user)throw Error("Connexion Prism requise");
-  const response=await fetch("/.netlify/functions/purchases",{
-   method:"PATCH",headers:{"Authorization":"Bearer "+await user.jwt(),"Content-Type":"application/json"},
-   body:JSON.stringify({establishment:"LOCEAN",action:"create-from-recipe",product:{name:product,category:custom.category,packagePrice:p,packageQuantity:qty,packageUnit:custom.packageUnit}}),
-   cache:"no-store"
+/* Prism — Carte & recettes · onglet Fiches techniques.
+   - Liste des fiches à gauche avec leur ratio matière recalculé en direct (vert = sous l'objectif,
+     rouge = au-dessus), fiche ingrédient par ingrédient au centre, simulateur de prix à droite.
+   - Les prix d'achat viennent du catalogue Produits (/.netlify/functions/purchases) : la fiche
+     garde la référence du produit et le coût suit le dernier prix connu.
+   - Les fiches sont enregistrées dans le stockage privé Prism (/.netlify/functions/technical-sheets),
+     partagé entre les comptes autorisés. Les anciens brouillons du navigateur peuvent y être importés.
+   - Aucun chiffre inventé : un ingrédient sans prix ou sans unité claire est signalé et le ratio
+     de la fiche affiche « — » tant qu'il n'est pas corrigé. */
+(function () {
+'use strict';
+const ROOT_ID = 'prismRecipeSimulator', LOCAL_KEY = 'prism_recipe_drafts_v1', MIGRATED_KEY = 'prism_recipe_drafts_migrated_v1';
+const euro = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+const pctFmt = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
+const TO_BASE = { g: ['kg', 0.001], kg: ['kg', 1], ml: ['L', 0.001], cl: ['L', 0.01], L: ['L', 1], piece: ['piece', 1] };
+const UNIT_LABEL = { g: 'g', kg: 'kg', ml: 'ml', cl: 'cl', L: 'L', piece: 'pièce' };
+const BASIS_LABEL = { kg: 'kg', L: 'L', piece: 'pièce' };
+const STEP = { g: 10, kg: 0.1, ml: 10, cl: 1, L: 0.1, piece: 1 };
+const UNITS_FOR = { kg: ['g', 'kg'], L: ['cl', 'ml', 'L'], piece: ['piece'] };
+
+let catalog = new Map(), catalogList = [], catalogError = '', sheets = [], settings = { objective: 25 };
+let current = null, dirty = false, tab = 'fiches', search = '', addSearch = '', msg = '', busy = false, loaded = false, localDrafts = [];
+let custom = { name: '', packagePrice: '', packageQuantity: '', packageUnit: 'kg', category: 'Cuisine' }, creating = false;
+
+const el = (parent, tag, cls, txt) => { const x = document.createElement(tag); if (cls) x.className = cls; if (txt !== undefined) x.textContent = String(txt); if (parent) parent.appendChild(x); return x; };
+const btn = (parent, cls, txt, fn) => { const b = el(parent, 'button', cls, txt); b.type = 'button'; if (fn) b.onclick = fn; return b; };
+const norm = x => String(x ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+const n = x => { const v = Number(String(x ?? '').replace(',', '.')); return Number.isFinite(v) ? v : NaN; };
+const pct = v => Number.isFinite(v) ? pctFmt.format(v) + ' %' : '—';
+const money = v => Number.isFinite(v) ? euro.format(v) : '—';
+const dateFr = iso => { const d = String(iso || '').slice(0, 10); return /^\d{4}-\d\d-\d\d$/.test(d) ? new Date(d + 'T12:00:00').toLocaleDateString('fr-FR') : ''; };
+
+/* ---------- Unités et prix ---------- */
+/* Nom lisible : « PAIN BURGER » → « Pain burger » (affichage seulement). */
+function tidy(raw) {
+  const t = String(raw || '').trim(), letters = t.replace(/[^A-Za-zÀ-ÿ]/g, '');
+  if (letters.length < 3 || letters.replace(/[^A-ZÀ-Þ]/g, '').length / letters.length <= 0.7) return t;
+  return t.toLowerCase().replace(/(^|\s)([a-zà-ÿ])/, (_, a, b) => a + b.toUpperCase()).replace(/(\d)l\b/g, '$1L');
+}
+function basisOf(unit) {
+  const u = norm(unit).replace(/^€\s*\/\s*/, '').replace(/[.\s]/g, '');
+  if (['kg', 'kilo', 'kilogramme', 'kilogrammes'].includes(u)) return ['kg', 1];
+  if (['g', 'gramme', 'grammes'].includes(u)) return ['kg', 1000];
+  if (['l', 'litre', 'litres'].includes(u)) return ['L', 1];
+  if (u === 'cl') return ['L', 100];
+  if (u === 'ml') return ['L', 1000];
+  if (['piece', 'pieces', 'pc', 'pcs', 'unite', 'unites', 'u'].includes(u)) return ['piece', 1];
+  return ['', 1];
+}
+function lastPriceDate(p) {
+  const h = Array.isArray(p.priceHistory) ? p.priceHistory.filter(x => !x.invalidatedAt).map(x => x.at).filter(Boolean).sort() : [];
+  return h.length ? h[h.length - 1] : (p.sourceLastPurchaseDate || p.updatedAt || p.createdAt || '');
+}
+/* Prix en vigueur d'une ligne : le catalogue d'abord, sinon le prix enregistré (signalé). */
+function linePrice(l) {
+  const p = l.productId ? catalog.get(String(l.productId)) : null;
+  if (p) return { price: p.basePrice, basis: p.basis, date: p.date, live: true, product: p };
+  if (Number.isFinite(l.priceSnapshot) && l.basisSnapshot) return { price: l.priceSnapshot, basis: l.basisSnapshot, date: l.snapshotAt, live: false, product: null };
+  return { price: NaN, basis: '', date: '', live: false, product: null };
+}
+function lineCost(l) {
+  const lp = linePrice(l), conv = TO_BASE[l.unit];
+  if (!conv || !lp.basis || conv[0] !== lp.basis || !Number.isFinite(lp.price) || !(n(l.qty) >= 0)) return NaN;
+  return n(l.qty) * conv[1] * lp.price;
+}
+function sheetCost(s) { if (!s.lines.length) return NaN; let t = 0; for (const l of s.lines) { const c = lineCost(l); if (!Number.isFinite(c)) return NaN; t += c; } return t; }
+function sheetRatio(s) { const c = sheetCost(s), p = n(s.price); return Number.isFinite(c) && p > 0 ? c / p * 100 : NaN; }
+function tone(ratio) { return !Number.isFinite(ratio) ? 'none' : ratio <= settings.objective ? 'ok' : 'over'; }
+
+/* ---------- Données ---------- */
+async function api(url, body) {
+  const u = window.netlifyIdentity?.currentUser?.(); if (!u) throw Error('Connexion Prism requise');
+  const res = await fetch(url, { method: body ? 'POST' : 'GET', headers: Object.assign({ Authorization: 'Bearer ' + await u.jwt() }, body ? { 'Content-Type': 'application/json' } : {}), body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
+  let data = {}; try { data = await res.json(); } catch (_) {}
+  if (!res.ok || data.ok === false) throw Error(data.error || 'Erreur ' + res.status);
+  return data;
+}
+async function loadCatalog() {
+  try {
+    const d = await api('/.netlify/functions/purchases');
+    catalog = new Map(); catalogList = [];
+    (d.products || []).filter(p => p.name && !p.archivedAt).forEach(p => {
+      const price = n(p.price), [basis, mult] = basisOf(p.unit);
+      const item = { id: String(p.id), name: tidy(p.name), basis, basePrice: Number.isFinite(price) ? price * mult : NaN, date: lastPriceDate(p), category: p.category || '' };
+      catalog.set(item.id, item); catalogList.push(item);
+    });
+    catalogError = '';
+  } catch (e) { catalogError = e.message; }
+}
+async function loadSheets() {
+  const d = await api('/.netlify/functions/technical-sheets');
+  sheets = d.sheets || []; settings = d.settings || settings;
+}
+function readLocalDrafts() {
+  try {
+    if (localStorage.getItem(MIGRATED_KEY)) return [];
+    const data = JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
+    return Array.isArray(data) ? data.filter(x => x && x.name) : [];
+  } catch (_) { return []; }
+}
+function fromLocal(d) {
+  return {
+    name: d.name, price: n(d.price) > 0 ? n(d.price) : 1, vat: n(d.vat) || 10, category: 'Cuisine',
+    lines: (d.lines || []).map(l => ({ productId: l.productId ? String(l.productId) : null, name: l.name, qty: n(l.qty) >= 0 ? n(l.qty) : 0, unit: TO_BASE[l.unit] ? l.unit : 'piece', priceSnapshot: n(l.cost) >= 0 ? n(l.cost) : null, basisSnapshot: ['kg', 'L', 'piece'].includes(l.basis) ? l.basis : '', snapshotAt: null }))
+  };
+}
+
+/* ---------- Actions ---------- */
+function blank() { return { id: null, name: '', category: 'Cuisine', price: 17, vat: 10, portions: 1, lines: [] }; }
+function open(s) {
+  if (dirty && !confirm('Les modifications de la fiche en cours ne sont pas enregistrées. Continuer ?')) return;
+  current = s ? JSON.parse(JSON.stringify(s)) : blank(); dirty = false; msg = ''; addSearch = ''; render();
+}
+function touch() { dirty = true; live(); }
+async function save() {
+  if (!current || busy) return;
+  if (norm(current.name).length < 2) { msg = 'Donne un nom à la fiche.'; render(); return; }
+  if (!(n(current.price) > 0)) { msg = 'Le prix de vente HT doit être supérieur à zéro.'; render(); return; }
+  const now = new Date().toISOString();
+  const payload = Object.assign({}, current, {
+    lines: current.lines.map(l => { const lp = linePrice(l); return { productId: l.productId, name: l.name, qty: n(l.qty) || 0, unit: l.unit, priceSnapshot: Number.isFinite(lp.price) ? lp.price : null, basisSnapshot: lp.basis || '', snapshotAt: lp.live ? (lp.date || now) : l.snapshotAt }; })
   });
-  let result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||"Enregistrement impossible");
-  const x=result.product;
-  const fresh={id:x.id,name:x.name,price:Number(x.price),unit:x.unit,basis:basis(x.unit),source:"catalogue"};
-  catalog.push(fresh);
-  custom={name:"",packagePrice:"",packageQuantity:"",packageUnit:"kg",category:"Cuisine"};
-  window.dispatchEvent(new Event("prism-catalog-updated"));
-  add(fresh);
-  msg="Produit enregistré dans le catalogue central et ajouté à la recette.";
- }catch(err){msg="Produit non enregistré : "+(err.message||"Erreur inconnue");}
- finally{creating=false;render()}
+  busy = true; msg = 'Enregistrement…'; render();
+  try {
+    const d = await api('/.netlify/functions/technical-sheets', { action: 'save', sheet: payload });
+    const i = sheets.findIndex(s => s.id === d.sheet.id); if (i >= 0) sheets[i] = d.sheet; else sheets.unshift(d.sheet);
+    current = JSON.parse(JSON.stringify(d.sheet)); dirty = false; msg = 'Fiche enregistrée.';
+  } catch (e) { msg = 'Fiche non enregistrée : ' + e.message; }
+  busy = false; render();
 }
-function drawSummary(){
- let p=document.getElementById("rc-summary");if(!p)return;p.replaceChildren();make(p,"h3","Simulation en direct");
- let cost=total(),selling=num(price),ok=lines.length>0&&Number.isFinite(cost)&&valid(selling)&&selling>0;
- const stat=(a,b)=>{let r=make(p,"div");r.className="rc-stat";make(r,"span",a);make(r,"strong",b)};
- stat("Coût matière HT",ok?euro.format(cost):"—");stat("Prix de vente HT",valid(selling)?euro.format(selling):"—");
- stat("Marge brute matière HT",ok?euro.format(selling-cost):"—");stat("Food cost",ok?(cost/selling*100).toFixed(1)+" %":"—");
- stat("Marge brute / CA HT",ok?((selling-cost)/selling*100).toFixed(1)+" %":"—");
- stat("Prix TTC indicatif",valid(selling)?euro.format(selling*(1+num(vat)/100)):"—");
- make(p,"p","Tester le prix de vente HT avec le curseur");
- let slider=make(p,"input");slider.type="range";slider.min=1;slider.max=Math.max(50,Math.ceil((selling||17)*2));slider.step=.1;slider.value=valid(selling)?selling:17;
- slider.oninput=()=>{price=slider.value;let inp=document.getElementById("rc-sell");if(inp)inp.value=price;drawSummary()};
- if(!ok){let w=make(p,"p","Confirme les unités et les montants des ingrédients pour obtenir une marge.");w.className="rc-warn"}
+async function archive() {
+  if (!current?.id || !confirm('Archiver la fiche « ' + current.name + ' » ? Elle disparaît de la liste mais n’est pas effacée.')) return;
+  busy = true; render();
+  try { await api('/.netlify/functions/technical-sheets', { action: 'archive', id: current.id }); sheets = sheets.filter(s => s.id !== current.id); current = null; dirty = false; msg = 'Fiche archivée.'; }
+  catch (e) { msg = 'Archivage impossible : ' + e.message; }
+  busy = false; render();
 }
-async function importCocoFile(file){
- if(!file)return;
- msg="Vérification du fichier COCO…";render();
- try{
-  const document=JSON.parse(await file.text());
-  if(document?.schema!=="prism-coco-reference-v1"||!Array.isArray(document.ingredients)||!Array.isArray(document.recipePrices))throw Error("Le fichier sélectionné n’est pas l’export COCO préparé pour Prism.");
-  const candidates=document.ingredients.filter(x=>x.status==="candidate").length,review=document.ingredients.length-candidates;
-  if(!confirm("Importer "+candidates+" références candidates du classeur COCO comme tarifs indicatifs dans le catalogue achats L’Océan ? Les "+review+" lignes à vérifier seront conservées séparément. Les prix actuels ne seront pas remplacés.")){msg="Import annulé.";render();return}
-  const user=window.netlifyIdentity?.currentUser?.();if(!user)throw Error("Connexion Prism requise");
-  const response=await fetch("/.netlify/functions/purchases",{method:"PATCH",
-   headers:{Authorization:"Bearer "+await user.jwt(),"Content-Type":"application/json"},
-   body:JSON.stringify({establishment:"LOCEAN",action:"import-coco-reference",document}),cache:"no-store"});
-  const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||"Import refusé");
-  msg="COCO importé : "+result.created+" nouveaux produits, "+result.existing+" déjà présents, "+result.review+" à confirmer ; "+result.recipes+" fiches recettes enregistrées comme références. Aucun prix existant écrasé.";
-  window.dispatchEvent(new Event("prism-catalog-updated"));
-  await loadCatalog(true);
- }catch(err){msg="Import COCO non terminé : "+(err.message||"Erreur");render()}
+let objTimer = null;
+function setObjective(v) {
+  settings.objective = Math.min(80, Math.max(1, Math.round(v)));
+  live(); drawList();
+  clearTimeout(objTimer);
+  objTimer = setTimeout(async () => { try { await api('/.netlify/functions/technical-sheets', { action: 'settings', objective: settings.objective }); } catch (e) { msg = 'Objectif non enregistré : ' + e.message; drawStatus(); } }, 700);
 }
-async function loadCocoRecipes(){
- try{
-  const user=window.netlifyIdentity?.currentUser?.();if(!user)throw Error("Connexion Prism requise");
-  const r=await fetch("/.netlify/functions/purchases?coco=1",{headers:{Authorization:"Bearer "+await user.jwt()},cache:"no-store"});
-  const d=await r.json();if(!r.ok)throw Error(d.error||"Référentiel COCO indisponible");
-  if(!d.ready){msg="Aucune recette COCO importée. Importe d’abord le fichier JSON ci-dessus.";render();return}
-  const ref=d.reference||{},host=document.getElementById("rc-coco-recipes");if(!host)return;
-  host.replaceChildren();
-  make(host,"p",(ref.recipePrices||[]).length+" recettes de référence COCO · tarifs provenant du classeur (à vérifier).");
-  (ref.recipePrices||[]).forEach(item=>{
-   const row=make(host,"details");row.className="rc-line";
-   make(row,"summary",item.recipe+" · coût matière de référence "+eur(item.foodCostHT)+" HT · prix indiqué "+eur(item.sellingPriceTTC)+" TTC");
-   const lines=(ref.recipeLines||[]).filter(l=>l.recipe===item.recipe);
-   lines.forEach(l=>make(row,"p",l.ingredient+" — "+l.quantity+" "+(l.unit||"unité")+" · "+eur(l.lineCost||0)+" HT"));
+async function importLocal() {
+  if (!localDrafts.length) return;
+  busy = true; msg = 'Import des brouillons…'; render();
+  try {
+    const d = await api('/.netlify/functions/technical-sheets', { action: 'import-local', sheets: localDrafts.map(fromLocal) });
+    sheets = d.sheets || sheets; localDrafts = [];
+    try { localStorage.setItem(MIGRATED_KEY, new Date().toISOString()); } catch (_) {}
+    msg = d.added + ' brouillon(s) importé(s)' + (d.skipped ? ', ' + d.skipped + ' ignoré(s) car incomplet(s)' : '') + '. Ils sont maintenant visibles sur tous tes appareils.';
+  } catch (e) { msg = 'Import impossible : ' + e.message; }
+  busy = false; render();
+}
+function addProduct(p) {
+  const units = UNITS_FOR[p.basis] || ['piece'];
+  const unit = units[0];
+  current.lines.push({ productId: p.id, name: p.name, qty: unit === 'g' ? 100 : unit === 'cl' ? 10 : 1, unit, priceSnapshot: null, basisSnapshot: '', snapshotAt: null });
+  addSearch = ''; dirty = true;
+  if (!p.basis) msg = 'Unité de prix à confirmer dans Produits pour « ' + p.name + ' » : la ligne n’est pas calculée.';
+  render();
+  const inputs = document.querySelectorAll('#' + ROOT_ID + ' .ft-qty-input'); if (inputs.length) inputs[inputs.length - 1].focus();
+}
+async function createCatalogIngredient() {
+  if (creating) return;
+  const qty = n(custom.packageQuantity), p = n(custom.packagePrice), name = custom.name.trim();
+  if (name.length < 2 || !(qty > 0) || !(p >= 0)) { msg = 'Renseigne un nom, un prix d’achat HT et une quantité de conditionnement supérieure à zéro.'; render(); return; }
+  if (catalogList.some(x => norm(x.name) === norm(name))) { msg = 'Ce produit existe déjà : cherche-le dans la liste pour l’ajouter.'; render(); return; }
+  creating = true; msg = 'Enregistrement du produit dans le catalogue…'; render();
+  try {
+    const u = window.netlifyIdentity?.currentUser?.(); if (!u) throw Error('Connexion Prism requise');
+    const r = await fetch('/.netlify/functions/purchases', { method: 'PATCH', headers: { Authorization: 'Bearer ' + await u.jwt(), 'Content-Type': 'application/json' }, cache: 'no-store',
+      body: JSON.stringify({ establishment: 'LOCEAN', action: 'create-from-recipe', product: { name, category: custom.category, packagePrice: p, packageQuantity: qty, packageUnit: custom.packageUnit } }) });
+    const d = await r.json(); if (!r.ok || !d.ok) throw Error(d.error || 'Enregistrement impossible');
+    const x = d.product, [basis, mult] = basisOf(x.unit);
+    const item = { id: String(x.id), name: tidy(x.name), basis, basePrice: n(x.price) * mult, date: new Date().toISOString(), category: x.category || '' };
+    catalog.set(item.id, item); catalogList.push(item);
+    custom = { name: '', packagePrice: '', packageQuantity: '', packageUnit: 'kg', category: 'Cuisine' };
+    window.dispatchEvent(new Event('prism-catalog-updated'));
+    msg = 'Produit créé dans le catalogue et ajouté à la fiche.';
+    creating = false; addProduct(item); return;
+  } catch (e) { msg = 'Produit non enregistré : ' + e.message; }
+  creating = false; render();
+}
+
+/* ---------- Affichage ---------- */
+function root() { return document.getElementById(ROOT_ID); }
+function render() {
+  const r = root(); if (!r) return;
+  r.replaceChildren();
+  const head = el(r, 'div', 'ft-head');
+  el(head, 'h3', 'ft-title', 'Carte & recettes');
+  const tabs = el(head, 'div', 'ft-tabs'); tabs.setAttribute('role', 'tablist');
+  [['recettes', 'Recettes'], ['fiches', 'Fiches techniques']].forEach(([k, label]) => {
+    const b = btn(tabs, 'ft-tab', label, () => { tab = k; render(); }); b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(tab === k));
   });
- }catch(err){msg="Lecture des recettes COCO : "+err.message;render()}
+  if (tab === 'fiches') btn(head, 'ft-primary', 'Nouvelle fiche', () => open(null));
+  if (tab === 'recettes') { drawRecipesTab(r); return; }
+  if (!loaded) { el(r, 'p', 'ft-empty', 'Chargement des fiches techniques…'); return; }
+  const grid = el(r, 'div', 'ft-grid' + (current ? '' : ' ft-grid-nofiche'));
+  const left = el(grid, 'div', 'ft-left'); left.id = 'ftLeft';
+  drawLeft(left);
+  if (!current) {
+    const empty = el(grid, 'div', 'ft-pick');
+    el(empty, 'p', 'ft-pick-title', sheets.length ? 'Choisis une fiche dans la liste' : 'Aucune fiche technique pour l’instant');
+    el(empty, 'p', 'ft-muted', 'Les coûts suivent automatiquement le dernier prix d’achat de chaque produit.');
+    btn(empty, 'ft-primary', 'Créer une fiche', () => open(null));
+    drawStatus(empty);
+    return;
+  }
+  drawEditor(el(grid, 'div', 'ft-center'));
+  drawSim(el(grid, 'aside', 'ft-right'));
+  live();
 }
-function render(){
- let root=document.getElementById(id);if(!root)return;root.replaceChildren();
- let top=make(root,"div");top.className="rc-header";make(top,"h2","Simulateur de recette");button(top,"+ Nouvelle recette",newDraft);
- let importBox=make(root,"details");importBox.className="rc-panel";
- make(importBox,"summary","Importer les tarifs et fiches techniques COCO");
- make(importBox,"p","Importer le fichier JSON préparé depuis « COUTS DE REVIENTS.xlsx ». Seuls les produits vérifiables sont ajoutés au catalogue. Les tarifs COCO sont indicatifs, sans écraser les prix déjà en base.");
- let importInput=make(importBox,"input");importInput.type="file";importInput.accept=".json,application/json";importInput.onchange=()=>importCocoFile(importInput.files?.[0]);
- let note=make(root,"p",msg||"Simulation basée sur les prix HT des achats. Les conditionnements ambigus nécessitent une confirmation.");note.className="rc-note";
- let layout=make(root,"div");layout.className="rc-layout";let main=make(layout,"div");let detail=make(main,"section");detail.className="rc-panel";
- make(detail,"h3","1. Recette et prix de vente");
- input(detail,"Nom de la recette",name,x=>name=x);
- let selling=input(detail,"Prix de vente HT (€)",price,x=>{price=x;drawSummary()},"number");selling.id="rc-sell";
- pick(detail,"TVA indicative",String(vat),[["5.5","5,5 %"],["10","10 %"],["20","20 %"]],x=>{vat=x;drawSummary()});
- let ingest=make(main,"section");ingest.className="rc-panel";make(ingest,"h3","2. Ajouter les ingrédients");
- input(ingest,"Chercher dans les produits existants",search,x=>{search=x;renderCatalog()});
- let results=make(ingest,"div");results.id="rc-results";renderCatalog();
- let customArea=make(ingest,"details");customArea.open=!!custom.name;make(customArea,"summary","+ Créer un produit dans le catalogue achats");
- let customBox=make(customArea,"div");
- input(customBox,"Nom du produit",custom.name,x=>custom.name=x);
- pick(customBox,"Famille",custom.category,[["Cuisine","Cuisine"],["Bar","Bar"]],x=>custom.category=x);
- input(customBox,"Prix d'achat HT du conditionnement (€)",custom.packagePrice,x=>custom.packagePrice=x,"number");
- input(customBox,"Quantité totale dans le conditionnement",custom.packageQuantity,x=>custom.packageQuantity=x,"number");
- pick(customBox,"Unité totale du conditionnement",custom.packageUnit,[["kg","kg"],["L","litres"],["pièce","pièces"]],x=>custom.packageUnit=x);
- let hint=make(customBox,"p","Exemple : carton de 6 bouteilles d'1 L à 12 € HT → quantité totale 6, unité litres, prix du carton 12 €. Le produit est enregistré à 2 €/L.");
- hint.className="rc-note";
- let saveBtn=button(customBox,creating?"Enregistrement…":"Enregistrer au catalogue ET ajouter à la recette",createCatalogIngredient);
- saveBtn.disabled=creating;
- make(ingest,"h3","3. Composition de la recette");
- if(!lines.length)make(ingest,"p","Aucun ingrédient sélectionné.");
- lines.forEach((x,i)=>{
-  let card=make(ingest,"div");card.className="rc-line";let head=make(card,"div");head.className="rc-header";make(head,"strong",x.name);button(head,"Retirer",()=>{lines.splice(i,1);render()});
-  input(card,"Quantité utilisée",x.qty,v=>{x.qty=v;updateCosts()},"number");
-  pick(card,"Unité utilisée",x.unit,[["g","g"],["kg","kg"],["ml","ml"],["cl","cl"],["L","L"],["piece","pièce"]],v=>{x.unit=v;updateCosts()});
-  input(card,"Prix d’achat HT / unité",x.cost,v=>{x.cost=v;updateCosts()},"number");
-  pick(card,"Prix exprimé en",x.basis,[["","À confirmer"],["kg","€/kg"],["L","€/L"],["piece","€/pièce"]],v=>{x.basis=v;updateCosts()});
-  let amount=make(card,"div");amount.id="rc-line-"+i;amount.className="rc-cost";amount.textContent=Number.isFinite(calc(x))?euro.format(calc(x)):"Unité à corriger";
- });
- button(main,savedId?"Mettre à jour le brouillon":"Enregistrer le brouillon",saveDraft);
- let imported=make(main,"section");imported.className="rc-panel";make(imported,"h3","Recettes COCO importées · référence");
- button(imported,"Afficher les recettes COCO enregistrées",loadCocoRecipes);
- let importResults=make(imported,"div");importResults.id="rc-coco-recipes";
- let existing=make(main,"section");existing.className="rc-panel";make(existing,"h3","Brouillons de cet appareil");
- drafts.forEach(x=>{let row=make(existing,"div");row.className="rc-header";make(row,"span",x.name);button(row,"Ouvrir",()=>{savedId=x.id;name=x.name;price=x.price;vat=x.vat;lines=JSON.parse(JSON.stringify(x.lines));render()});button(row,"Supprimer",()=>{if(confirm("Supprimer ce brouillon ?")){drafts=drafts.filter(z=>z.id!==x.id);store();if(savedId===x.id)newDraft();else render()}})});
- let side=make(layout,"aside");side.id="rc-summary";side.className="rc-panel rc-side";drawSummary();
- let foot=make(root,"p","Brouillons enregistrés sur ce navigateur. Les nouveaux produits enregistrés depuis une fiche technique sont ajoutés au catalogue privé des achats. La marge matière exclut main-d’œuvre, énergie et charges fixes.");foot.className="rc-note";
+function drawLeft(left) {
+  const s = el(left, 'label', 'ft-search');
+  const i = el(s, 'input'); i.type = 'search'; i.placeholder = 'Chercher une fiche technique'; i.setAttribute('aria-label', 'Chercher une fiche technique'); i.value = search;
+  i.oninput = () => { search = i.value; drawList(); };
+  el(left, 'div', 'ft-count').id = 'ftCount';
+  if (localDrafts.length) {
+    const box = el(left, 'div', 'ft-banner');
+    el(box, 'span', '', localDrafts.length + ' brouillon(s) enregistré(s) seulement sur cet appareil.');
+    btn(box, 'ft-link', 'Les importer dans Prism', importLocal).disabled = busy;
+  }
+  el(left, 'div', 'ft-list').id = 'ftList';
+  drawList();
 }
-function updateCosts(){lines.forEach((x,i)=>{let a=document.getElementById("rc-line-"+i);if(a)a.textContent=Number.isFinite(calc(x))?euro.format(calc(x)):"Vérifier les unités"});drawSummary()}
-function renderCatalog(){let host=document.getElementById("rc-results");if(!host)return;host.replaceChildren();
- let list=catalog.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())).slice(0,30);
- if(!list.length){make(host,"p",catalog.length?"Aucun résultat.":"Catalogue non chargé ou accès non autorisé.");return}
- let row=make(host,"div");row.className="rc-header";let sel=make(row,"select");list.forEach(p=>{let o=make(sel,"option",p.name+" · "+eur(p.price)+" / "+(p.basis||p.unit||"à vérifier"));o.value=String(p.id)});
- button(row,"Ajouter",()=>{let p=list.find(p=>String(p.id)===sel.value);if(p)add(p)});
+function drawList() {
+  const list = document.getElementById('ftList'), count = document.getElementById('ftCount'); if (!list) return;
+  list.replaceChildren();
+  const all = sheets.map(s => (current && s.id === current.id) ? current : s);
+  if (current && !current.id) all.unshift(current);
+  const q = norm(search), shown = all.filter(s => !q || norm(s.name + ' ' + s.category).includes(q)).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr', { sensitivity: 'base' }));
+  const over = all.filter(s => tone(sheetRatio(s)) === 'over').length;
+  if (count) { count.replaceChildren(); el(count, 'span', '', all.length + ' fiche' + (all.length > 1 ? 's' : '') + (over ? ' · ' + over + ' au-dessus' : '')); el(count, 'span', '', 'objectif ' + pct(settings.objective)); }
+  if (!shown.length) { el(list, 'p', 'ft-list-empty', all.length ? 'Aucune fiche ne correspond.' : 'Crée ta première fiche avec « Nouvelle fiche ».'); return; }
+  shown.forEach(s => {
+    const active = current && (s === current || s.id === current.id);
+    const b = btn(list, 'ft-item' + (active ? ' is-active' : ''), undefined, () => { if (!active) open(s); });
+    const t = el(b, 'span', 'ft-item-text'); el(t, 'span', 'ft-item-name', s.name || 'Nouvelle fiche'); el(t, 'span', 'ft-item-cat', s.category || '');
+    const r = sheetRatio(s), pill = el(b, 'span', 'ft-pill ft-' + tone(r), pct(r));
+    pill.title = Number.isFinite(r) ? (r <= settings.objective ? 'Sous l’objectif' : 'Au-dessus de l’objectif') : 'Prix ou unité manquant sur un ingrédient';
+    if (active) b.setAttribute('aria-current', 'true');
+  });
 }
-function eur(v){return euro.format(Number(v))}
-async function loadCatalog(keepMessage){
- try{let u=window.netlifyIdentity&&window.netlifyIdentity.currentUser();if(!u)throw Error("Connexion requise");
- let res=await fetch("/.netlify/functions/purchases",{headers:{Authorization:"Bearer "+await u.jwt()},cache:"no-store"});
- let d=await res.json();if(!res.ok)throw Error(d.error||"Catalogue indisponible");
- catalog=(d.products||[]).filter(p=>p.name&&!p.archivedAt&&Number.isFinite(Number(p.price))).map(p=>({id:p.id,name:p.name,price:Number(p.price),unit:p.unit,basis:basis(p.unit),source:"catalogue"}));
- if(!keepMessage)msg=catalog.length?catalog.length+" produits disponibles depuis les achats.":"Catalogue achats vide.";
- }catch(e){msg="Catalogue achats : "+e.message}
- render();
+function drawEditor(c) {
+  const top = el(c, 'div', 'ft-ed-head');
+  const meta = el(top, 'div', 'ft-ed-meta');
+  const cat = el(meta, 'select', 'ft-cat'); cat.setAttribute('aria-label', 'Catégorie');
+  ['Cuisine', 'Bar', 'COCO'].forEach(x => { const o = el(cat, 'option', '', x); o.value = x; }); cat.value = current.category || 'Cuisine';
+  cat.onchange = () => { current.category = cat.value; dirty = true; drawList(); };
+  const name = el(meta, 'input', 'ft-name'); name.type = 'text'; name.placeholder = 'Nom de la fiche'; name.value = current.name; name.setAttribute('aria-label', 'Nom de la fiche');
+  name.oninput = () => { current.name = name.value; dirty = true; drawList(); };
+  const actions = el(top, 'div', 'ft-ed-actions');
+  btn(actions, 'ft-ghost', 'Imprimer', () => window.print());
+  if (current.id) btn(actions, 'ft-ghost', 'Archiver', archive).disabled = busy;
+
+  const card = el(c, 'div', 'ft-card');
+  const th = el(card, 'div', 'ft-row ft-row-head');
+  el(th, 'span', '', 'Ingrédient · 1 portion'); el(th, 'span', 'ft-c', 'Quantité'); el(th, 'span', 'ft-r', 'Coût'); el(th, 'span', '', '');
+  if (!current.lines.length) el(card, 'p', 'ft-list-empty', 'Ajoute un premier ingrédient ci-dessous.');
+  current.lines.forEach((l, idx) => drawLine(card, l, idx));
+  drawAdd(card);
+  el(c, 'p', 'ft-muted ft-foot', catalogError ? 'Catalogue Produits indisponible (' + catalogError + ') : les prix enregistrés sont utilisés.' : 'Prix d’achat HT repris du dernier achat dans Produits · marge matière seule (main-d’œuvre et énergie non comprises)');
 }
-function init(){
- let page=document.getElementById("module-menu");if(!page)return;let shell=page.querySelector(".module-shell");if(!shell)return;
- let placeholder=shell.querySelector(".module-placeholder");if(placeholder)placeholder.style.display="none";
- let section=make(shell,"section");section.id=id;
- let style=make(document.head,"style");style.textContent=".rc-header{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}.rc-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:15px}.rc-panel{background:#fff;border:1px solid #e2e7e7;border-radius:12px;padding:16px;margin-bottom:14px}.rc-panel h3{font-size:14px}.rc-panel label{display:inline-flex;flex-direction:column;gap:5px;min-width:140px;margin:8px;font-size:11px}.rc-panel input,.rc-panel select{max-width:100%;border:1px solid #dce2e3;padding:9px;border-radius:7px;background:white;color:#203e4b}.rc-line{border-top:1px solid #e4e8e8;padding:12px 0}.rc-cost{font-weight:700}.rc-btn{border:1px solid #dae0e0;background:#fff;color:#24566b;border-radius:7px;padding:9px;cursor:pointer;margin:5px;font-size:11px}.rc-side{position:sticky;top:15px;background:#fbfcfb}.rc-stat{display:flex;justify-content:space-between;border-bottom:1px solid #e9eeee;padding:11px 0;gap:6px;font-size:11px}.rc-stat strong{font-size:15px;text-align:right}.rc-note{font-size:11px;color:#708089}.rc-warn{color:#986123;font-size:11px}@media(max-width:800px){.rc-layout{grid-template-columns:1fr}.rc-side{position:static}}";
- try{let data=JSON.parse(localStorage.getItem(key)||"[]");drafts=Array.isArray(data)?data:[]}catch(_){}
- render();loadCatalog();
+function drawLine(card, l, idx) {
+  const row = el(card, 'div', 'ft-row');
+  const info = el(row, 'span', 'ft-ing');
+  el(info, 'span', 'ft-ing-name', l.name);
+  const lp = linePrice(l), sub = el(info, 'span', 'ft-ing-sub');
+  if (Number.isFinite(lp.price) && lp.basis) {
+    sub.textContent = euro.format(lp.price) + ' / ' + BASIS_LABEL[lp.basis] + (lp.date ? ' · ' + dateFr(lp.date) : '');
+    if (lp.live && Number.isFinite(l.priceSnapshot) && l.basisSnapshot === lp.basis && Math.abs(lp.price - l.priceSnapshot) > 0.004) {
+      const up = lp.price > l.priceSnapshot, d = el(sub, 'span', 'ft-delta ' + (up ? 'ft-over' : 'ft-ok'), (up ? ' ▲ ' : ' ▼ ') + euro.format(Math.abs(lp.price - l.priceSnapshot)));
+      d.title = 'Depuis le dernier enregistrement de la fiche (' + euro.format(l.priceSnapshot) + ')';
+    }
+    if (!lp.live) el(sub, 'span', 'ft-warn-text', ' · produit absent du catalogue, prix figé');
+  } else el(sub, 'span', 'ft-warn-text', lp.product ? 'Unité de prix à confirmer dans Produits' : 'Prix à brancher');
+  const qty = el(row, 'span', 'ft-qty');
+  const units = UNITS_FOR[lp.basis] || Object.keys(TO_BASE);
+  btn(qty, 'ft-step', '−', () => { l.qty = Math.max(0, Math.round((n(l.qty) - STEP[l.unit]) * 1000) / 1000); qi.value = fmtQty(l.qty); touch(); }).setAttribute('aria-label', 'Moins de ' + l.name);
+  const qi = el(qty, 'input', 'ft-qty-input'); qi.type = 'text'; qi.inputMode = 'decimal'; qi.value = fmtQty(l.qty); qi.setAttribute('aria-label', 'Quantité de ' + l.name);
+  qi.oninput = () => { const v = n(qi.value); if (v >= 0) { l.qty = v; touch(); } };
+  qi.onblur = () => { qi.value = fmtQty(l.qty); };
+  if (units.length > 1 || !units.includes(l.unit)) {
+    const us = el(qty, 'select', 'ft-unit'); us.setAttribute('aria-label', 'Unité de ' + l.name);
+    (units.includes(l.unit) ? units : [l.unit].concat(units)).forEach(u => { const o = el(us, 'option', '', UNIT_LABEL[u] || u); o.value = u; }); us.value = l.unit;
+    us.onchange = () => { l.unit = us.value; touch(); };
+  } else el(qty, 'span', 'ft-unit-label', UNIT_LABEL[l.unit]);
+  btn(qty, 'ft-step', '+', () => { l.qty = Math.round((n(l.qty) + STEP[l.unit]) * 1000) / 1000; qi.value = fmtQty(l.qty); touch(); }).setAttribute('aria-label', 'Plus de ' + l.name);
+  const cost = el(row, 'span', 'ft-cost ft-r'); cost.dataset.line = idx;
+  btn(row, 'ft-remove', '×', () => { current.lines.splice(idx, 1); dirty = true; render(); }).setAttribute('aria-label', 'Retirer ' + l.name);
 }
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+function fmtQty(v) { return Number.isFinite(n(v)) ? String(Math.round(n(v) * 1000) / 1000).replace('.', ',') : ''; }
+function drawAdd(card) {
+  const box = el(card, 'div', 'ft-add');
+  const lab = el(box, 'label', 'ft-add-search'); el(lab, 'span', 'ft-add-plus', '+');
+  const i = el(lab, 'input'); i.type = 'search'; i.placeholder = 'Ajouter un ingrédient depuis Produits…'; i.setAttribute('aria-label', 'Ajouter un ingrédient'); i.value = addSearch;
+  const results = el(box, 'div', 'ft-results');
+  const show = () => {
+    results.replaceChildren(); const q = norm(addSearch); if (q.length < 2) return;
+    const found = catalogList.filter(p => norm(p.name).includes(q)).slice(0, 8);
+    if (!found.length) { el(results, 'p', 'ft-muted', catalogList.length ? 'Aucun produit trouvé. Tu peux le créer ci-dessous.' : 'Catalogue Produits non chargé.'); return; }
+    found.forEach(p => {
+      const b = btn(results, 'ft-result', undefined, () => addProduct(p));
+      el(b, 'span', '', p.name);
+      el(b, 'span', 'ft-muted', Number.isFinite(p.basePrice) && p.basis ? euro.format(p.basePrice) + ' / ' + BASIS_LABEL[p.basis] : 'unité à confirmer');
+    });
+  };
+  i.oninput = () => { addSearch = i.value; show(); };
+  show();
+  const more = el(box, 'details', 'ft-create'); more.open = !!custom.name;
+  el(more, 'summary', '', 'Produit absent du catalogue ? Le créer');
+  const f = el(more, 'div', 'ft-create-grid');
+  const field = (label, value, set, type) => { const l = el(f, 'label'); el(l, 'span', '', label); const x = el(l, 'input'); x.type = type || 'text'; if (type === 'number') { x.min = '0'; x.step = 'any'; } x.value = value; x.oninput = () => set(x.value); return x; };
+  const select = (label, value, opts, set) => { const l = el(f, 'label'); el(l, 'span', '', label); const x = el(l, 'select'); opts.forEach(([v, t]) => { const o = el(x, 'option', '', t); o.value = v; }); x.value = value; x.onchange = () => set(x.value); };
+  field('Nom du produit', custom.name, v => custom.name = v);
+  select('Famille', custom.category, [['Cuisine', 'Cuisine'], ['Bar', 'Bar']], v => custom.category = v);
+  field('Prix d’achat HT du conditionnement (€)', custom.packagePrice, v => custom.packagePrice = v, 'number');
+  field('Quantité totale du conditionnement', custom.packageQuantity, v => custom.packageQuantity = v, 'number');
+  select('Unité', custom.packageUnit, [['kg', 'kg'], ['L', 'litres'], ['pièce', 'pièces']], v => custom.packageUnit = v);
+  el(f, 'p', 'ft-muted', 'Exemple : carton de 6 bouteilles d’1 L à 12 € HT → quantité 6, litres, prix 12 € : enregistré à 2 € / L.');
+  btn(f, 'ft-ghost', creating ? 'Enregistrement…' : 'Créer dans Produits et ajouter', createCatalogIngredient).disabled = creating;
+}
+function drawSim(r) {
+  const hero = el(r, 'div', 'ft-hero');
+  el(hero, 'span', 'ft-hero-label', 'Ratio matière');
+  el(hero, 'span', 'ft-hero-value', '—').id = 'ftRatio';
+  el(hero, 'span', 'ft-hero-verdict', '').id = 'ftVerdict';
+  const pr = el(hero, 'div', 'ft-price');
+  const prHead = el(pr, 'div', 'ft-price-head'); el(prHead, 'span', '', 'Prix de vente HT');
+  const pi = el(prHead, 'input', 'ft-price-input'); pi.type = 'text'; pi.inputMode = 'decimal'; pi.id = 'ftPriceInput'; pi.setAttribute('aria-label', 'Prix de vente HT en euros');
+  pi.value = fmtQty(current.price);
+  const slider = el(pr, 'input', 'ft-slider'); slider.type = 'range'; slider.id = 'ftSlider'; slider.step = '0.1'; slider.setAttribute('aria-label', 'Prix de vente HT');
+  const range = () => { const p = n(current.price) || 17; slider.min = '1'; slider.max = String(Math.max(30, Math.ceil(p * 1.6))); slider.value = String(p); };
+  range();
+  const ends = el(pr, 'div', 'ft-price-ends'); el(ends, 'span', '', '1 €'); el(ends, 'span', '', '').id = 'ftSliderMax';
+  slider.oninput = () => { current.price = Math.round(n(slider.value) * 10) / 10; pi.value = fmtQty(current.price); touch(); };
+  pi.oninput = () => { const v = n(pi.value); if (v > 0) { current.price = v; if (v > n(slider.max)) range(); slider.value = String(v); touch(); } };
+  pi.onblur = () => { pi.value = fmtQty(current.price); };
+
+  const box = el(r, 'div', 'ft-stats');
+  const obj = el(box, 'div', 'ft-stat ft-stat-obj'); el(obj, 'span', '', 'Objectif ratio matière');
+  const os = el(obj, 'span', 'ft-obj');
+  btn(os, 'ft-step', '−', () => setObjective(settings.objective - 1)).setAttribute('aria-label', 'Baisser l’objectif');
+  el(os, 'strong', '', '').id = 'ftObjective';
+  btn(os, 'ft-step', '+', () => setObjective(settings.objective + 1)).setAttribute('aria-label', 'Monter l’objectif');
+  const vat = el(box, 'div', 'ft-stat'); el(vat, 'span', '', 'TVA');
+  const vs = el(vat, 'select', 'ft-vat'); vs.setAttribute('aria-label', 'Taux de TVA');
+  [[5.5, '5,5 %'], [10, '10 %'], [20, '20 %']].forEach(([v, t]) => { const o = el(vs, 'option', '', t); o.value = String(v); }); vs.value = String(current.vat || 10);
+  vs.onchange = () => { current.vat = n(vs.value); touch(); };
+  [['Coût matière HT', 'ftCost'], ['Prix TTC', 'ftTtc'], ['Marge brute matière', 'ftMargin']].forEach(([label, id]) => { const s = el(box, 'div', 'ft-stat'); el(s, 'span', '', label); el(s, 'strong', '', '—').id = id; });
+  const target = el(box, 'div', 'ft-stat ft-target'); el(target, 'span', '', 'Prix minimum pour l’objectif'); el(target, 'strong', '', '—').id = 'ftTarget';
+  const save_ = btn(r, 'ft-primary ft-save', busy ? 'Enregistrement…' : 'Enregistrer la fiche', save); save_.disabled = busy; save_.id = 'ftSave';
+  drawStatus(r);
+}
+function drawStatus(parent) {
+  let s = document.getElementById('ftStatus');
+  if (!s && parent) { s = el(parent, 'p', 'ft-status'); s.id = 'ftStatus'; s.setAttribute('role', 'status'); }
+  if (s) s.textContent = msg || (dirty ? 'Modifications non enregistrées.' : '');
+}
+/* Mise à jour en direct sans reconstruire la page (le champ en cours de saisie garde le focus). */
+function live() {
+  if (!current) return;
+  current.lines.forEach((l, i) => { const c = document.querySelector('#' + ROOT_ID + ' .ft-cost[data-line="' + i + '"]'); if (c) { const v = lineCost(l); c.textContent = Number.isFinite(v) ? euro.format(v) : '—'; c.classList.toggle('ft-warn-text', !Number.isFinite(v)); } });
+  const cost = sheetCost(current), price = n(current.price), ratio = sheetRatio(current), t = tone(ratio);
+  const set = (id, v) => { const x = document.getElementById(id); if (x) x.textContent = v; };
+  set('ftRatio', pct(ratio)); set('ftCost', money(cost)); set('ftTtc', money(price * (1 + (n(current.vat) || 0) / 100)));
+  set('ftMargin', Number.isFinite(cost) ? money(price - cost) : '—'); set('ftTarget', Number.isFinite(cost) ? money(cost / (settings.objective / 100)) + ' HT' : '—');
+  set('ftObjective', pct(settings.objective));
+  const sm = document.getElementById('ftSlider'); if (sm) set('ftSliderMax', sm.max + ' €');
+  const r = document.getElementById('ftRatio'); if (r) r.dataset.tone = t;
+  const v = document.getElementById('ftVerdict');
+  if (v) { v.dataset.tone = t; v.textContent = t === 'none' ? (current.lines.length ? 'Un ingrédient n’a pas de prix ou d’unité exploitable' : 'Ajoute des ingrédients') : t === 'ok' ? '▼ ' + pct(settings.objective - ratio) + ' sous l’objectif' : '▲ ' + pct(ratio - settings.objective) + ' au-dessus de l’objectif'; }
+  drawList(); drawStatus();
+}
+/* Onglet Recettes : en construction ; référentiel COCO conservé ici. */
+function drawRecipesTab(r) {
+  const box = el(r, 'div', 'ft-card ft-recipes');
+  el(box, 'p', 'ft-pick-title', 'Recettes');
+  el(box, 'p', 'ft-muted', 'Cet onglet accueillera les recettes (plats vendus). Le travail en cours porte sur les fiches techniques.');
+  const imp = el(box, 'details', 'ft-create'); el(imp, 'summary', '', 'Importer les tarifs et fiches techniques COCO');
+  el(imp, 'p', 'ft-muted', 'Fichier JSON préparé depuis « COUTS DE REVIENTS.xlsx ». Seuls les produits vérifiables sont ajoutés au catalogue, sans écraser les prix existants.');
+  const file = el(imp, 'input'); file.type = 'file'; file.accept = '.json,application/json'; file.onchange = () => importCocoFile(file.files?.[0]);
+  const ref = el(box, 'details', 'ft-create'); el(ref, 'summary', '', 'Recettes COCO de référence');
+  const host = el(ref, 'div'); host.id = 'ftCoco';
+  ref.addEventListener('toggle', () => { if (ref.open && !host.childNodes.length) loadCocoRecipes(host); });
+  if (msg) el(box, 'p', 'ft-status', msg);
+}
+async function importCocoFile(file) {
+  if (!file) return;
+  try {
+    const doc = JSON.parse(await file.text());
+    if (doc?.schema !== 'prism-coco-reference-v1' || !Array.isArray(doc.ingredients) || !Array.isArray(doc.recipePrices)) throw Error('Ce fichier n’est pas l’export COCO préparé pour Prism.');
+    const candidates = doc.ingredients.filter(x => x.status === 'candidate').length, review = doc.ingredients.length - candidates;
+    if (!confirm('Importer ' + candidates + ' références COCO comme tarifs indicatifs dans le catalogue ? Les ' + review + ' lignes à vérifier restent à part. Aucun prix existant n’est remplacé.')) return;
+    const u = window.netlifyIdentity?.currentUser?.(); if (!u) throw Error('Connexion Prism requise');
+    const res = await fetch('/.netlify/functions/purchases', { method: 'PATCH', headers: { Authorization: 'Bearer ' + await u.jwt(), 'Content-Type': 'application/json' }, body: JSON.stringify({ establishment: 'LOCEAN', action: 'import-coco-reference', document: doc }), cache: 'no-store' });
+    const d = await res.json(); if (!res.ok || !d.ok) throw Error(d.error || 'Import refusé');
+    msg = 'COCO importé : ' + d.created + ' nouveaux produits, ' + d.existing + ' déjà présents, ' + d.review + ' à confirmer ; ' + d.recipes + ' fiches de référence. Aucun prix existant écrasé.';
+    window.dispatchEvent(new Event('prism-catalog-updated')); await loadCatalog();
+  } catch (e) { msg = 'Import COCO non terminé : ' + e.message; }
+  render();
+}
+async function loadCocoRecipes(host) {
+  host.replaceChildren(); el(host, 'p', 'ft-muted', 'Chargement…');
+  try {
+    const u = window.netlifyIdentity?.currentUser?.(); if (!u) throw Error('Connexion Prism requise');
+    const r = await fetch('/.netlify/functions/purchases?coco=1', { headers: { Authorization: 'Bearer ' + await u.jwt() }, cache: 'no-store' });
+    const d = await r.json(); if (!r.ok) throw Error(d.error || 'Référentiel COCO indisponible');
+    host.replaceChildren();
+    if (!d.ready) { el(host, 'p', 'ft-muted', 'Aucune recette COCO importée.'); return; }
+    const ref = d.reference || {};
+    (ref.recipePrices || []).forEach(item => {
+      const row = el(host, 'details', 'ft-coco');
+      el(row, 'summary', '', item.recipe + ' · coût matière de référence ' + money(n(item.foodCostHT)) + ' HT · prix indiqué ' + money(n(item.sellingPriceTTC)) + ' TTC');
+      (ref.recipeLines || []).filter(l => l.recipe === item.recipe).forEach(l => el(row, 'p', 'ft-muted', l.ingredient + ' — ' + l.quantity + ' ' + (l.unit || 'unité') + ' · ' + money(n(l.lineCost)) + ' HT'));
+    });
+  } catch (e) { host.replaceChildren(); el(host, 'p', 'ft-warn-text', 'Lecture des recettes COCO : ' + e.message); }
+}
+
+/* ---------- Démarrage ---------- */
+async function load() {
+  if (loaded || busy) return;
+  busy = true;
+  try { await Promise.all([loadCatalog(), loadSheets()]); msg = ''; }
+  catch (e) { msg = 'Fiches techniques indisponibles : ' + e.message; }
+  localDrafts = readLocalDrafts();
+  busy = false; loaded = true; render();
+}
+function init() {
+  const page = document.getElementById('module-menu'); if (!page) return;
+  const shell = page.querySelector('.module-shell'); if (!shell || document.getElementById(ROOT_ID)) return;
+  shell.querySelectorAll('.module-placeholder,.module-kicker,.module-title,.module-lead').forEach(x => { x.hidden = true; x.style.setProperty('display', 'none', 'important'); });
+  const section = el(shell, 'section', 'ft-root'); section.id = ROOT_ID;
+  render();
+  const start = () => { if (page.classList.contains('open') || page.offsetParent) load(); };
+  new MutationObserver(start).observe(page, { attributes: true, attributeFilter: ['class'] });
+  start();
+  window.addEventListener('prism-catalog-updated', () => { if (loaded) loadCatalog().then(() => { if (current) live(); else drawList(); }); });
+  if (window.netlifyIdentity?.on) window.netlifyIdentity.on('login', () => { loaded = false; current = null; dirty = false; start(); });
+  window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
