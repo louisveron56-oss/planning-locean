@@ -321,7 +321,7 @@ function infoModal(item){
 function purchaseUnitLabel(value){
  const standard=unitLabel(value);if(standard)return standard;
  const words={boi:'boîte',bte:'boîte',boite:'boîte',car:'carton',ct:'carton',crt:'carton',carton:'carton',col:'colis',colis:'colis',btl:'bouteille',bouteille:'bouteille',boc:'bocal',bocal:'bocal',paq:'paquet',paquet:'paquet',sac:'sac',dz:'douzaine',douzaine:'douzaine',bar:'barquette',bq:'barquette',barquette:'barquette',emb:'emballage / consigne',pet:'bouteille PET',lot:'lot',pk:'pack',pack:'pack',fl:'flacon',flacon:'flacon',h:'heure',heure:'heure',forfait:'forfait'};
- return words[norm(value)]||String(value||'').trim()||'unité ?';
+ return words[norm(value)]||'unité ?';
 }
 function purchasesChart(host,lines){
  host.replaceChildren();
