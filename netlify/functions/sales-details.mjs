@@ -1,4 +1,5 @@
 import { getUser } from "@netlify/identity";
+import { readSheetCached, wantsRefresh, cacheInfo } from "./lib/sheet-cache.mjs";
 const response=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}});
 export default async function(req){
  if(req.method!=="GET")return response({error:"Méthode non autorisée"},405);
@@ -12,10 +13,8 @@ export default async function(req){
  const args=new URL(req.url).searchParams,sheet=args.get("sheet"),start=Number(args.get("start")||1);
  if(!["Services","Familles","Paiements","Contexte"].includes(sheet)||!Number.isInteger(start)||start<1||start>20001||start!==1&&(start-1)%1000!==0)return response({error:"Paramètres invalides"},400);
  try{
-  const api=await fetch(url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},redirect:"follow",body:JSON.stringify({secret,action:"readSheet",sheet,startRow:start,limit:1000}),signal:AbortSignal.timeout(23000)});
-  if(!api.ok)throw new Error("Erreur de passerelle HTTP "+api.status);
-  const data=await api.json();if(!data.ok)throw new Error(data.error||"Erreur Apps Script");
-  const rows=data.rows||[];
-  return response({sheet,start,totalRows:data.totalRows,rows});
+  const cached=await readSheetCached({url,secret,sheet,maxRows:21000,refresh:wantsRefresh(req)});
+  const rows=cached.rows.slice(start-1,start-1+1000);
+  return response({sheet,start,totalRows:cached.totalRows,rows,cache:cacheInfo(cached)});
  }catch(err){console.error("Détail ventes",sheet,err);return response({error:"Lecture du détail Google Sheets indisponible"},502);}
 }
