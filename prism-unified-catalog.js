@@ -290,7 +290,8 @@ function infoModal(item){
  const fields=make(modal,'dl','pcu-details');
  const attr=(label,value)=>{make(fields,'dt','',label);make(fields,'dd','',value||'Non renseigné');};
  attr('Désignation',item.name);
- attr('Fournisseur',item.supplier);
+ attr('Fournisseur',item.linkedItems?.length?'Red Boisson / West Boisson':item.supplier);
+ if(item.linkedItems?.length)item.linkedItems.forEach((p,i)=>attr('Référence historique '+(i+1),p.supplier+' · '+(p.supplierReference||'sans référence')));
  attr('Référence fournisseur',item.supplierReference);
  attr('Famille / catégorie',item.category);
  attr('Prix catalogue HT',item.price.text);
@@ -418,7 +419,7 @@ function detail(item){
 }
 function visibleRows(){
  const q=norm(search),filter=norm(supplierFilter);
- const list=rows.filter(p=>(!filter||[p,...(p.linkedItems||[])].some(x=>norm(x.supplier)===filter))&&(groupFilter==='Tous'||(groupFilter==='À vérifier'?needsCheck(p):p.group===groupFilter))&&(!q||norm([p.name,p.display,p.supplier,p.supplierReference,p.category,p.group].join(' ')).includes(q)));
+ const list=rows.filter(p=>(!filter||[p,...(p.linkedItems||[])].some(x=>norm(x.supplier)===filter))&&(groupFilter==='Tous'||(groupFilter==='À vérifier'?needsCheck(p):p.group===groupFilter))&&(!q||norm([p.name,p.display,p.supplier,p.supplierDisplay,p.supplierReference,p.category,p.group,...(p.linkedItems||[]).map(x=>x.supplier+' '+x.supplierReference)].join(' ')).includes(q)));
  const dir=sortDir==='desc'?-1:1,byName=(a,b)=>a.display.localeCompare(b.display,'fr',{sensitivity:'base'});
  return list.sort((a,b)=>{
   if(sort==='supplier')return dir*(a.supplierDisplay.localeCompare(b.supplierDisplay,'fr',{sensitivity:'base'})||byName(a,b));
@@ -576,7 +577,7 @@ function drawList(){
 function drawChips(){
  if(!chipsHost)return;chipsHost.replaceChildren();
  const q=norm(search),filter=norm(supplierFilter);
- const base=rows.filter(p=>(!filter||[p,...(p.linkedItems||[])].some(x=>norm(x.supplier)===filter))&&(!q||norm([p.name,p.display,p.supplier,p.supplierReference,p.category,p.group].join(' ')).includes(q)));
+ const base=rows.filter(p=>(!filter||[p,...(p.linkedItems||[])].some(x=>norm(x.supplier)===filter))&&(!q||norm([p.name,p.display,p.supplier,p.supplierDisplay,p.supplierReference,p.category,p.group,...(p.linkedItems||[]).map(x=>x.supplier+' '+x.supplierReference)].join(' ')).includes(q)));
  const fr=new Intl.NumberFormat('fr-FR');
  const chips=[['Tous',base.length],...GROUPS.map(g=>[g,base.filter(p=>p.group===g).length])];
  const other=base.filter(p=>p.group==='À classer').length;if(other)chips.push(['À classer',other]);
