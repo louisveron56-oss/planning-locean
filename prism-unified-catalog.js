@@ -174,6 +174,42 @@ function attachPurchaseDates(items,historyProducts){
  });
  return {matched,dated};
 }
+
+/* Rapprochement explicitement confirmé par la direction : Red Boisson -> West Boisson.
+   Ne fusionne ni les factures ni les IDs en base. Uniquement même libellé et unité non contradictoire. */
+function supplierAlias(supplier){
+ const value=norm(supplier).replace(/[^a-z0-9]+/g,' ').trim();
+ if(/^red boissons?$/.test(value)||/^west boissons?$/.test(value))return 'red-west-boisson';
+ return '';
+}
+function reconciledRows(items){
+ const groups=new Map(),hidden=new Set();
+ items.forEach(item=>{
+  const supplier=supplierAlias(item.supplier),label=norm(item.name);
+  if(!supplier||!label)return;
+  const key=supplier+'|'+label,parts=groups.get(key)||[];parts.push(item);groups.set(key,parts);
+ });
+ for(const parts of groups.values()){
+  // There must be exactly one row for each historical company.
+  if(parts.length!==2||supplierAlias(parts[0].supplier)!=='red-west-boisson'||supplierAlias(parts[1].supplier)!=='red-west-boisson')continue;
+  const companyA=norm(parts[0].supplier).startsWith('red')?'red':'west';
+  const companyB=norm(parts[1].supplier).startsWith('red')?'red':'west';
+  if(companyA===companyB)continue;
+  const units=parts.map(p=>p.price.unit).filter(Boolean);
+  if(new Set(units).size>1)continue; // Never compare unlike units.
+  const categories=parts.map(p=>p.group).filter(x=>x&&x!=='À classer');
+  if(new Set(categories).size>1)continue;
+  const [latest,older]=parts.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||Number(!!b.catalog)-Number(!!a.catalog));
+  // In-place displayed row only; underlying catalogue objects and invoice records are untouched.
+  latest.linkedItems=[latest,older];
+  latest.supplierDisplay='Red Boisson / West Boisson';
+  latest.date=[latest.date,older.date].filter(Boolean).sort().at(-1)||'';
+  latest.purchaseDateSource='Achats rapprochés Red Boisson + West Boisson';
+  latest.warning=latest.warning||older.warning||units.length!==2;
+  hidden.add(older);
+ }
+ return items.filter(x=>!hidden.has(x));
+}
 function statusLine(container,message,warning){
  const line=make(container,'p',warning?'pcu-warning':'pcu-muted',message);
  if(warning)line.setAttribute('role','status');
@@ -254,7 +290,8 @@ function infoModal(item){
  const fields=make(modal,'dl','pcu-details');
  const attr=(label,value)=>{make(fields,'dt','',label);make(fields,'dd','',value||'Non renseigné');};
  attr('Désignation',item.name);
- attr('Fournisseur',item.supplier);
+ attr('Fournisseur',item.linkedItems?.length?'Red Boisson / West Boisson':item.supplier);
+ if(item.linkedItems?.length)item.linkedItems.forEach((p,i)=>attr('Référence historique '+(i+1),p.supplier+' · '+(p.supplierReference||'sans référence')));
  attr('Référence fournisseur',item.supplierReference);
  attr('Famille / catégorie',item.category);
  attr('Prix catalogue HT',item.price.text);
@@ -318,19 +355,33 @@ function purchasesChart(host,lines){
   statusLine(host,certified.length+' achats fiables · variation '+(delta>=0?'+':'')+delta.toFixed(1).replace('.',',')+' % ('+pair[0]+')',false);
  }else statusLine(host,'Points cerclés : achats à vérifier. Variation non calculée faute de données suffisamment fiables.',true);
 }
+
 async function purchasesFor(item,slot){
  const stamp=++detailRequest;
  try{
   const index=await historicalIndex();
   if(stamp!==detailRequest||detailId!==item.id)return;
-  const match=matchingHistory(item,index);
-  if(!match){statusLine(slot,'Aucun historique relié avec certitude à cette référence. Les achats importés restent consultables dans Historique achats.',true);return;}
+  const sources=item.linkedItems?.length?item.linkedItems:[item];
+  const matches=sources.map(source=>source.purchaseHistoryMatch||matchingHistory(source,index)).filter(Boolean);
+  const unique=[...new Map(matches.map(m=>[m.key,m])).values()];
+  if(!unique.length){
+   statusLine(slot,'Aucun historique relié avec certitude à cette référence. Les achats importés restent consultables dans Historique achats.',true);
+   return;
+  }
   const user=window.netlifyIdentity?.currentUser?.(),token=await user.jwt();
-  const res=await fetch(historyApi+'?mode=product&key='+encodeURIComponent(match.key),{headers:{Authorization:'Bearer '+token},cache:'no-store'});
-  const data=await res.json();if(!res.ok)throw Error(data.error||'Historique non disponible');
+  const results=await Promise.allSettled(unique.map(async match=>{
+   const res=await fetch(historyApi+'?mode=product&key='+encodeURIComponent(match.key),{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+   const data=await res.json();if(!res.ok)throw Error(data.error||'Historique non disponible');
+   return data.rows||[];
+  }));
   if(stamp!==detailRequest||detailId!==item.id)return;
-  const lines=Array.isArray(data.rows)?data.rows:[];
+  const lines=results.filter(x=>x.status==='fulfilled').flatMap(x=>Array.isArray(x.value)?x.value:[]);
   if(!lines.length){statusLine(slot,'Aucun achat disponible pour ce produit.',true);return;}
+  if(results.some(x=>x.status==='rejected'))statusLine(slot,'Une partie des factures est momentanément indisponible : historique partiel.',true);
+  if(item.linkedItems?.length){
+   const suppliers=[...new Set(lines.map(x=>x.supplier).filter(Boolean))];
+   statusLine(slot,lines.length+' achats datés · '+suppliers.join(' / '),false);
+  }
   const graph=make(slot,'div','pcu-graph');purchasesChart(graph,lines);
   make(slot,'h4','pcu-section-heading','Derniers achats');
   const wrap=make(slot,'div','pcu-scroll'),table=make(wrap,'table','pcu-table pcu-purchases');
@@ -340,11 +391,13 @@ async function purchasesFor(item,slot){
   lines.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,12).forEach(r=>{
    const tr=make(body,'tr');
    make(tr,'td','',showDate(r.date));make(tr,'td','',r.priceHT==null?'—':money(r.priceHT)+' / '+(unitLabel(r.unit)||'unité ?'));
-   make(tr,'td','',r.quantity??'—');make(tr,'td','',r.invoice||'—');
+   make(tr,'td','',r.quantity??'—');
+   const doc=make(tr,'td','',r.invoice||'—');doc.title=r.supplier||'';
    make(tr,'td',r.verified?'':'pcu-issue',r.verified?'OK':'À vérifier');
   });
  }catch(e){if(stamp===detailRequest&&detailId===item.id)statusLine(slot,'Historique indisponible : '+e.message,true);}
 }
+
 function detail(item){
  const content=make(listHost,'section','pcu-detail');
  const head=make(content,'div','pcu-detail-head');
@@ -354,6 +407,9 @@ function detail(item){
  make(content,'p','pcu-product-supplier',item.supplier);
  if(!item.price.valid){const unitLine=make(content,'div','pcu-unit-inline-detail');make(unitLine,'span','','Unité de prix à vérifier');inlineUnitEditor(item,unitLine);}
  const metrics=make(content,'div','pcu-metrics');
+ if(item.linkedItems?.length>1){
+  make(content,'p','pcu-muted','Référence fournisseur rapprochée : Red Boisson et West Boisson · historique des deux noms conservé.');
+ }
  const price=make(metrics,'div','pcu-metric');make(price,'small','','Dernier prix catalogue HT');make(price,'strong','',item.price.text);
  const when=make(metrics,'div','pcu-metric');make(when,'small','','Dernier achat rapproché');make(when,'strong','',item.date?showDate(item.date):'Aucune date reliée');
  make(content,'h4','pcu-section-heading','Historique des prix d’achat');
@@ -363,7 +419,7 @@ function detail(item){
 }
 function visibleRows(){
  const q=norm(search),filter=norm(supplierFilter);
- const list=rows.filter(p=>(!filter||norm(p.supplier)===filter)&&(groupFilter==='Tous'||(groupFilter==='À vérifier'?needsCheck(p):p.group===groupFilter))&&(!q||norm([p.name,p.display,p.supplier,p.supplierReference,p.category,p.group].join(' ')).includes(q)));
+ const list=rows.filter(p=>(!filter||[p,...(p.linkedItems||[])].some(x=>norm(x.supplier)===filter))&&(groupFilter==='Tous'||(groupFilter==='À vérifier'?needsCheck(p):p.group===groupFilter))&&(!q||norm([p.name,p.display,p.supplier,p.supplierDisplay,p.supplierReference,p.category,p.group,...(p.linkedItems||[]).map(x=>x.supplier+' '+x.supplierReference)].join(' ')).includes(q)));
  const dir=sortDir==='desc'?-1:1,byName=(a,b)=>a.display.localeCompare(b.display,'fr',{sensitivity:'base'});
  return list.sort((a,b)=>{
   if(sort==='supplier')return dir*(a.supplierDisplay.localeCompare(b.supplierDisplay,'fr',{sensitivity:'base'})||byName(a,b));
@@ -482,7 +538,7 @@ function renderProductRow(row,p){
  const meta=[sub,p.supplierReference?'réf. '+p.supplierReference:''].filter(Boolean).join(' · ');
  if(meta)make(name,'span','pcu-product-meta',meta);
  const cat=make(row,'td','pcu-cat-cell');make(cat,'span','pcu-cat pcu-cat-'+norm(p.group).replace(/[^a-z]/g,''),p.group);
- const sc=make(row,'td','pcu-supplier-cell',p.supplierDisplay||'—');sc.title=p.supplier||'';
+ const sc=make(row,'td','pcu-supplier-cell',p.supplierDisplay||'—');sc.title=p.linkedItems?.length?'Deux enseignes historiques de la même société':p.supplier||'';
  const priceCell=make(row,'td','pcu-price');drawPrice(priceCell,p);
  const purchaseDate=make(row,'td','pcu-date-cell',p.date?showDate(p.date):'—');purchaseDate.title=p.purchaseDateSource||'Aucune facture rapprochée';
  const edit=make(priceCell,'button','pcu-pencil','✎');
@@ -521,7 +577,7 @@ function drawList(){
 function drawChips(){
  if(!chipsHost)return;chipsHost.replaceChildren();
  const q=norm(search),filter=norm(supplierFilter);
- const base=rows.filter(p=>(!filter||norm(p.supplier)===filter)&&(!q||norm([p.name,p.display,p.supplier,p.supplierReference,p.category,p.group].join(' ')).includes(q)));
+ const base=rows.filter(p=>(!filter||[p,...(p.linkedItems||[])].some(x=>norm(x.supplier)===filter))&&(!q||norm([p.name,p.display,p.supplier,p.supplierDisplay,p.supplierReference,p.category,p.group,...(p.linkedItems||[]).map(x=>x.supplier+' '+x.supplierReference)].join(' ')).includes(q)));
  const fr=new Intl.NumberFormat('fr-FR');
  const chips=[['Tous',base.length],...GROUPS.map(g=>[g,base.filter(p=>p.group===g).length])];
  const other=base.filter(p=>p.group==='À classer').length;if(other)chips.push(['À classer',other]);
@@ -565,6 +621,7 @@ async function load(){
   rows=joinSources(catalog?.products||[],sheets?.rows||[]).map(p=>Object.assign(p,{display:cleanName(p.name),supplierDisplay:prettySupplier(p.supplier),group:groupOf(p)}));
   const historyProducts=results[2].status==='fulfilled'?results[2].value:[];
   const dateStats=attachPurchaseDates(rows,historyProducts);
+  rows=reconciledRows(rows);
   loadedOnce=true;
   partialSources=!(catalog&&sheets);
   hideLegacy(true);
