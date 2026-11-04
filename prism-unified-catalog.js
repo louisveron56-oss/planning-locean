@@ -425,7 +425,7 @@ function editProductRow(row,item){
   }:{
    establishment:'LOCEAN',action:'create-from-source',confirmUnit:true,
    product:{name:newName,sourceDesignation:item.name,supplier:item.supplier,supplierReference:item.supplierReference,
-     category:category.value,price:value,unit:newUnit,date:item.date}
+     category:category.value,price:value,originalSourcePriceHT:originalPrice,reason:priceChanged?reason.value.trim():'',unit:newUnit,date:item.date}
   };
   try{
    const token=await user.jwt(),response=await fetch('/.netlify/functions/purchases',{
