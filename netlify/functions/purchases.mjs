@@ -12,6 +12,8 @@ function fromLegacyInventory(p){
  const hasSupplier=!!normalize(p.supplier,160),hasRef=!!normalize(p.supplierReference,140);
  if(hasSupplier||hasRef)return false;
  const source=normalize(p.source,150).toLowerCase();
+ // Never hide imported COCO recipes, verified invoices, Sheets-linked or manually created recipe ingredients.
+ if(/^(?:coco\s*-|fiche technique|facture valid[eé]e|sheets pennylane)/i.test(source))return false;
  return !!normalize(p.sourceRow,60)||/^(?:feuil\d*|inventaire)(?:\b|\s|_)/i.test(source);
 }
 const subcategories={
