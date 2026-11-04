@@ -96,3 +96,10 @@
  .pcu-info-panel{width:100%;height:100%;border-radius:0}
  .pcu-detail .pcu-product-name{font-size:22px}
 }
+
+/* Edition d'unité : utilise uniquement les variables de la refonte, pas de couleurs locales. */
+.pcu-unit-shortcut{border:1px solid var(--border,currentColor);border-radius:10px;background:transparent;color:inherit;padding:10px 14px;cursor:pointer;margin:0 0 12px}
+.pcu-unit-confirm{display:flex;gap:10px;align-items:flex-start;margin:20px 0;font-size:13px;line-height:1.5}
+.pcu-unit-confirm input{margin-top:3px}
+.pcu-info-panel>.pcu-select{width:100%;padding:12px;margin-top:12px;border:1px solid var(--border,currentColor);border-radius:10px;background:var(--card,transparent);color:inherit}
+.pcu-unit-actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:14px 0}
