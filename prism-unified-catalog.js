@@ -347,7 +347,9 @@ function purchasesChart(host,lines){
   shape('text',{x:46,y:y+4,'text-anchor':'end',fill:'currentColor','font-size':11},(max-(max-min)*i/3).toFixed(2));
  }
  const solid=series.every(r=>r.verified);
- if(solid)shape('polyline',{points:series.map((r,i)=>X(i)+','+Y(Number(r.priceHT))).join(' '),fill:'none',stroke:'currentColor','stroke-width':2,'stroke-linejoin':'round','stroke-opacity':'.5'});
+ // Une facture incomplète n'annule pas son prix constaté : tracer une courbe indicative en pointillés.
+ // Les unités incompatibles ont déjà été exclues de la série ci-dessus.
+ shape('polyline',{points:series.map((r,i)=>X(i)+','+Y(Number(r.priceHT))).join(' '),fill:'none',stroke:'currentColor','stroke-width':2,'stroke-linejoin':'round','stroke-opacity':solid?'.7':'.5',...(!solid?{'stroke-dasharray':'6 5'}:{})});
  series.forEach((r,i)=>{
   const c=shape('circle',{cx:X(i),cy:Y(Number(r.priceHT)),r:r.verified?4:5,fill:r.verified?'currentColor':'none',stroke:'currentColor','stroke-width':r.verified?0:2});
   const title=document.createElementNS(ns,'title');title.textContent=showDate(r.date)+' · '+money(r.priceHT)+'/'+pair[0];c.appendChild(title);
@@ -358,7 +360,7 @@ function purchasesChart(host,lines){
  const certified=series.filter(r=>r.verified);
  if(certified.length>=2){const delta=(Number(certified[certified.length-1].priceHT)/Number(certified[0].priceHT)-1)*100;
   statusLine(host,certified.length+' achats fiables · variation '+(delta>=0?'+':'')+delta.toFixed(1).replace('.',',')+' % ('+pair[0]+')',false);
- }else statusLine(host,'Points cerclés : achats à vérifier. Variation non calculée faute de données suffisamment fiables.',true);
+ }else statusLine(host,'Courbe indicative en pointillés : achats datés et même unité facturée ('+pair[0]+'). Les points cerclés restent à vérifier. Variation certifiée non calculée.',true);
 }
 
 async function purchasesFor(item,slot){
