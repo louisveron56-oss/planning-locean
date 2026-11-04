@@ -50,7 +50,7 @@ function prettySupplier(raw){
 function supplierKey(supplier,ref){return norm(supplier)+'|'+norm(ref);}
 function joinSources(catalog,sheets){
  const items=[],matched=new Set(),sheetsByRef=new Map(),catalogRefCounts=new Map(),sheetsByName=new Map(),catalogNameCounts=new Map();
- (catalog||[]).filter(p=>!p.archivedAt).forEach(p=>{if(norm(p.supplier)&&norm(p.supplierReference)){const k=supplierKey(p.supplier,p.supplierReference);catalogRefCounts.set(k,(catalogRefCounts.get(k)||0)+1);}else if(norm(p.supplier)&&norm(p.name)){const k=supplierKey(p.supplier,p.name);catalogNameCounts.set(k,(catalogNameCounts.get(k)||0)+1);}});
+ (catalog||[]).filter(p=>!p.archivedAt).forEach(p=>{if(norm(p.supplier)&&norm(p.supplierReference)){const k=supplierKey(p.supplier,p.supplierReference);catalogRefCounts.set(k,(catalogRefCounts.get(k)||0)+1);}else if(norm(p.supplier)&&norm(p.sourceDesignation||p.name)){const k=supplierKey(p.supplier,p.sourceDesignation||p.name);catalogNameCounts.set(k,(catalogNameCounts.get(k)||0)+1);}});
  sheets.forEach((x,i)=>{
   const key=supplierKey(x.fournisseur,x.code);
   if(norm(x.fournisseur)&&norm(x.designation)){const nameKey=supplierKey(x.fournisseur,x.designation);const found=sheetsByName.get(nameKey)||[];found.push(i);sheetsByName.set(nameKey,found);}
@@ -64,8 +64,8 @@ function joinSources(catalog,sheets){
   if(norm(p.supplier)&&norm(p.supplierReference)){
    const candidates=sheetsByRef.get(key)||[];
    if(catalogRefCounts.get(key)===1&&candidates.length===1&&!matched.has(candidates[0])){match=sheets[candidates[0]];matched.add(candidates[0]);sourceCount=1;}
-  }else if(norm(p.supplier)&&norm(p.name)){
-   const exact=supplierKey(p.supplier,p.name),candidates=sheetsByName.get(exact)||[];
+  }else if(norm(p.supplier)&&norm(p.sourceDesignation||p.name)){
+   const exact=supplierKey(p.supplier,p.sourceDesignation||p.name),candidates=sheetsByName.get(exact)||[];
    if(catalogNameCounts.get(exact)===1&&candidates.length===1&&!matched.has(candidates[0])){match=sheets[candidates[0]];matched.add(candidates[0]);sourceCount=1;}
   }
   const price=normalizedPrice(p.price,p.unit);
@@ -436,7 +436,7 @@ function editProductRow(row,item){
    item.catalog=product;item.id='catalog:'+product.id;item.name=product.name;item.display=cleanName(product.name);
    item.category=product.subcategory||product.category;item.group=groupOf(item);
    item.price=normalizedPrice(product.price,product.unit);
-   item.warning=false;item.source=product.source||'Catalogue Prism';
+   item.warning=!!(item.sheet&&number(item.sheet.prix_actuel_ht)!==null&&Math.abs(Number(product.price)-number(item.sheet.prix_actuel_ht))>0.000001);item.source=product.source||'Catalogue Prism';
    item.confirmed=!!item.sheet;
    row.classList.remove('pcu-editing-row');
    renderProductRow(row,item);
