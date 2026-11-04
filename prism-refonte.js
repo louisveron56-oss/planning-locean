@@ -20,7 +20,7 @@
   syncDarkLink();
 
   var brand = document.createElement('link');
-  brand.rel = 'stylesheet'; brand.href = './prism-refonte.css?v=6'; brand.id = 'prism-refonte-css';
+  brand.rel = 'stylesheet'; brand.href = './prism-refonte.css?v=7'; brand.id = 'prism-refonte-css';
   var mapped = document.createElement('style');
   mapped.id = 'prism-refonte-map';
 
