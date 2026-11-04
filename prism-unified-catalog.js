@@ -423,8 +423,9 @@ function detail(item){
  const when=make(metrics,'div','pcu-metric');make(when,'small','','Dernier achat rapproché');make(when,'strong','',item.date?showDate(item.date):'Aucune date reliée');
  make(content,'h4','pcu-section-heading','Historique des prix d’achat');
  const slot=make(content,'section','pcu-purchases-host');
- statusLine(slot,'Chargement de l’historique…',false);
- purchasesFor(item,slot);
+ slot.setAttribute('aria-live','polite');
+ const loadingMessage=statusLine(slot,'Chargement de l’historique…',false);
+ purchasesFor(item,slot).finally(()=>loadingMessage.remove());
 }
 function visibleRows(){
  const q=norm(search),filter=norm(supplierFilter);
