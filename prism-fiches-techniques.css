@@ -143,3 +143,7 @@
   .ft-grid{display:block}.ft-right{position:static;margin-top:16px}
   .ft-hero{background:none!important;color:inherit!important;border:1px solid var(--ft-line)}
 }
+
+.ft-result-text{display:flex;flex-direction:column;gap:1px;padding:6px 0}
+.ft-result-name{font-weight:500}
+.ft-find{align-self:flex-start;margin:4px 0 0 4px}

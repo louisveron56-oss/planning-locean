@@ -81,7 +81,7 @@ async function loadCatalog() {
     catalog = new Map(); catalogList = [];
     (d.products || []).filter(p => p.name && !p.archivedAt).forEach(p => {
       const price = n(p.price), [basis, mult] = basisOf(p.unit);
-      const item = { id: String(p.id), name: tidy(p.name), basis, basePrice: Number.isFinite(price) ? price * mult : NaN, date: lastPriceDate(p), category: p.category || '' };
+      const item = { id: String(p.id), name: tidy(p.name), basis, basePrice: Number.isFinite(price) ? price * mult : NaN, date: lastPriceDate(p), category: p.category || '', supplier: p.supplier || '', reference: p.supplierReference || '' };
       catalog.set(item.id, item); catalogList.push(item);
     });
     catalogError = '';
@@ -300,12 +300,16 @@ function drawAdd(card) {
   const results = el(box, 'div', 'ft-results');
   const show = () => {
     results.replaceChildren(); const q = norm(addSearch); if (q.length < 2) return;
-    const found = catalogList.filter(p => norm(p.name).includes(q)).slice(0, 8);
+    const found = catalogList.filter(p => norm(p.name + ' ' + p.supplier + ' ' + p.reference).includes(q)).slice(0, 8);
     if (!found.length) { el(results, 'p', 'ft-muted', catalogList.length ? 'Aucun produit trouvé. Tu peux le créer ci-dessous.' : 'Catalogue Produits non chargé.'); return; }
     found.forEach(p => {
       const b = btn(results, 'ft-result', undefined, () => addProduct(p));
-      el(b, 'span', '', p.name);
+      const t = el(b, 'span', 'ft-result-text'); el(t, 'span', 'ft-result-name', p.name); if (p.supplier) el(t, 'span', 'ft-muted', p.supplier);
       el(b, 'span', 'ft-muted', Number.isFinite(p.basePrice) && p.basis ? euro.format(p.basePrice) + ' / ' + BASIS_LABEL[p.basis] : 'unité à confirmer');
+    });
+    const more = btn(results, 'ft-link ft-find', 'Voir les autres références dans Produits', () => {
+      if (typeof window.navigateApp === 'function') window.navigateApp('suppliers');
+      window.dispatchEvent(new CustomEvent('prism-find-product', { detail: { query: addSearch } }));
     });
   };
   i.oninput = () => { addSearch = i.value; show(); };

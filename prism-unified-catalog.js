@@ -49,10 +49,11 @@ function prettySupplier(raw){
 }
 function supplierKey(supplier,ref){return norm(supplier)+'|'+norm(ref);}
 function joinSources(catalog,sheets){
- const items=[],matched=new Set(),sheetsByRef=new Map(),catalogRefCounts=new Map();
- (catalog||[]).filter(p=>!p.archivedAt).forEach(p=>{if(norm(p.supplier)&&norm(p.supplierReference)){const k=supplierKey(p.supplier,p.supplierReference);catalogRefCounts.set(k,(catalogRefCounts.get(k)||0)+1);}});
+ const items=[],matched=new Set(),sheetsByRef=new Map(),catalogRefCounts=new Map(),sheetsByName=new Map(),catalogNameCounts=new Map();
+ (catalog||[]).filter(p=>!p.archivedAt).forEach(p=>{if(norm(p.supplier)&&norm(p.supplierReference)){const k=supplierKey(p.supplier,p.supplierReference);catalogRefCounts.set(k,(catalogRefCounts.get(k)||0)+1);}else if(norm(p.supplier)&&norm(p.name)){const k=supplierKey(p.supplier,p.name);catalogNameCounts.set(k,(catalogNameCounts.get(k)||0)+1);}});
  sheets.forEach((x,i)=>{
   const key=supplierKey(x.fournisseur,x.code);
+  if(norm(x.fournisseur)&&norm(x.designation)){const nameKey=supplierKey(x.fournisseur,x.designation);const found=sheetsByName.get(nameKey)||[];found.push(i);sheetsByName.set(nameKey,found);}
   if(norm(x.fournisseur)&&norm(x.code)){
    const list=sheetsByRef.get(key)||[];list.push(i);sheetsByRef.set(key,list);
   }
@@ -63,6 +64,9 @@ function joinSources(catalog,sheets){
   if(norm(p.supplier)&&norm(p.supplierReference)){
    const candidates=sheetsByRef.get(key)||[];
    if(catalogRefCounts.get(key)===1&&candidates.length===1&&!matched.has(candidates[0])){match=sheets[candidates[0]];matched.add(candidates[0]);sourceCount=1;}
+  }else if(norm(p.supplier)&&norm(p.name)){
+   const exact=supplierKey(p.supplier,p.name),candidates=sheetsByName.get(exact)||[];
+   if(catalogNameCounts.get(exact)===1&&candidates.length===1&&!matched.has(candidates[0])){match=sheets[candidates[0]];matched.add(candidates[0]);sourceCount=1;}
   }
   const price=normalizedPrice(p.price,p.unit);
   items.push({
@@ -147,6 +151,34 @@ function statusLine(container,message,warning){
  if(warning)line.setAttribute('role','status');
  return line;
 }
+
+async function confirmUnit(item,closeParent){
+ const amount=number(item.catalog?.price??item.sheet?.prix_actuel_ht);
+ if(amount===null){alert('Prix absent : vérifier la facture avant de confirmer une unité.');return;}
+ const layer=document.createElement('div');layer.className='pcu-info-layer';
+ const panel=make(layer,'section','pcu-info-panel');panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');
+ make(panel,'h3','','Confirmer une unité');
+ make(panel,'p','pcu-muted',item.name+' · '+money(amount)+' HT');
+ statusLine(panel,'Le prix actuel est conservé sans conversion. Vérifie sur la facture qu’il correspond exactement à une unité choisie.',true);
+ const select=make(panel,'select','pcu-select');[['','Choisir une unité'],['kg','1 kg'],['L','1 litre'],['pièce','1 pièce']].forEach(([v,t])=>{const o=make(select,'option','',t);o.value=v;});
+ const label=make(panel,'label','pcu-unit-confirm'),check=make(label,'input');check.type='checkbox';
+ make(label,'span','','Je confirme que ce prix HT correspond bien à l’unité sélectionnée.');
+ const status=make(panel,'p','pcu-warning',''),actions=make(panel,'div','pcu-unit-actions');
+ const cancel=make(actions,'button','pcu-back','Annuler');cancel.onclick=()=>layer.remove();
+ const save=make(actions,'button','pcu-primary','Enregistrer');save.onclick=async()=>{
+  if(!select.value||!check.checked){status.textContent='Vérifie l’unité et coche la confirmation.';return;}
+  save.disabled=true;
+  const payload=item.catalog?{establishment:'LOCEAN',action:'confirm-unit',productId:item.catalog.id,unit:select.value,confirmUnit:true}:
+  {establishment:'LOCEAN',action:'create-from-source',confirmUnit:true,product:{name:item.name,supplier:item.supplier,supplierReference:item.supplierReference,category:groupOf(item),price:amount,unit:select.value,date:item.date}};
+  try{
+   const user=window.netlifyIdentity?.currentUser?.();if(!user)throw Error('Connexion requise');
+   const res=await fetch('/.netlify/functions/purchases',{method:'PATCH',headers:{Authorization:'Bearer '+await user.jwt(),'Content-Type':'application/json'},body:JSON.stringify(payload),cache:'no-store'});
+   const d=await res.json();if(!res.ok||!d.ok)throw Error(d.error||'Enregistrement impossible');
+   layer.remove();if(closeParent)closeParent();detailId='';historyIndex=null;load();window.dispatchEvent(new Event('prism-catalog-updated'));
+  }catch(e){status.textContent=e.message;save.disabled=false;}
+ };
+ document.body.appendChild(layer);select.focus();
+}
 function infoModal(item){
  const layer=document.createElement('div');layer.className='pcu-info-layer';
  const modal=make(layer,'section','pcu-info-panel');
@@ -176,6 +208,7 @@ function infoModal(item){
   attr('Dernier achat Sheets',showDate(item.sheet.date_dernier_achat));
  }
  if(item.warning)statusLine(modal,'Écart de tarif entre les sources : contrôle nécessaire.',true);
+ const editUnit=make(modal,'button','pcu-primary',item.price.valid?'Corriger l’unité':'Renseigner l’unité');editUnit.type='button';editUnit.onclick=()=>confirmUnit(item,()=>layer.remove());
  layer.addEventListener('click',e=>{if(e.target===layer)layer.remove()});
  const key=e=>{if(e.key==='Escape'){layer.remove();document.removeEventListener('keydown',key)}};
  document.addEventListener('keydown',key);
@@ -253,6 +286,7 @@ function detail(item){
  const info=make(head,'button','pcu-info-button','i');info.type='button';info.title='Informations complètes';info.setAttribute('aria-label','Informations complètes sur le produit');info.onclick=()=>infoModal(item);
  make(content,'h3','pcu-product-name',item.name);
  make(content,'p','pcu-product-supplier',item.supplier);
+ if(!item.price.valid){const edit=make(content,'button','pcu-unit-shortcut','Renseigner l’unité de prix');edit.type='button';edit.onclick=()=>confirmUnit(item);}
  const metrics=make(content,'div','pcu-metrics');
  const price=make(metrics,'div','pcu-metric');make(price,'small','','Dernier prix catalogue HT');make(price,'strong','',item.price.text);
  const when=make(metrics,'div','pcu-metric');make(when,'small','','Dernier prix renseigné');make(when,'strong','',showDate(item.date));
@@ -406,6 +440,10 @@ function init(){
   if(page.classList.contains('open')&&!loadedOnce&&!loading)load();
  });
  observer.observe(page,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
+ window.addEventListener('prism-find-product',ev=>{
+  search=String(ev.detail?.query||'');supplierFilter='';groupFilter='Tous';pageIndex=0;detailId='';
+  if(loadedOnce)render();
+ });
  window.addEventListener('prism-supplier-products',ev=>{
   pendingSupplier=String(ev.detail?.supplier||'');supplierFilter=pendingSupplier;detailId='';pageIndex=0;
   if(loadedOnce)render();
