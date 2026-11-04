@@ -103,3 +103,14 @@
 .pcu-unit-confirm input{margin-top:3px}
 .pcu-info-panel>.pcu-select{width:100%;padding:12px;margin-top:12px;border:1px solid var(--border,currentColor);border-radius:10px;background:var(--card,transparent);color:inherit}
 .pcu-unit-actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:14px 0}
+
+/* Compact in-row unit editing — inherits Claude's palette. */
+.pcu-inline-unit{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;margin-inline-start:7px;vertical-align:middle}
+.pcu-inline-unit button{font:inherit;cursor:pointer;border:1px solid var(--border,currentColor);border-radius:6px;padding:4px 7px;background:transparent;color:inherit;white-space:nowrap}
+.pcu-inline-unit .pcu-unit-edit{font-size:11px;text-decoration:underline;text-underline-offset:2px;border:0;padding:3px 0}
+.pcu-inline-unit .pcu-unit-save{font-size:11px;font-weight:700;background:var(--accent,transparent);color:var(--on-accent,inherit)}
+.pcu-inline-unit .pcu-unit-cancel{font-size:12px}
+.pcu-inline-unit .pcu-unit-select{font:inherit;border:1px solid var(--border,currentColor);border-radius:6px;background:var(--card,transparent);color:inherit;padding:5px;min-width:66px}
+.pcu-inline-unit .pcu-unit-hint{font-size:10px;color:var(--text-2,inherit);max-width:175px;line-height:1.25}
+.pcu-inline-unit .pcu-unit-error{font-size:11px;color:var(--down,inherit)}
+.pcu-unit-inline-detail{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px;font-size:12px}
