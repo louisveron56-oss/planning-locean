@@ -147,12 +147,26 @@ function matchingHistory(item,products){
  return matches.length===1?matches[0]:null;
 }
 function attachPurchaseDates(items,historyProducts){
+ // Build once: thousands of invoice references must not trigger one full-history scan per product.
+ const byRef=new Map(),byName=new Map();
+ const add=(map,key,p)=>{const candidates=map.get(key)||[];candidates.push(p);map.set(key,candidates);};
+ (historyProducts||[]).forEach(p=>{
+  const supplier=compactKey(p.supplier);
+  if(!supplier)return;
+  add(byRef,historyKey(p.supplier,p.reference),p);
+  add(byName,supplier+'|'+compactKey(p.description),p);
+ });
  let matched=0,dated=0;
  items.forEach(item=>{
-  const record=matchingHistory(item,historyProducts||[]);
+  const supplier=compactKey(item.supplier),reference=compactKey(item.supplierReference);
+  let found=[];
+  if(supplier&&supplier!=='non renseigné'){
+   found=reference?byRef.get(historyKey(item.supplier,item.supplierReference))||[]:byName.get(supplier+'|'+compactKey(item.name))||[];
+  }
+  const record=found.length===1?found[0]:null;
   const date=record?iso(record.last):'';
   const fromSheets=iso(item.sheet?.date_dernier_achat);
-  item.purchaseHistoryMatch=record||null;
+  item.purchaseHistoryMatch=record;
   item.date=date||fromSheets||'';
   item.purchaseDateSource=date?'Historique de factures importées':fromSheets?'Synthèse Google Sheets':'Aucune facture rapprochée';
   if(record)matched++;
