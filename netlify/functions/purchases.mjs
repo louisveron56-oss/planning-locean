@@ -12,7 +12,7 @@ function fromLegacyInventory(p){
  const hasSupplier=!!normalize(p.supplier,160),hasRef=!!normalize(p.supplierReference,140);
  if(hasSupplier||hasRef)return false;
  const source=normalize(p.source,150).toLowerCase();
- return !!normalize(p.sourceRow,60)||/^(?:feuil\\d*|inventaire)(?:\\b|\\s|_)/i.test(source);
+ return !!normalize(p.sourceRow,60)||/^(?:feuil\d*|inventaire)(?:\b|\s|_)/i.test(source);
 }
 const subcategories={
  "Bar":["Vins rouges","Vins blancs","Vins rosés","Champagnes & effervescents","Spiritueux","Bières & cidres","Softs & eaux","Cafés, thés & boissons chaudes","Sirops & ingrédients bar","Autres boissons"],
