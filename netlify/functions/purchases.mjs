@@ -5,6 +5,15 @@ const send=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:
 const store=()=>getStore({name:"locean-private-purchase-catalog",consistency:"strong"});
 const normalize=(x,max=250)=>String(x??"").trim().slice(0,max);
 const priceNumber=(v)=>Number.isFinite(Number(v))&&Number(v)>=0&&Number(v)<=100000?Number(v):null;
+/* Le fichier initial d'inventaire sert uniquement d'archive.
+   Classification conservatrice : pas de fournisseur ni reference fournisseur,
+   et marqueur de la feuille d'inventaire source. */
+function fromLegacyInventory(p){
+ const hasSupplier=!!normalize(p.supplier,160),hasRef=!!normalize(p.supplierReference,140);
+ if(hasSupplier||hasRef)return false;
+ const source=normalize(p.source,150).toLowerCase();
+ return !!normalize(p.sourceRow,60)||/^(?:feuil\\d*|inventaire)(?:\\b|\\s|_)/i.test(source);
+}
 const subcategories={
  "Bar":["Vins rouges","Vins blancs","Vins rosés","Champagnes & effervescents","Spiritueux","Bières & cidres","Softs & eaux","Cafés, thés & boissons chaudes","Sirops & ingrédients bar","Autres boissons"],
  "Cuisine":["Viandes & volailles","Poissons & fruits de mer","Fruits & légumes","Crèmerie & fromages","Épicerie salée","Épicerie sucrée","Surgelés","Pain & boulangerie","Autres cuisine"],
@@ -32,7 +41,14 @@ export default async function(req){
    const coco=await db.get("ocean/coco-reference",{type:"json",consistency:"strong"});
    return send({ready:!!coco,reference:coco||null});
   }
-  if(req.method==="GET")return send({ready:!!saved,reference:saved?.reference||null,savedAt:saved?.savedAt||null,products:(saved?.products||[]).filter(p=>new URL(req.url).searchParams.get("archived")==="1"?!!p.archivedAt:!p.archivedAt).map(p=>({...p,id:p.id||idFor(p),priceHistory:historyOf(p)}))});
+  if(req.method==="GET"){
+   const params=new URL(req.url).searchParams,archived=params.get("archived")==="1",legacy=params.get("legacy")==="1";
+   const all=saved?.products||[],legacyCount=all.filter(p=>!p.archivedAt&&fromLegacyInventory(p)).length;
+   const products=all.filter(p=>legacy?fromLegacyInventory(p):(archived?!!p.archivedAt:!p.archivedAt&&!fromLegacyInventory(p)));
+   return send({ready:!!saved,reference:saved?.reference||null,savedAt:saved?.savedAt||null,
+    legacyExcluded:legacyCount,legacyPreserved:true,
+    products:products.map(p=>({...p,id:p.id||idFor(p),priceHistory:historyOf(p)}))});
+  }
   const raw=await req.text();if(raw.length>1700000)return send({error:"Requête trop volumineuse"},413);
   let payload;try{payload=JSON.parse(raw);}catch(_){return send({error:"JSON invalide"},400);}
   if(payload?.establishment!=="LOCEAN")return send({error:"Établissement incorrect"},400);
