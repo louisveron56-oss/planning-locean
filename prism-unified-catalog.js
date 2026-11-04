@@ -179,6 +179,46 @@ async function confirmUnit(item,closeParent){
  };
  document.body.appendChild(layer);select.focus();
 }
+
+function inlineUnitEditor(item,host){
+ const amount=number(item.catalog?.price??item.sheet?.prix_actuel_ht);
+ const wrap=make(host,'span','pcu-inline-unit');
+ wrap.addEventListener('click',e=>e.stopPropagation());
+ wrap.addEventListener('keydown',e=>e.stopPropagation());
+ const edit=make(wrap,'button','pcu-unit-edit','Modifier');edit.type='button';
+ edit.setAttribute('aria-label','Modifier l’unité de prix de '+(item.display||item.name));
+ edit.onclick=()=>{
+  wrap.replaceChildren();
+  if(amount===null){make(wrap,'span','pcu-warning','Prix HT indisponible : facture à vérifier.');const cancel=make(wrap,'button','pcu-unit-edit','Fermer');cancel.onclick=()=>wrap.replaceChildren(edit);return;}
+  const select=make(wrap,'select','pcu-unit-select');
+  [['','Unité'],['kg','kg'],['L','L'],['pièce','pièce']].forEach(([v,label])=>{const o=make(select,'option','',label);o.value=v;});
+  select.value=item.price.unit||'';
+  const save=make(wrap,'button','pcu-unit-save','Enregistrer');save.type='button';
+  save.title='Confirmer que le prix HT affiché correspond bien à cette unité';
+  const cancel=make(wrap,'button','pcu-unit-cancel','×');cancel.type='button';cancel.setAttribute('aria-label','Annuler');
+  const note=make(wrap,'span','pcu-unit-hint','Prix HT inchangé · unité vérifiée');
+  const status=make(wrap,'span','pcu-unit-error','');
+  cancel.onclick=()=>{wrap.replaceChildren(edit);};
+  save.onclick=async()=>{
+   if(!select.value){status.textContent='Choisis une unité';return;}
+   const message='Confirmer : '+money(amount)+' HT correspond à 1 '+(select.value==='pièce'?'pièce':select.value)+'. Le prix ne sera pas converti.';
+   if(!confirm(message))return;
+   save.disabled=true;select.disabled=true;status.textContent='Enregistrement…';
+   const payload=item.catalog
+    ?{establishment:'LOCEAN',action:'confirm-unit',productId:item.catalog.id,unit:select.value,confirmUnit:true}
+    :{establishment:'LOCEAN',action:'create-from-source',confirmUnit:true,product:{name:item.name,supplier:item.supplier,supplierReference:item.supplierReference,category:groupOf(item),price:amount,unit:select.value,date:item.date}};
+   try{
+    const user=window.netlifyIdentity?.currentUser?.();if(!user)throw Error('Connexion requise');
+    const res=await fetch('/.netlify/functions/purchases',{method:'PATCH',headers:{Authorization:'Bearer '+await user.jwt(),'Content-Type':'application/json'},body:JSON.stringify(payload),cache:'no-store'});
+    const data=await res.json();if(!res.ok||!data.ok)throw Error(data.error||'Enregistrement impossible');
+    historyIndex=null;detailId='';await load();
+    window.dispatchEvent(new Event('prism-catalog-updated'));
+   }catch(e){status.textContent=e.message;save.disabled=false;select.disabled=false;}
+  };
+  select.focus();
+ };
+ return wrap;
+}
 function infoModal(item){
  const layer=document.createElement('div');layer.className='pcu-info-layer';
  const modal=make(layer,'section','pcu-info-panel');
@@ -286,7 +326,7 @@ function detail(item){
  const info=make(head,'button','pcu-info-button','i');info.type='button';info.title='Informations complètes';info.setAttribute('aria-label','Informations complètes sur le produit');info.onclick=()=>infoModal(item);
  make(content,'h3','pcu-product-name',item.name);
  make(content,'p','pcu-product-supplier',item.supplier);
- if(!item.price.valid){const edit=make(content,'button','pcu-unit-shortcut','Renseigner l’unité de prix');edit.type='button';edit.onclick=()=>confirmUnit(item);}
+ if(!item.price.valid){const unitLine=make(content,'div','pcu-unit-inline-detail');make(unitLine,'span','','Unité de prix à vérifier');inlineUnitEditor(item,unitLine);}
  const metrics=make(content,'div','pcu-metrics');
  const price=make(metrics,'div','pcu-metric');make(price,'small','','Dernier prix catalogue HT');make(price,'strong','',item.price.text);
  const when=make(metrics,'div','pcu-metric');make(when,'small','','Dernier prix renseigné');make(when,'strong','',showDate(item.date));
@@ -328,6 +368,7 @@ function drawPrice(cell,p){
  if(raw===null){make(cell,'span','pcu-price-missing','à brancher');return;}
  make(cell,'span','pcu-price-amount',money(raw));
  if(p.price.valid)make(cell,'span','pcu-price-unit','/'+p.price.unit);
+ if(!p.price.valid)inlineUnitEditor(p,cell);
 }
 function sortHeader(tr,label,key,cls){
  const th=make(tr,'th',cls||'');
