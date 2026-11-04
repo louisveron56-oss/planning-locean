@@ -101,15 +101,15 @@ export default async function(req){
     // A Sheets-only product enters the shared private catalogue only after an explicit human unit confirmation.
     // Never alter the source import or infer a packaging conversion.
     if(payload.confirmUnit!==true)return send({error:"Confirmation explicite de l'unité requise"},400);
-    const raw=payload.product||{},name=normalize(raw.name),supplier=normalize(raw.supplier,160);
+    const raw=payload.product||{},name=normalize(raw.name),supplier=normalize(raw.supplier,160),sourceDesignation=normalize(raw.sourceDesignation||raw.name);
     const reference=normalize(raw.supplierReference,140),category=normalize(raw.category,60),unit=normalize(raw.unit,20);
     const price=priceNumber(raw.price);
     if(!name||!supplier||!["Bar","Cuisine","Hygiène","À classer"].includes(category)||!["kg","L","pièce"].includes(unit)||price===null)return send({error:"Produit, fournisseur, prix HT et unité obligatoires"},400);
     const key=x=>normalize(x).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
-    const dup=products.find(p=>!p.archivedAt&&key(p.supplier)===key(supplier)&&(reference&&key(p.supplierReference)===key(reference)||!reference&&key(p.name)===key(name)));
+    const dup=products.find(p=>!p.archivedAt&&key(p.supplier)===key(supplier)&&(reference&&key(p.supplierReference)===key(reference)||!reference&&key(p.sourceDesignation||p.name)===key(sourceDesignation)));
     if(dup)return send({error:"Une référence existe déjà pour ce fournisseur. Actualise Produits.",existingProductId:dup.id||idFor(dup)},409);
     if(products.length>=5000)return send({error:"Limite du catalogue atteinte"},409);
-    const item={id:"prd-"+crypto.randomUUID(),name,supplier,supplierReference:reference,category,subcategory:"",locations:[],price,unit,
+    const item={id:"prd-"+crypto.randomUUID(),name,supplier,supplierReference:reference,sourceDesignation,category,subcategory:"",locations:[],price,unit,
      inventoryQuantity:null,source:"Sheets Pennylane",sourcePrice:"prix source à vérifier",priceStatus:"unite_confirmee_prix_a_verifier",
      unitConfirmedAt:now,unitConfirmedBy:actor,
      sourceLastPurchaseDate:/^\d{4}-\d{2}-\d{2}$/.test(raw.date||"")?raw.date:"",
