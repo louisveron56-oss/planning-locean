@@ -139,9 +139,11 @@ function render(){
 function updateCosts(){lines.forEach((x,i)=>{let a=document.getElementById("rc-line-"+i);if(a)a.textContent=Number.isFinite(calc(x))?euro.format(calc(x)):"Vérifier les unités"});drawSummary()}
 function renderCatalog(){
  const host=document.getElementById("rc-results");if(!host)return;host.replaceChildren();
- const q=search.trim().toLowerCase();
- const found=catalog.filter(p=>(p.name+" "+(p.supplier||"")+" "+(p.reference||"")).toLowerCase().includes(q)).slice(0,20);
- make(host,"p",q?found.length+" ingrédient(s) trouvé(s)":"Sélectionne un ingrédient à ajouter.");
+ const key=x=>String(x||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+ const q=key(search.trim());
+ if(!q){make(host,"p","Saisis un ingrédient pour afficher les résultats.");return;}
+ const found=catalog.filter(p=>key(p.name+" "+(p.supplier||"")+" "+(p.reference||"")).includes(q)).slice(0,20);
+ make(host,"p",found.length+" ingrédient(s) trouvé(s)");
  found.forEach(p=>{
   const row=make(host,"div");row.className="rc-ingredient-row";
   const label=make(row,"div");make(label,"strong",p.name);
