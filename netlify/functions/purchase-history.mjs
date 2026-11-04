@@ -9,7 +9,7 @@ const slug=v=>norm(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCas
 const parseNum=v=>{if(v===null||v===undefined||v==="")return null;const a=Number(String(v).replace(/[€\s\u00a0\u202f]/g,"").replace(",","."));return Number.isFinite(a)?a:null;};
 const date=v=>{const s=norm(v,30);if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const a=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(a)return a[3]+"-"+a[2].padStart(2,"0")+"-"+a[1].padStart(2,"0");if(/^\d{5}(?:\.0+)?$/.test(s)){const num=Number(s);if(num>=20000&&num<=80000)return new Date(Date.UTC(1899,11,30)+Math.round(num)*86400000).toISOString().slice(0,10);}return "";};
 const k=(supplier,reference)=>slug(supplier)+"|"+slug(reference);
-const basicUnit=u=>{const a=slug(u);if(["kg","kilogramme","kilogrammes"].includes(a))return "kg";if(["g","gramme","grammes"].includes(a))return "g";if(["l","litre","litres"].includes(a))return "L";if(["cl"].includes(a))return "cl";if(["ml"].includes(a))return "ml";if(["piece","pieces","unite","unites","u","pc","pcs"].includes(a))return "pièce";return "";};
+const basicUnit=u=>{const a=slug(u);if(["kg","kil","kilogramme","kilogrammes"].includes(a))return "kg";if(["g","gramme","grammes"].includes(a))return "g";if(["l","lt","litre","litres"].includes(a))return "L";if(["cl"].includes(a))return "cl";if(["ml"].includes(a))return "ml";if(["piece","pieces","unite","unites","u","pc","pcs","pce","uni"].includes(a))return "pièce";const packs={boi:"boîte",bte:"boîte",boite:"boîte",boites:"boîte",car:"carton",ct:"carton",crt:"carton",carton:"carton",cartons:"carton",col:"colis",colis:"colis",btl:"bouteille",bouteille:"bouteille",bouteilles:"bouteille",boc:"bocal",bocal:"bocal",paq:"paquet",paquet:"paquet",sac:"sac",dz:"douzaine",douzaine:"douzaine",bar:"barquette",bq:"barquette",barquette:"barquette",emb:"emballage / consigne",emballage:"emballage / consigne","emballage / consigne":"emballage / consigne",pet:"bouteille PET","bouteille pet":"bouteille PET",lot:"lot",pk:"pack",pack:"pack",fl:"flacon",flacon:"flacon",h:"heure",heure:"heure",forfait:"forfait"};return packs[a]||"";};
 function clean(r){
  // Ne supprimer aucune facture parce qu'une référence, une unité ou un prix manque.
  const supplier=norm(r.supplier,160)||"Fournisseur à identifier";
@@ -24,7 +24,9 @@ function clean(r){
  if(!norm(r.description))issues.push("Désignation absente");
  if(!d)issues.push("Date non reconnue");
  if(price===null||price<0||price>100000)issues.push("Prix unitaire non exploitable");
- if(!basicUnit(unit))issues.push("Unité non normalisée");
+ const recognizedUnit=basicUnit(unit);
+ if(!recognizedUnit)issues.push("Unité absente ou ambiguë");
+ else if(!["kg","g","L","cl","ml","pièce","heure","forfait"].includes(recognizedUnit))issues.push("Contenu du conditionnement à confirmer avant conversion");
  if(reading.includes("ocr"))issues.push("Lecture OCR");
  if(!status||!["complete","complet","valide","ok"].includes(status))issues.push("Complétude de facture à contrôler");
  if(quantity===null||quantity<=0)issues.push("Quantité à contrôler");
