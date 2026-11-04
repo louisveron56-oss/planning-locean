@@ -137,18 +137,29 @@ function render(){
  let foot=make(root,"p","Brouillons enregistrés sur ce navigateur. Les nouveaux produits enregistrés depuis une fiche technique sont ajoutés au catalogue privé des achats. La marge matière exclut main-d’œuvre, énergie et charges fixes.");foot.className="rc-note";
 }
 function updateCosts(){lines.forEach((x,i)=>{let a=document.getElementById("rc-line-"+i);if(a)a.textContent=Number.isFinite(calc(x))?euro.format(calc(x)):"Vérifier les unités"});drawSummary()}
-function renderCatalog(){let host=document.getElementById("rc-results");if(!host)return;host.replaceChildren();
- let list=catalog.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())).slice(0,30);
- if(!list.length){make(host,"p",catalog.length?"Aucun résultat.":"Catalogue non chargé ou accès non autorisé.");return}
- let row=make(host,"div");row.className="rc-header";let sel=make(row,"select");list.forEach(p=>{let o=make(sel,"option",p.name+" · "+eur(p.price)+" / "+(p.basis||p.unit||"à vérifier"));o.value=String(p.id)});
- button(row,"Ajouter",()=>{let p=list.find(p=>String(p.id)===sel.value);if(p)add(p)});
+function renderCatalog(){
+ const host=document.getElementById("rc-results");if(!host)return;host.replaceChildren();
+ const q=search.trim().toLowerCase();
+ const found=catalog.filter(p=>(p.name+" "+(p.supplier||"")+" "+(p.reference||"")).toLowerCase().includes(q)).slice(0,20);
+ make(host,"p",q?found.length+" ingrédient(s) trouvé(s)":"Sélectionne un ingrédient à ajouter.");
+ found.forEach(p=>{
+  const row=make(host,"div");row.className="rc-ingredient-row";
+  const label=make(row,"div");make(label,"strong",p.name);
+  make(label,"small",(p.supplier||"")+" · "+eur(p.price)+" / "+(p.basis||p.unit||"unité à confirmer"));
+  button(row,"Ajouter",()=>add(p));
+ });
+ if(!found.length)make(host,"p",catalog.length?"Aucun résultat dans le catalogue privé.":"Catalogue inaccessible.");
+ const nav=button(host,"Voir les autres références dans Produits",()=>{
+  if(typeof window.navigateApp==="function")window.navigateApp("suppliers");
+  window.dispatchEvent(new CustomEvent("prism-find-product",{detail:{query:search}}));
+ });nav.classList.add("rc-open-products");
 }
 function eur(v){return euro.format(Number(v))}
 async function loadCatalog(keepMessage){
  try{let u=window.netlifyIdentity&&window.netlifyIdentity.currentUser();if(!u)throw Error("Connexion requise");
  let res=await fetch("/.netlify/functions/purchases",{headers:{Authorization:"Bearer "+await u.jwt()},cache:"no-store"});
  let d=await res.json();if(!res.ok)throw Error(d.error||"Catalogue indisponible");
- catalog=(d.products||[]).filter(p=>p.name&&!p.archivedAt&&Number.isFinite(Number(p.price))).map(p=>({id:p.id,name:p.name,price:Number(p.price),unit:p.unit,basis:basis(p.unit),source:"catalogue"}));
+ catalog=(d.products||[]).filter(p=>p.name&&!p.archivedAt&&Number.isFinite(Number(p.price))).map(p=>({id:p.id,name:p.name,price:Number(p.price),unit:p.unit,basis:basis(p.unit),supplier:p.supplier||"",reference:p.supplierReference||"",source:"catalogue"}));
  if(!keepMessage)msg=catalog.length?catalog.length+" produits disponibles depuis les achats.":"Catalogue achats vide.";
  }catch(e){msg="Catalogue achats : "+e.message}
  render();
