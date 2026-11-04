@@ -170,6 +170,7 @@ function init(){
  let section=make(shell,"section");section.id=id;
  let style=make(document.head,"style");style.textContent=".rc-header{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}.rc-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:15px}.rc-panel{background:#fff;border:1px solid #e2e7e7;border-radius:12px;padding:16px;margin-bottom:14px}.rc-panel h3{font-size:14px}.rc-panel label{display:inline-flex;flex-direction:column;gap:5px;min-width:140px;margin:8px;font-size:11px}.rc-panel input,.rc-panel select{max-width:100%;border:1px solid #dce2e3;padding:9px;border-radius:7px;background:white;color:#203e4b}.rc-line{border-top:1px solid #e4e8e8;padding:12px 0}.rc-cost{font-weight:700}.rc-btn{border:1px solid #dae0e0;background:#fff;color:#24566b;border-radius:7px;padding:9px;cursor:pointer;margin:5px;font-size:11px}.rc-side{position:sticky;top:15px;background:#fbfcfb}.rc-stat{display:flex;justify-content:space-between;border-bottom:1px solid #e9eeee;padding:11px 0;gap:6px;font-size:11px}.rc-stat strong{font-size:15px;text-align:right}.rc-note{font-size:11px;color:#708089}.rc-warn{color:#986123;font-size:11px}@media(max-width:800px){.rc-layout{grid-template-columns:1fr}.rc-side{position:static}}";
  try{let data=JSON.parse(localStorage.getItem(key)||"[]");drafts=Array.isArray(data)?data:[]}catch(_){}
+ window.addEventListener("prism-catalog-updated",()=>loadCatalog(true));
  render();loadCatalog();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
