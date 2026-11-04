@@ -392,7 +392,9 @@ async function purchasesFor(item,slot){
    const tr=make(body,'tr');
    make(tr,'td','',showDate(r.date));make(tr,'td','',r.priceHT==null?'—':money(r.priceHT)+' / '+(unitLabel(r.unit)||'unité ?'));
    make(tr,'td','',r.quantity??'—');
-   const doc=make(tr,'td','',r.invoice||'—');doc.title=r.supplier||'';
+   const rawDoc=r.invoice||r.document||r.source||'';
+   const shortDoc=rawDoc.includes('/')||rawDoc.includes('\\')?rawDoc.split(/[\\/]/).pop():rawDoc;
+   const doc=make(tr,'td','',shortDoc||'—');doc.title=[r.supplier,rawDoc].filter(Boolean).join(' · ');
    make(tr,'td',r.verified?'':'pcu-issue',r.verified?'OK':'À vérifier');
   });
  }catch(e){if(stamp===detailRequest&&detailId===item.id)statusLine(slot,'Historique indisponible : '+e.message,true);}

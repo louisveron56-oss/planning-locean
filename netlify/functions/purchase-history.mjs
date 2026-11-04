@@ -7,7 +7,7 @@ const reply=(body,status=200)=>new Response(JSON.stringify(body),{status,headers
 const norm=(v,n=240)=>String(v??"").trim().slice(0,n);
 const slug=v=>norm(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ");
 const parseNum=v=>{if(v===null||v===undefined||v==="")return null;const a=Number(String(v).replace(/[€\s\u00a0\u202f]/g,"").replace(",","."));return Number.isFinite(a)?a:null;};
-const date=v=>{const s=norm(v,30);if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const a=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);return a?a[3]+"-"+a[2]+"-"+a[1]:"";};
+const date=v=>{const s=norm(v,30);if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const a=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(a)return a[3]+"-"+a[2].padStart(2,"0")+"-"+a[1].padStart(2,"0");if(/^\d{5}(?:\.0+)?$/.test(s)){const num=Number(s);if(num>=20000&&num<=80000)return new Date(Date.UTC(1899,11,30)+Math.round(num)*86400000).toISOString().slice(0,10);}return "";};
 const k=(supplier,reference)=>slug(supplier)+"|"+slug(reference);
 const basicUnit=u=>{const a=slug(u);if(["kg","kilogramme","kilogrammes"].includes(a))return "kg";if(["g","gramme","grammes"].includes(a))return "g";if(["l","litre","litres"].includes(a))return "L";if(["cl"].includes(a))return "cl";if(["ml"].includes(a))return "ml";if(["piece","pieces","unite","unites","u","pc","pcs"].includes(a))return "pièce";return "";};
 function clean(r){
