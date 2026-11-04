@@ -385,3 +385,61 @@ html[data-theme] body .pcu-empty{padding:28px;text-align:center;color:var(--so-i
   html[data-theme] body .pcu-price{grid-column:2;grid-row:2/4;align-self:end}
   html[data-theme] body .pcu-date-cell{grid-column:1;text-align:left;font-size:12px!important}
 }
+
+/* ============ Produits — maquette « liste » (v7) ============ */
+html[data-theme="light"]{--so-cat-bar:#2F5BA8;--so-cat-bar-bg:#E6EDF8;--so-cat-cuisine:#8A6420;--so-cat-cuisine-bg:#F4EBDA;--so-cat-hyg:#2E7650;--so-cat-hyg-bg:#E3F1E8;--so-cat-none:#6B6D73;--so-cat-none-bg:#EFECE6}
+html[data-theme="dark"]{--so-cat-bar:#9DBBF0;--so-cat-bar-bg:rgba(157,187,240,.14);--so-cat-cuisine:#E3BC72;--so-cat-cuisine-bg:rgba(227,188,114,.16);--so-cat-hyg:#8FD3AE;--so-cat-hyg-bg:rgba(143,211,174,.14);--so-cat-none:#A8968C;--so-cat-none-bg:rgba(255,255,255,.06)}
+html[data-theme] body .pcu-header{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px!important;margin:0 0 18px!important}
+html[data-theme] body .pcu-header h3{margin:0!important;font-size:40px!important;line-height:1.05!important}
+html[data-theme] body .pcu-primary{min-height:48px;padding:0 24px;border:0;border-radius:999px;background:var(--so-btn);color:var(--so-on-btn);font:600 15px Inter,sans-serif;cursor:pointer;white-space:nowrap}
+html[data-theme] body .pcu-primary:hover{opacity:.88}
+html[data-theme] body .pcu-tools{display:flex!important;flex-wrap:wrap!important;gap:10px!important;align-items:center!important;margin:0 0 16px!important}
+html[data-theme] body .pcu-tools .pcu-search{flex:1 1 320px!important;min-height:52px!important;font:400 15px Inter,sans-serif!important}
+html[data-theme] body .pcu-chips{display:flex;flex-wrap:wrap;gap:8px}
+html[data-theme] body .pcu-chips[hidden]{display:none}
+html[data-theme] body .pcu-chip{display:inline-flex;align-items:center;gap:6px;min-height:46px;padding:0 18px;border-radius:999px;border:1px solid var(--so-line);background:var(--so-panel);color:var(--so-ink);font:500 15px Inter,sans-serif;cursor:pointer;white-space:nowrap}
+html[data-theme] body .pcu-chip .pcu-chip-count{color:var(--so-ink3);font-variant-numeric:tabular-nums}
+html[data-theme] body .pcu-chip[aria-pressed="true"]{background:var(--so-btn);border-color:var(--so-btn);color:var(--so-on-btn)}
+html[data-theme] body .pcu-chip[aria-pressed="true"] .pcu-chip-count{color:inherit;opacity:.7}
+html[data-theme] body .pcu-chip:focus-visible,html[data-theme] body .pcu-sort:focus-visible{outline:2px solid var(--so-gold);outline-offset:2px}
+html[data-theme] body .pcu-filter-tag{margin:0 0 14px;min-height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--so-gold);background:var(--so-gold-soft);color:var(--so-gold-text);font:500 13px Inter,sans-serif;cursor:pointer}
+html[data-theme] body .pcu-count{display:none!important}
+html[data-theme] body .pcu-card{background:var(--so-panel);border:1px solid var(--so-line);border-radius:24px;overflow:hidden}
+html[data-theme] body .pcu-card .pcu-scroll{border:0!important;border-radius:0!important;background:transparent!important}
+html[data-theme] body .pcu-table th:nth-child(1){width:38%}
+html[data-theme] body .pcu-table th:nth-child(2){width:14%}
+html[data-theme] body .pcu-table th:nth-child(3){width:24%}
+html[data-theme] body .pcu-table th:nth-child(4){width:24%;text-align:right!important}
+html[data-theme] body .pcu-table th{padding:16px 24px!important;font-size:14px!important;color:var(--so-ink2)!important}
+html[data-theme] body .pcu-sort{border:0;background:none;padding:0;color:inherit;font:inherit;cursor:pointer}
+html[data-theme] body .pcu-table td{padding:16px 24px!important}
+html[data-theme] body .pcu-product-link{font:600 16px/1.35 Inter,sans-serif!important}
+html[data-theme] body .pcu-product-meta{font-size:14px;color:var(--so-ink2);margin-top:4px}
+html[data-theme] body .pcu-cat{display:inline-block;padding:3px 11px;border-radius:999px;font:600 13px/1.4 Inter,sans-serif;color:var(--so-cat-none);background:var(--so-cat-none-bg);white-space:nowrap}
+html[data-theme] body .pcu-cat-bar{color:var(--so-cat-bar);background:var(--so-cat-bar-bg)}
+html[data-theme] body .pcu-cat-cuisine{color:var(--so-cat-cuisine);background:var(--so-cat-cuisine-bg)}
+html[data-theme] body .pcu-cat-hygiene{color:var(--so-cat-hyg);background:var(--so-cat-hyg-bg)}
+html[data-theme] body .pcu-supplier-cell{font-size:16px!important;color:var(--so-ink)!important}
+html[data-theme] body .pcu-price{white-space:nowrap}
+html[data-theme] body .pcu-price-amount{font-size:20px}
+html[data-theme] body .pcu-price-unit{margin-left:3px;font-size:14px}
+html[data-theme] body .pcu-price .pcu-check-pill{margin:0 10px 0 0;vertical-align:3px}
+html[data-theme] body .pcu-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 24px;border-top:1px solid var(--so-line);color:var(--so-ink2);font:400 14px Inter,sans-serif}
+html[data-theme] body .pcu-foot .pcu-pages{margin:0!important;gap:10px}
+html[data-theme] body .pcu-foot .pcu-pages .pcu-link{min-height:36px;min-width:36px;padding:0 12px!important}
+@media(max-width:760px){
+  html[data-theme] body .pcu-header{margin:0 0 12px!important}
+  html[data-theme] body .pcu-primary{width:100%}
+  html[data-theme] body .pcu-chips{flex-wrap:nowrap;overflow-x:auto;width:100%;padding-bottom:2px;scrollbar-width:none}
+  html[data-theme] body .pcu-chip{min-height:40px;padding:0 14px;font-size:14px}
+  html[data-theme] body .pcu-table tr.pcu-product-row{grid-template-columns:1fr auto}
+  html[data-theme] body .pcu-cat-cell{grid-column:1;margin-top:6px}
+  html[data-theme] body .pcu-supplier-cell{grid-column:1;font-size:13px!important;color:var(--so-ink3)!important;margin-top:4px}
+  html[data-theme] body .pcu-price{grid-column:2;grid-row:2/4;align-self:end;text-align:right}
+  html[data-theme] body .pcu-price .pcu-check-pill{display:block;margin:0 0 4px auto;width:max-content}
+  html[data-theme] body .pcu-foot{flex-direction:column;align-items:flex-start;padding:14px 16px}
+}
+html[data-theme] body .pcu-table th:nth-child(3){text-align:left!important}
+html[data-theme] body .pcu-tools .pcu-chip{min-height:46px!important;padding:0 18px!important;border-radius:999px!important;border:1px solid var(--so-line)!important;background:var(--so-panel)!important;color:var(--so-ink)!important}
+html[data-theme] body .pcu-tools .pcu-chip[aria-pressed="true"]{background:var(--so-btn)!important;border-color:var(--so-btn)!important;color:var(--so-on-btn)!important}
+@media(max-width:760px){html[data-theme] body .pcu-tools .pcu-chip{flex:0 0 auto!important;min-height:40px!important;padding:0 14px!important}}
