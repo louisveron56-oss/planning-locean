@@ -354,19 +354,33 @@ function purchasesChart(host,lines){
   statusLine(host,certified.length+' achats fiables · variation '+(delta>=0?'+':'')+delta.toFixed(1).replace('.',',')+' % ('+pair[0]+')',false);
  }else statusLine(host,'Points cerclés : achats à vérifier. Variation non calculée faute de données suffisamment fiables.',true);
 }
+
 async function purchasesFor(item,slot){
  const stamp=++detailRequest;
  try{
   const index=await historicalIndex();
   if(stamp!==detailRequest||detailId!==item.id)return;
-  const match=matchingHistory(item,index);
-  if(!match){statusLine(slot,'Aucun historique relié avec certitude à cette référence. Les achats importés restent consultables dans Historique achats.',true);return;}
+  const sources=item.linkedItems?.length?item.linkedItems:[item];
+  const matches=sources.map(source=>source.purchaseHistoryMatch||matchingHistory(source,index)).filter(Boolean);
+  const unique=[...new Map(matches.map(m=>[m.key,m])).values()];
+  if(!unique.length){
+   statusLine(slot,'Aucun historique relié avec certitude à cette référence. Les achats importés restent consultables dans Historique achats.',true);
+   return;
+  }
   const user=window.netlifyIdentity?.currentUser?.(),token=await user.jwt();
-  const res=await fetch(historyApi+'?mode=product&key='+encodeURIComponent(match.key),{headers:{Authorization:'Bearer '+token},cache:'no-store'});
-  const data=await res.json();if(!res.ok)throw Error(data.error||'Historique non disponible');
+  const results=await Promise.allSettled(unique.map(async match=>{
+   const res=await fetch(historyApi+'?mode=product&key='+encodeURIComponent(match.key),{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+   const data=await res.json();if(!res.ok)throw Error(data.error||'Historique non disponible');
+   return data.rows||[];
+  }));
   if(stamp!==detailRequest||detailId!==item.id)return;
-  const lines=Array.isArray(data.rows)?data.rows:[];
+  const lines=results.filter(x=>x.status==='fulfilled').flatMap(x=>Array.isArray(x.value)?x.value:[]);
   if(!lines.length){statusLine(slot,'Aucun achat disponible pour ce produit.',true);return;}
+  if(results.some(x=>x.status==='rejected'))statusLine(slot,'Une partie des factures est momentanément indisponible : historique partiel.',true);
+  if(item.linkedItems?.length){
+   const suppliers=[...new Set(lines.map(x=>x.supplier).filter(Boolean))];
+   statusLine(slot,lines.length+' achats datés · '+suppliers.join(' / '),false);
+  }
   const graph=make(slot,'div','pcu-graph');purchasesChart(graph,lines);
   make(slot,'h4','pcu-section-heading','Derniers achats');
   const wrap=make(slot,'div','pcu-scroll'),table=make(wrap,'table','pcu-table pcu-purchases');
@@ -376,11 +390,13 @@ async function purchasesFor(item,slot){
   lines.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,12).forEach(r=>{
    const tr=make(body,'tr');
    make(tr,'td','',showDate(r.date));make(tr,'td','',r.priceHT==null?'—':money(r.priceHT)+' / '+(unitLabel(r.unit)||'unité ?'));
-   make(tr,'td','',r.quantity??'—');make(tr,'td','',r.invoice||'—');
+   make(tr,'td','',r.quantity??'—');
+   const doc=make(tr,'td','',r.invoice||'—');doc.title=r.supplier||'';
    make(tr,'td',r.verified?'':'pcu-issue',r.verified?'OK':'À vérifier');
   });
  }catch(e){if(stamp===detailRequest&&detailId===item.id)statusLine(slot,'Historique indisponible : '+e.message,true);}
 }
+
 function detail(item){
  const content=make(listHost,'section','pcu-detail');
  const head=make(content,'div','pcu-detail-head');
