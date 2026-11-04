@@ -366,7 +366,7 @@ function drawPrice(cell,p){
  if(raw===null){make(cell,'span','pcu-price-missing','à brancher');return;}
  make(cell,'span','pcu-price-amount',money(raw));
  if(p.price.valid)make(cell,'span','pcu-price-unit','/'+p.price.unit);
- if(!p.price.valid)inlineUnitEditor(p,cell);
+
 }
 function sortHeader(tr,label,key,cls){
  const th=make(tr,'th',cls||'');
@@ -374,6 +374,94 @@ function sortHeader(tr,label,key,cls){
  const b=make(th,'button','pcu-sort',label+(sort===key?(sortDir==='asc'?' ↑':' ↓'):''));b.type='button';
  th.setAttribute('aria-sort',sort===key?(sortDir==='asc'?'ascending':'descending'):'none');
  b.onclick=()=>{if(sort===key)sortDir=sortDir==='asc'?'desc':'asc';else{sort=key;sortDir='asc';}pageIndex=0;drawList();};
+}
+
+function editProductRow(row,item){
+ row.replaceChildren();row.classList.add('pcu-editing-row');
+ row.removeAttribute('tabindex');
+ const body=make(row,'td','pcu-edit-row-cell');body.colSpan=4;
+ const form=make(body,'form','pcu-quick-edit');
+ form.addEventListener('click',e=>e.stopPropagation());
+ form.addEventListener('keydown',e=>e.stopPropagation());
+ const fields=make(form,'div','pcu-edit-fields');
+ function field(label,type,value){
+  const wrap=make(fields,'label','pcu-edit-field');make(wrap,'span','',label);
+  const control=make(wrap,'input','pcu-edit-input');control.type=type;control.value=value??'';
+  if(type==='number'){control.step='0.0001';control.min='0';}
+  return control;
+ }
+ const name=field('Nom du produit','text',item.name);
+ const categoryWrap=make(fields,'label','pcu-edit-field');make(categoryWrap,'span','','Famille');
+ const category=make(categoryWrap,'select','pcu-edit-input');
+ ['Bar','Cuisine','Hygiène','À classer'].forEach(v=>{const o=make(category,'option','',v);o.value=v;});
+ category.value=item.catalog?.category||groupOf(item);
+ const price=field('Prix HT de l’unité','number',item.catalog?.price??item.sheet?.prix_actuel_ht??'');
+ const unitWrap=make(fields,'label','pcu-edit-field');make(unitWrap,'span','','Unité du prix');
+ const unit=make(unitWrap,'select','pcu-edit-input');
+ [['','À vérifier'],['kg','kg'],['L','L'],['pièce','pièce']].forEach(([v,label])=>{const o=make(unit,'option','',label);o.value=v;});
+ unit.value=unitLabel(item.catalog?.unit||item.sheet?.unite||item.sheet?.unite_prix||'')||'';
+ const originalPrice=number(item.catalog?.price??item.sheet?.prix_actuel_ht);
+ const reason=field('Motif si prix corrigé','text','');
+ const actions=make(form,'div','pcu-edit-actions');
+ const note=make(actions,'span','pcu-edit-note','Unité confirmée à l’enregistrement · prix sans conversion automatique');
+ const save=make(actions,'button','pcu-edit-save','Enregistrer');save.type='submit';
+ const cancel=make(actions,'button','pcu-edit-cancel','Annuler');cancel.type='button';
+ const status=make(actions,'span','pcu-edit-status','');
+ cancel.onclick=()=>{row.classList.remove('pcu-editing-row');renderProductRow(row,item);};
+ form.onsubmit=async ev=>{
+  ev.preventDefault();
+  const value=number(price.value),newName=name.value.trim(),newUnit=unit.value;
+  if(!newName||!newUnit||value===null){status.textContent='Nom, prix et unité requis.';return;}
+  const priceChanged=originalPrice!==null&&Math.abs(value-originalPrice)>0.000001;
+  if(priceChanged&&reason.value.trim().length<8){status.textContent='Pour corriger un prix, indique le motif (8 caractères minimum).';reason.focus();return;}
+  const user=window.netlifyIdentity?.currentUser?.();if(!user){status.textContent='Connexion requise.';return;}
+  save.disabled=true;status.textContent='Enregistrement…';
+  const original=item.catalog;
+  const payload=original?{
+   establishment:'LOCEAN',action:'update',productId:original.id,
+   reason:priceChanged?reason.value.trim():'Confirmation de fiche produit',
+   changes:{name:newName,category:category.value,subcategory:original.subcategory||'',locations:original.locations||[],
+     inventoryQuantity:original.inventoryQuantity??null,price:value,unit:newUnit}
+  }:{
+   establishment:'LOCEAN',action:'create-from-source',confirmUnit:true,
+   product:{name:newName,sourceDesignation:item.name,supplier:item.supplier,supplierReference:item.supplierReference,
+     category:category.value,price:value,unit:newUnit,date:item.date}
+  };
+  try{
+   const token=await user.jwt(),response=await fetch('/.netlify/functions/purchases',{
+    method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+    body:JSON.stringify(payload),cache:'no-store'});
+   const data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'Enregistrement impossible');
+   const product=data.product;
+   item.catalog=product;item.id='catalog:'+product.id;item.name=product.name;item.display=cleanName(product.name);
+   item.category=product.subcategory||product.category;item.group=groupOf(item);
+   item.price=normalizedPrice(product.price,product.unit);
+   item.warning=false;item.source=product.source||'Catalogue Prism';
+   item.confirmed=!!item.sheet;
+   row.classList.remove('pcu-editing-row');
+   renderProductRow(row,item);
+   window.dispatchEvent(new CustomEvent('prism-catalog-updated',{detail:{source:'quick-edit'}}));
+  }catch(err){status.textContent=err.message;save.disabled=false;}
+ };
+ name.focus();
+}
+function renderProductRow(row,p){
+ row.replaceChildren();row.className='pcu-product-row';row.tabIndex=0;
+ const name=make(row,'td','pcu-name-cell');
+ const link=make(name,'button','pcu-product-link',p.display);link.type='button';link.title=p.name;
+ link.onclick=()=>{detailId=p.id;drawList();};
+ const sub=p.category&&p.category!=='À classer'&&p.category!==p.group?p.category:'';
+ const meta=[sub,p.supplierReference?'réf. '+p.supplierReference:''].filter(Boolean).join(' · ');
+ if(meta)make(name,'span','pcu-product-meta',meta);
+ const cat=make(row,'td','pcu-cat-cell');make(cat,'span','pcu-cat pcu-cat-'+norm(p.group).replace(/[^a-z]/g,''),p.group);
+ const sc=make(row,'td','pcu-supplier-cell',p.supplierDisplay||'—');sc.title=p.supplier||'';
+ const priceCell=make(row,'td','pcu-price');drawPrice(priceCell,p);
+ const edit=make(priceCell,'button','pcu-pencil','✎');
+ edit.type='button';edit.title='Modifier ce produit';edit.setAttribute('aria-label','Modifier '+p.display);
+ edit.onclick=e=>{e.stopPropagation();editProductRow(row,p);};
+ row.setAttribute('aria-label','Ouvrir '+p.display);
+ row.onclick=e=>{if(e.target.closest('button,select,input,form'))return;detailId=p.id;drawList();};
+ row.onkeydown=e=>{if(e.key==='Enter'&&!e.target.closest('button,input,select,form')){detailId=p.id;drawList();}};
 }
 function drawList(){
  if(!listHost)return;listHost.replaceChildren();
@@ -389,19 +477,7 @@ function drawList(){
  sortHeader(tr,'Produit','name');sortHeader(tr,'Catégorie','');sortHeader(tr,'Fournisseur','supplier');sortHeader(tr,'Prix HT','price','pcu-th-price');
  const body=make(table,'tbody');
  filtered.slice(pageIndex*PAGE_SIZE,(pageIndex+1)*PAGE_SIZE).forEach(p=>{
-  const row=make(body,'tr');row.className='pcu-product-row';
-  const name=make(row,'td','pcu-name-cell');
-  const link=make(name,'button','pcu-product-link',p.display);link.type='button';link.title=p.name;link.dataset.prismPretty=p.display;
-  link.onclick=()=>{detailId=p.id;drawList();};
-  const sub=p.category&&p.category!=='À classer'&&p.category!==p.group?p.category:'';
-  const meta=[sub,p.supplierReference?'réf. '+p.supplierReference:''].filter(Boolean).join(' · ');
-  if(meta)make(name,'span','pcu-product-meta',meta);
-  const cat=make(row,'td','pcu-cat-cell');make(cat,'span','pcu-cat pcu-cat-'+norm(p.group).replace(/[^a-z]/g,''),p.group);
-  const sc=make(row,'td','pcu-supplier-cell',p.supplierDisplay||'—');sc.dataset.prismPretty=sc.textContent;sc.title=p.supplier||'';
-  const priceCell=make(row,'td','pcu-price');priceCell.dataset.prismPretty='1';drawPrice(priceCell,p);
-  row.tabIndex=0;row.setAttribute('aria-label','Ouvrir '+p.display);
-  row.addEventListener('click',e=>{if(e.target.closest('button'))return;detailId=p.id;drawList();});
-  row.addEventListener('keydown',e=>{if(e.key==='Enter'){detailId=p.id;drawList();}});
+  const row=make(body,'tr');renderProductRow(row,p);
  });
  const foot=make(card,'div','pcu-foot');
  make(foot,'span','pcu-foot-note',fr.format(filtered.length)+' produit'+(filtered.length>1?'s':'')+' · clique sur une ligne pour voir l’historique');
@@ -487,7 +563,7 @@ function init(){
   pendingSupplier=String(ev.detail?.supplier||'');supplierFilter=pendingSupplier;detailId='';pageIndex=0;
   if(loadedOnce)render();
  });
- window.addEventListener('prism-catalog-updated',()=>{if(page.classList.contains('open'))load();});
+ window.addEventListener('prism-catalog-updated',event=>{if(event.detail?.source==='quick-edit')return;if(page.classList.contains('open'))load();});
  if(page.classList.contains('open'))load();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
