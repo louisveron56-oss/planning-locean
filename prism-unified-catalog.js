@@ -196,13 +196,11 @@ function inlineUnitEditor(item,host){
   const save=make(wrap,'button','pcu-unit-save','Enregistrer');save.type='button';
   save.title='Confirmer que le prix HT affiché correspond bien à cette unité';
   const cancel=make(wrap,'button','pcu-unit-cancel','×');cancel.type='button';cancel.setAttribute('aria-label','Annuler');
-  const note=make(wrap,'span','pcu-unit-hint','Prix HT inchangé · unité vérifiée');
+  const note=make(wrap,'span','pcu-unit-hint','Enregistrer = unité vérifiée · prix HT inchangé');
   const status=make(wrap,'span','pcu-unit-error','');
   cancel.onclick=()=>{wrap.replaceChildren(edit);};
   save.onclick=async()=>{
    if(!select.value){status.textContent='Choisis une unité';return;}
-   const message='Confirmer : '+money(amount)+' HT correspond à 1 '+(select.value==='pièce'?'pièce':select.value)+'. Le prix ne sera pas converti.';
-   if(!confirm(message))return;
    save.disabled=true;select.disabled=true;status.textContent='Enregistrement…';
    const payload=item.catalog
     ?{establishment:'LOCEAN',action:'confirm-unit',productId:item.catalog.id,unit:select.value,confirmUnit:true}
