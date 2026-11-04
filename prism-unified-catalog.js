@@ -9,7 +9,7 @@ const fmt=new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimum
 const norm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
 const make=(parent,tag,cls,label)=>{const x=document.createElement(tag);if(cls)x.className=cls;if(label!==undefined)x.textContent=String(label);parent.appendChild(x);return x;};
 const money=x=>x!==null&&x!==undefined&&String(x).trim()!==''&&Number.isFinite(Number(x))?fmt.format(Number(x)):'—';
-const iso=x=>{const v=String(x||'').trim();return /^\d{4}-\d\d-\d\d/.test(v)?v.slice(0,10):'';};
+const iso=x=>{const v=String(x||'').trim();if(/^\d{4}-\d\d-\d\d/.test(v))return v.slice(0,10);const m=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0'):'';};
 const showDate=x=>{let d=iso(x);return d?new Date(d+'T12:00:00').toLocaleDateString('fr-FR'):'Non renseignée';};
 const number=x=>{if(x===null||x===undefined||String(x).trim()==='')return null;const n=Number(String(x).replace(/[\s\u00a0\u202f€]/g,'').replace(',','.'));return Number.isFinite(n)&&n>=0?n:null;};
 function unitLabel(value){
@@ -73,7 +73,7 @@ function joinSources(catalog,sheets){
    id:'catalog:'+String(p.id||i),catalog:p,sheet:match,
    name:p.name||match?.designation||'Sans nom',supplier:p.supplier||match?.fournisseur||'Non renseigné',
    supplierReference:p.supplierReference||match?.code||'',category:p.subcategory||p.category||match?.famille||'À classer',
-   price,source:p.source||'Catalogue Prism',date:iso(p.sourceLastPurchaseDate||p.updatedAt||p.createdAt||match?.date_dernier_achat),
+   price,source:p.source||'Catalogue Prism',date:'',
    added:iso(p.createdAt||match?.date_dernier_achat),confirmed:!!sourceCount,
    warning:!!(match&&number(match.prix_actuel_ht)!==null&&number(p.price)!==null&&Math.abs(Number(p.price)-number(match.prix_actuel_ht))>0.000001)
   });
@@ -84,7 +84,7 @@ function joinSources(catalog,sheets){
   items.push({
    id:'sheet:'+i,catalog:null,sheet:p,name:p.designation||'Sans nom',
    supplier:p.fournisseur||'Non renseigné',supplierReference:p.code||'',category:p.famille||'À classer',
-   price,source:'Google Sheets · Pennylane',date:iso(p.date_dernier_achat),added:'',
+   price,source:'Google Sheets · Pennylane',date:'',added:'',
    confirmed:false,warning:false
   });
  });
@@ -145,6 +145,34 @@ function matchingHistory(item,products){
  // For missing reference only: one exact supplier+description candidate is safe enough to suggest, but not assert linkage.
  const matches=products.filter(p=>compactKey(p.supplier)===supplier&&compactKey(p.description)===compactKey(item.name));
  return matches.length===1?matches[0]:null;
+}
+function attachPurchaseDates(items,historyProducts){
+ // Build once: thousands of invoice references must not trigger one full-history scan per product.
+ const byRef=new Map(),byName=new Map();
+ const add=(map,key,p)=>{const candidates=map.get(key)||[];candidates.push(p);map.set(key,candidates);};
+ (historyProducts||[]).forEach(p=>{
+  const supplier=compactKey(p.supplier);
+  if(!supplier)return;
+  add(byRef,historyKey(p.supplier,p.reference),p);
+  add(byName,supplier+'|'+compactKey(p.description),p);
+ });
+ let matched=0,dated=0;
+ items.forEach(item=>{
+  const supplier=compactKey(item.supplier),reference=compactKey(item.supplierReference);
+  let found=[];
+  if(supplier&&supplier!=='non renseigné'){
+   found=reference?byRef.get(historyKey(item.supplier,item.supplierReference))||[]:byName.get(supplier+'|'+compactKey(item.name))||[];
+  }
+  const record=found.length===1?found[0]:null;
+  const date=record?iso(record.last):'';
+  const fromSheets=iso(item.sheet?.date_dernier_achat);
+  item.purchaseHistoryMatch=record;
+  item.date=date||fromSheets||'';
+  item.purchaseDateSource=date?'Historique de factures importées':fromSheets?'Synthèse Google Sheets':'Aucune facture rapprochée';
+  if(record)matched++;
+  if(item.date)dated++;
+ });
+ return {matched,dated};
 }
 function statusLine(container,message,warning){
  const line=make(container,'p',warning?'pcu-warning':'pcu-muted',message);
@@ -327,7 +355,7 @@ function detail(item){
  if(!item.price.valid){const unitLine=make(content,'div','pcu-unit-inline-detail');make(unitLine,'span','','Unité de prix à vérifier');inlineUnitEditor(item,unitLine);}
  const metrics=make(content,'div','pcu-metrics');
  const price=make(metrics,'div','pcu-metric');make(price,'small','','Dernier prix catalogue HT');make(price,'strong','',item.price.text);
- const when=make(metrics,'div','pcu-metric');make(when,'small','','Dernier prix renseigné');make(when,'strong','',showDate(item.date));
+ const when=make(metrics,'div','pcu-metric');make(when,'small','','Dernier achat rapproché');make(when,'strong','',item.date?showDate(item.date):'Aucune date reliée');
  make(content,'h4','pcu-section-heading','Historique des prix d’achat');
  const slot=make(content,'section','pcu-purchases-host');
  statusLine(slot,'Chargement de l’historique…',false);
@@ -379,7 +407,7 @@ function sortHeader(tr,label,key,cls){
 function editProductRow(row,item){
  row.replaceChildren();row.classList.add('pcu-editing-row');
  row.removeAttribute('tabindex');
- const body=make(row,'td','pcu-edit-row-cell');body.colSpan=4;
+ const body=make(row,'td','pcu-edit-row-cell');body.colSpan=5;
  const form=make(body,'form','pcu-quick-edit');
  form.addEventListener('click',e=>e.stopPropagation());
  form.addEventListener('keydown',e=>e.stopPropagation());
@@ -456,6 +484,7 @@ function renderProductRow(row,p){
  const cat=make(row,'td','pcu-cat-cell');make(cat,'span','pcu-cat pcu-cat-'+norm(p.group).replace(/[^a-z]/g,''),p.group);
  const sc=make(row,'td','pcu-supplier-cell',p.supplierDisplay||'—');sc.title=p.supplier||'';
  const priceCell=make(row,'td','pcu-price');drawPrice(priceCell,p);
+ const purchaseDate=make(row,'td','pcu-date-cell',p.date?showDate(p.date):'—');purchaseDate.title=p.purchaseDateSource||'Aucune facture rapprochée';
  const edit=make(priceCell,'button','pcu-pencil','✎');
  edit.type='button';edit.title='Modifier ce produit';edit.setAttribute('aria-label','Modifier '+p.display);
  edit.onclick=e=>{e.stopPropagation();editProductRow(row,p);};
@@ -475,6 +504,7 @@ function drawList(){
  const card=make(listHost,'div','pcu-card'),wrap=make(card,'div','pcu-scroll'),table=make(wrap,'table','pcu-table');
  const tr=make(make(table,'thead'),'tr');
  sortHeader(tr,'Produit','name');sortHeader(tr,'Catégorie','');sortHeader(tr,'Fournisseur','supplier');sortHeader(tr,'Prix HT','price','pcu-th-price');
+ sortHeader(tr,'Dernier achat','');
  const body=make(table,'tbody');
  filtered.slice(pageIndex*PAGE_SIZE,(pageIndex+1)*PAGE_SIZE).forEach(p=>{
   const row=make(body,'tr');renderProductRow(row,p);
@@ -526,17 +556,22 @@ async function load(){
   const token=await u.jwt();
   const results=await Promise.allSettled([
    fetchJson('/.netlify/functions/purchases',token),
-   fetchJson('/.netlify/functions/purchase-sheets?type=products',token)
+   fetchJson('/.netlify/functions/purchase-sheets?type=products',token),
+   historicalIndex()
   ]);
   const catalog=results[0].status==='fulfilled'?results[0].value:null;
   const sheets=results[1].status==='fulfilled'?results[1].value:null;
   if(!catalog&&!sheets)throw Error('Catalogue indisponible : '+[results[0],results[1]].map(x=>x.status==='rejected'?x.reason.message:'').filter(Boolean).join(' ; '));
   rows=joinSources(catalog?.products||[],sheets?.rows||[]).map(p=>Object.assign(p,{display:cleanName(p.name),supplierDisplay:prettySupplier(p.supplier),group:groupOf(p)}));
+  const historyProducts=results[2].status==='fulfilled'?results[2].value:[];
+  const dateStats=attachPurchaseDates(rows,historyProducts);
   loadedOnce=true;
   partialSources=!(catalog&&sheets);
   hideLegacy(true);
   render();
   if((!catalog||!sheets)&&root)make(root,'p','pcu-alert','Une source est indisponible : la liste est partielle. Aucun produit ni prix n’a été modifié.');
+  if(results[2].status==='rejected'&&root)make(root,'p','pcu-alert','Dates de factures indisponibles : '+results[2].reason.message+'. Aucun historique n’a été effacé.');
+  if(catalog?.legacyExcluded&&root)make(root,'p','pcu-muted',catalog.legacyExcluded+' référence(s) de l’ancien inventaire retirée(s) du catalogue actif et conservée(s) en archive.');
  }catch(err){
   hideLegacy(true);
   if(root){root.replaceChildren();make(root,'p','pcu-alert','Catalogue indisponible : '+err.message);const retry=make(root,'button','pcu-link','Réessayer');retry.type='button';retry.onclick=()=>load();}

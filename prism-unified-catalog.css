@@ -132,3 +132,13 @@
 .pcu-edit-status{font-size:11px;color:var(--down,inherit)}
 @media(max-width:1100px){.pcu-edit-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.pcu-edit-fields{grid-template-columns:1fr}.pcu-edit-row-cell{padding:12px!important}}
+
+/* La date est celle du dernier achat rapproché et non celle de création de la fiche. */
+.pcu-table th:first-child{width:36%}
+.pcu-table th:nth-child(2){width:17%}
+.pcu-table th:nth-child(3){width:21%}
+.pcu-table th:nth-child(4){width:14%}
+.pcu-table th:nth-child(5){width:12%}
+.pcu-date-cell{white-space:nowrap;font-variant-numeric:tabular-nums;font-size:12px;color:var(--text-2,inherit)}
+.pcu-table th:nth-child(5){white-space:nowrap}
+@media(max-width:760px){.pcu-table{min-width:820px}}
