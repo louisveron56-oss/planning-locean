@@ -97,6 +97,28 @@ export default async function(req){
     await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
     return send({ok:true,product,savedAt:now,created:true},201);
    }
+   if(payload.action==="create-from-source"){
+    // A Sheets-only product enters the shared private catalogue only after an explicit human unit confirmation.
+    // Never alter the source import or infer a packaging conversion.
+    if(payload.confirmUnit!==true)return send({error:"Confirmation explicite de l'unité requise"},400);
+    const raw=payload.product||{},name=normalize(raw.name),supplier=normalize(raw.supplier,160);
+    const reference=normalize(raw.supplierReference,140),category=normalize(raw.category,60),unit=normalize(raw.unit,20);
+    const price=priceNumber(raw.price);
+    if(!name||!supplier||!["Bar","Cuisine","Hygiène","À classer"].includes(category)||!["kg","L","pièce"].includes(unit)||price===null)return send({error:"Produit, fournisseur, prix HT et unité obligatoires"},400);
+    const key=x=>normalize(x).normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase();
+    const dup=products.find(p=>!p.archivedAt&&key(p.supplier)===key(supplier)&&(reference&&key(p.supplierReference)===key(reference)||!reference&&key(p.name)===key(name)));
+    if(dup)return send({error:"Une référence existe déjà pour ce fournisseur. Actualise Produits.",existingProductId:dup.id||idFor(dup)},409);
+    if(products.length>=5000)return send({error:"Limite du catalogue atteinte"},409);
+    const item={id:"prd-"+crypto.randomUUID(),name,supplier,supplierReference:reference,category,subcategory:"",locations:[],price,unit,
+     inventoryQuantity:null,source:"Sheets Pennylane",sourcePrice:"prix source à vérifier",priceStatus:"unite_confirmee_prix_a_verifier",
+     unitConfirmedAt:now,unitConfirmedBy:actor,
+     sourceLastPurchaseDate:/^\\d{4}-\\d{2}-\\d{2}$/.test(raw.date||"")?raw.date:"",
+     priceHistory:[entry(price,unit,"Unité de prix confirmée manuellement; montant issu de la source, facture non validée",actor,now,"sheets-unite")],
+     archivedAt:null,archivedBy:null,createdAt:now,createdBy:actor};
+    products.push(item);
+    await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
+    return send({ok:true,created:true,product:item},201);
+   }
    const index=products.findIndex(p=>(p.id||idFor(p))===payload.productId);
    if(index<0)return send({error:"Produit introuvable. Actualise le catalogue."},404);
    const p={...products[index],id:products[index].id||idFor(products[index])};
@@ -110,6 +132,17 @@ export default async function(req){
     return send({ok:true,product:updated,savedAt:now});
    }
    if(p.archivedAt)return send({error:"Produit archivé : restaure-le avant modification"},409);
+   if(payload.action==="confirm-unit"){
+    if(payload.confirmUnit!==true)return send({error:"Confirmation explicite de l'unité requise"},400);
+    const unit=normalize(payload.unit,20);
+    if(!["kg","L","pièce"].includes(unit))return send({error:"Choisis kg, L ou pièce"},400);
+    if(!Number.isFinite(Number(p.price)))return send({error:"Prix source inexploitable; vérifie la facture"},409);
+    const updated={...p,unit,unitConfirmedAt:now,unitConfirmedBy:actor,
+     priceHistory:sameUnit(p.unit,unit)?history:[...history,entry(p.price,unit,"Unité de prix confirmée manuellement, prix HT inchangé",actor,now,"confirmation-unite")]};
+    products[index]=updated;
+    await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
+    return send({ok:true,product:updated,savedAt:now});
+   }
    if(payload.action==="update"){
     const changes=payload.changes||{},category=normalize(changes.category,60),unit=normalize(changes.unit,120),name=normalize(changes.name);
     const price=priceNumber(changes.price);
