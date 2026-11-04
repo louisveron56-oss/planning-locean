@@ -318,11 +318,16 @@ function infoModal(item){
  document.body.appendChild(layer);
  close.focus();
 }
+function purchaseUnitLabel(value){
+ const standard=unitLabel(value);if(standard)return standard;
+ const words={boi:'boîte',bte:'boîte',boite:'boîte',car:'carton',ct:'carton',crt:'carton',carton:'carton',col:'colis',colis:'colis',btl:'bouteille',bouteille:'bouteille',boc:'bocal',bocal:'bocal',paq:'paquet',paquet:'paquet',sac:'sac',dz:'douzaine',douzaine:'douzaine',bar:'barquette',bq:'barquette',barquette:'barquette',emb:'emballage / consigne',pet:'bouteille PET',lot:'lot',pk:'pack',pack:'pack',fl:'flacon',flacon:'flacon',h:'heure',heure:'heure',forfait:'forfait'};
+ return words[norm(value)]||String(value||'').trim()||'unité ?';
+}
 function purchasesChart(host,lines){
  host.replaceChildren();
- const comparable=lines.filter(r=>Number.isFinite(Number(r.priceHT))&&Number(r.priceHT)>0&&/^\d{4}-\d\d-\d\d$/.test(r.date)&&unitLabel(r.unit));
+ const comparable=lines.filter(r=>Number.isFinite(Number(r.priceHT))&&Number(r.priceHT)>0&&/^\d{4}-\d\d-\d\d$/.test(r.date)&&purchaseUnitLabel(r.unit)!=='unité ?');
  const groups=new Map();
- comparable.forEach(r=>{const u=unitLabel(r.unit);if(!groups.has(u))groups.set(u,[]);groups.get(u).push(r)});
+ comparable.forEach(r=>{const u=purchaseUnitLabel(r.unit);if(!groups.has(u))groups.set(u,[]);groups.get(u).push(r)});
  const eligible=[...groups.entries()].sort((a,b)=>b[1].length-a[1].length);
  const pair=eligible[0],series=pair?.[1]?.slice().sort((a,b)=>a.date.localeCompare(b.date))||[];
  if(series.length<2){statusLine(host,'Graphique indisponible : moins de deux achats datés dans une unité comparable.',true);return;}
@@ -390,7 +395,7 @@ async function purchasesFor(item,slot){
   const body=make(table,'tbody');
   lines.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,12).forEach(r=>{
    const tr=make(body,'tr');
-   make(tr,'td','',showDate(r.date));make(tr,'td','',r.priceHT==null?'—':money(r.priceHT)+' / '+(unitLabel(r.unit)||'unité ?'));
+   make(tr,'td','',showDate(r.date));make(tr,'td','',r.priceHT==null?'—':money(r.priceHT)+' / '+purchaseUnitLabel(r.unit));
    make(tr,'td','',r.quantity??'—');
    const rawDoc=r.invoice||r.document||r.source||'';
    const shortDoc=rawDoc.includes('/')||rawDoc.includes('\\')?rawDoc.split(/[\\/]/).pop():rawDoc;
