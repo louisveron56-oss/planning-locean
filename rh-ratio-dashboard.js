@@ -23,8 +23,9 @@ async function load(force){
   (sales.rows||[]).forEach(r=>{
    const m=String(r.date||"").slice(0,7);if(!/^20\d\d-(0[1-9]|1[0-2])$/.test(m))return;
    if(!String(r.etablissement||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().includes("ocean"))return;
-   if(!salesMap.has(m))salesMap.set(m,{ca:0,z:0,dates:new Set(),invalid:0});
-   const s=salesMap.get(m),v=num(r.ca_ht);s.z++;s.dates.add(String(r.date).slice(0,10));
+   if(!salesMap.has(m))salesMap.set(m,{ca:0,z:0,dates:new Set(),zIds:new Set(),duplicateZ:0,invalid:0});
+   const s=salesMap.get(m),v=num(r.ca_ht),zId=String(r.z||"").trim();s.z++;s.dates.add(String(r.date).slice(0,10));
+   if(zId){if(s.zIds.has(zId))s.duplicateZ++;s.zIds.add(zId)}
    if(!Number.isFinite(v))s.invalid++;else s.ca+=v;
   });
   const months=(rh.months||[]).map(p=>{
@@ -35,7 +36,9 @@ async function load(force){
       ...(!s?["Z de caisse absents"]:s.invalid?["CA HT non numérique"]:s.dates.size!==calMonth(p.month)?["Dates de Z à contrôler ("+s.dates.size+"/"+calMonth(p.month)+")"]:[])]};
   }).sort((a,b)=>a.month.localeCompare(b.month));
   if(!months.length)throw Error("Aucun mois RH importé");
-  data={months,duplicates:rh.duplicates||[],invalid:rh.invalid||[]};
+  const rhMonthKeys=new Set(months.map(x=>x.month));
+  const pendingSalesMonths=[...salesMap.entries()].filter(([m,x])=>m>="2026-10"&&!rhMonthKeys.has(m)&&x.dates.size>0).map(([m,x])=>({month:m,ca:round(x.ca),days:x.dates.size,z:x.z,invalid:x.invalid,duplicateZ:x.duplicateZ})).sort((a,b)=>b.month.localeCompare(a.month));
+  data={months,duplicates:rh.duplicates||[],invalid:rh.invalid||[],pendingSalesMonths};
   const years=[...new Set(months.map(x=>x.month.slice(0,4)))];if(!years.includes(year))year=years.at(-1);
  }catch(e){error=e.message}finally{loading=false;render()}
 }
@@ -88,11 +91,27 @@ function table(parent,groups){
   [x.label,money(x.ca),money(brut),money(pat),money(x.rh),percentage(x.ratio),delta?(delta.delta>=0?"+":"")+pct.format(delta.delta)+" pt":"—",x.warnings?"⚠ "+x.warnings+" contrôle(s)":"Source(s) rapprochée(s)"].forEach((v,i)=>put(tr,"td",i===7&&x.warnings?"rh-attention":"",v));
  });
 }
+function pendingPayrollDiagnostic(p){
+ const waiting=data?.pendingSalesMonths?.[0];if(!waiting)return;
+ const panel=put(p,"section","rh-pending");
+ put(panel,"strong","","⚠ "+waiting.month+" · paie absente des données RH consolidées");
+ put(panel,"p","","CA HT KSD "+money(waiting.ca)+" sur "+waiting.days+" jour(s), mais aucun coût de paie MySilae n'est encore intégré pour ce mois dans RH_Mensuel. Le ratio RH n'est donc pas calculable de manière fiable.");
+ const warnings=[
+  "Rapprocher le brut du journal de paie avec le compte 641 (et les avantages en nature).",
+  "Vérifier les charges patronales 633/645 et les indemnités du compte 649 sans double comptage.",
+  "Vérifier les variations des provisions de repos en comptabilité d'engagement avant le ratio."
+ ];
+ if(waiting.duplicateZ)warnings.push(waiting.duplicateZ+" numéro(s) de Z répété(s) à contrôler sur les ventes du mois.");
+ if(waiting.invalid)warnings.push(waiting.invalid+" ligne(s) de CA HT non numérique(s).");
+ const ul=put(panel,"ul","");warnings.forEach(t=>put(ul,"li","",t));
+ put(panel,"p","rh-muted","Diagnostic uniquement : les ratios précédents et les données de paie n'ont pas été modifiés.");
+}
 function renderReport(p){
  p.replaceChildren();
  const top=put(p,"div","rh-header");put(top,"h3","","Analyse financière · Masse salariale");put(top,"span","rh-state","DONNÉES À RAPPROCHER");
  put(p,"p","rh-muted","L'Océan · MySilae brut + charges patronales / CA HT des Z KSD. Pas de doublons, pas de provision CP ajoutée.");
  if(!data){put(p,"p","rh-warn",loading?"Synchronisation des données RH et CA…":error||"Connexion nécessaire pour afficher les données.");button(p,"↻ Charger",()=>load(true));return;}
+ pendingPayrollDiagnostic(p);
  const actions=put(p,"div","rh-controls");
  ["month","quarter","year"].forEach((v,i)=>button(actions,["Mensuel","Trimestriel","Annuel"][i],()=>{period=v;render()},period===v));
  if(period!=="year")for(const y of ["2024","2025","2026"])button(actions,y,()=>{year=y;render()},year===y);
@@ -118,6 +137,7 @@ function renderSmall(p,id){
  p.replaceChildren();
  const heading=put(p,"div","rh-header");put(heading,"h3","",id==="dashboard"?"Ratio RH · L'Océan":"Masse salariale · synthèse");put(heading,"span","rh-state","PROVISOIRE");
  if(!data){put(p,"p","rh-muted",loading?"Chargement…":error||"Ouvre l’analyse RH.");button(p,"Actualiser",()=>load(true));return;}
+ pendingPayrollDiagnostic(p);
  const item=data.months.find(x=>x.month==="2026-09")||data.months.at(-1);
  put(p,"div","rh-main",percentage(ratio({rh:item.rh,ca:item.ca})));
  put(p,"p","rh-muted",item.month+" · "+money(item.rh)+" de coût salarial chargé / "+money(item.ca)+" CA HT");
@@ -146,6 +166,7 @@ function install(){
  ".rh-table th{background:#f2f5f7;text-align:right;color:#556571;font-weight:700;padding:11px 9px}.rh-table td{text-align:right;border-bottom:1px solid #eef0f2;padding:11px 9px;white-space:nowrap}",
  ".rh-table th:first-child,.rh-table td:first-child{text-align:left}.rh-attention{color:#bd513a}",
  ".rh-notes{margin-top:17px;border-left:3px solid #bf6c4f;background:#fff7f4;padding:13px;color:#8f4231;font-size:11px;line-height:1.6}",
+ ".rh-pending{border-left:3px solid #bf4e39;background:#fff5f1;color:#823b2f;padding:14px;margin:15px 0;border-radius:8px;font-size:12px;line-height:1.6}.rh-pending strong{font-size:13px}.rh-pending ul{padding-left:20px;margin:8px 0}.rh-pending li{margin:3px 0}",
  ".rh-warn{color:#ad4030;font-size:12px}@media(max-width:950px){.rh-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}",
  "@media(max-width:540px){.rh-summary-grid{grid-template-columns:1fr}.rh-bar-row{grid-template-columns:58px 1fr 66px}}"
  ].join("");document.head.appendChild(css);
