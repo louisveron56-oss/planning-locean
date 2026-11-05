@@ -489,13 +489,13 @@ function editProductRow(row,item){
  const category=make(categoryWrap,'select','pcu-edit-input');
  ['Bar','Cuisine','Hygiène','À classer'].forEach(v=>{const o=make(category,'option','',v);o.value=v;});
  category.value=item.catalog?.category||groupOf(item);
- const price=field('Prix HT de l’unité','number',item.catalog?.price??item.sheet?.prix_actuel_ht??'');
+ const currentPrice=number(item.catalog?.price)??number(item.sheet?.prix_actuel_ht);
+ const price=field('Prix HT de l’unité','number',currentPrice??'');
  const unitWrap=make(fields,'label','pcu-edit-field');make(unitWrap,'span','','Unité du prix');
  const unit=make(unitWrap,'select','pcu-edit-input');
  [['','À vérifier'],['kg','kg'],['L','L'],['pièce','pièce']].forEach(([v,label])=>{const o=make(unit,'option','',label);o.value=v;});
  unit.value=unitLabel(item.catalog?.unit||item.sheet?.unite||item.sheet?.unite_prix||'')||'';
- const originalPrice=number(item.catalog?.price??item.sheet?.prix_actuel_ht);
- const reason=field('Motif si prix corrigé','text','');
+ const originalPrice=currentPrice;
  const actions=make(form,'div','pcu-edit-actions');
  const note=make(actions,'span','pcu-edit-note','Unité confirmée à l’enregistrement · prix sans conversion automatique');
  const save=make(actions,'button','pcu-edit-save','Enregistrer');save.type='submit';
@@ -507,19 +507,19 @@ function editProductRow(row,item){
   const value=number(price.value),newName=name.value.trim(),newUnit=unit.value;
   if(!newName||!newUnit||value===null){status.textContent='Nom, prix et unité requis.';return;}
   const priceChanged=originalPrice!==null&&Math.abs(value-originalPrice)>0.000001;
-  if(priceChanged&&reason.value.trim().length<8){status.textContent='Pour corriger un prix, indique le motif (8 caractères minimum).';reason.focus();return;}
+  
   const user=window.netlifyIdentity?.currentUser?.();if(!user){status.textContent='Connexion requise.';return;}
   save.disabled=true;status.textContent='Enregistrement…';
   const original=item.catalog;
   const payload=original?{
    establishment:'LOCEAN',action:'update',productId:original.id,
-   reason:priceChanged?reason.value.trim():'Confirmation de fiche produit',
+   reason:priceChanged?'Prix mis à jour manuellement':'Confirmation de fiche produit',
    changes:{name:newName,category:category.value,subcategory:original.subcategory||'',locations:original.locations||[],
      inventoryQuantity:original.inventoryQuantity??null,price:value,unit:newUnit}
   }:{
    establishment:'LOCEAN',action:'create-from-source',confirmUnit:true,
    product:{name:newName,sourceDesignation:item.name,supplier:item.supplier,supplierReference:item.supplierReference,
-     category:category.value,price:value,originalSourcePriceHT:originalPrice,reason:priceChanged?reason.value.trim():'',unit:newUnit,date:item.date}
+     category:category.value,price:value,originalSourcePriceHT:originalPrice,reason:'',unit:newUnit,date:item.date}
   };
   try{
    const token=await user.jwt(),response=await fetch('/.netlify/functions/purchases',{
