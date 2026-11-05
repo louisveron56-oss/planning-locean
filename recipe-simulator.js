@@ -137,18 +137,31 @@ function render(){
  let foot=make(root,"p","Brouillons enregistrés sur ce navigateur. Les nouveaux produits enregistrés depuis une fiche technique sont ajoutés au catalogue privé des achats. La marge matière exclut main-d’œuvre, énergie et charges fixes.");foot.className="rc-note";
 }
 function updateCosts(){lines.forEach((x,i)=>{let a=document.getElementById("rc-line-"+i);if(a)a.textContent=Number.isFinite(calc(x))?euro.format(calc(x)):"Vérifier les unités"});drawSummary()}
-function renderCatalog(){let host=document.getElementById("rc-results");if(!host)return;host.replaceChildren();
- let list=catalog.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())).slice(0,30);
- if(!list.length){make(host,"p",catalog.length?"Aucun résultat.":"Catalogue non chargé ou accès non autorisé.");return}
- let row=make(host,"div");row.className="rc-header";let sel=make(row,"select");list.forEach(p=>{let o=make(sel,"option",p.name+" · "+eur(p.price)+" / "+(p.basis||p.unit||"à vérifier"));o.value=String(p.id)});
- button(row,"Ajouter",()=>{let p=list.find(p=>String(p.id)===sel.value);if(p)add(p)});
+function renderCatalog(){
+ const host=document.getElementById("rc-results");if(!host)return;host.replaceChildren();
+ const key=x=>String(x||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+ const q=key(search.trim());
+ if(!q){make(host,"p","Saisis un ingrédient pour afficher les résultats.");return;}
+ const found=catalog.filter(p=>key(p.name+" "+(p.supplier||"")+" "+(p.reference||"")).includes(q)).slice(0,20);
+ make(host,"p",found.length+" ingrédient(s) trouvé(s)");
+ found.forEach(p=>{
+  const row=make(host,"div");row.className="rc-ingredient-row";
+  const label=make(row,"div");make(label,"strong",p.name);
+  make(label,"small",(p.supplier||"")+" · "+eur(p.price)+" / "+(p.basis||p.unit||"unité à confirmer"));
+  button(row,"Ajouter",()=>add(p));
+ });
+ if(!found.length)make(host,"p",catalog.length?"Aucun résultat dans le catalogue privé.":"Catalogue inaccessible.");
+ const nav=button(host,"Voir les autres références dans Produits",()=>{
+  if(typeof window.navigateApp==="function")window.navigateApp("suppliers");
+  window.dispatchEvent(new CustomEvent("prism-find-product",{detail:{query:search}}));
+ });nav.classList.add("rc-open-products");
 }
 function eur(v){return euro.format(Number(v))}
 async function loadCatalog(keepMessage){
  try{let u=window.netlifyIdentity&&window.netlifyIdentity.currentUser();if(!u)throw Error("Connexion requise");
  let res=await fetch("/.netlify/functions/purchases",{headers:{Authorization:"Bearer "+await u.jwt()},cache:"no-store"});
  let d=await res.json();if(!res.ok)throw Error(d.error||"Catalogue indisponible");
- catalog=(d.products||[]).filter(p=>p.name&&!p.archivedAt&&Number.isFinite(Number(p.price))).map(p=>({id:p.id,name:p.name,price:Number(p.price),unit:p.unit,basis:basis(p.unit),source:"catalogue"}));
+ catalog=(d.products||[]).filter(p=>p.name&&!p.archivedAt&&Number.isFinite(Number(p.price))).map(p=>({id:p.id,name:p.name,price:Number(p.price),unit:p.unit,basis:basis(p.unit),supplier:p.supplier||"",reference:p.supplierReference||"",source:"catalogue"}));
  if(!keepMessage)msg=catalog.length?catalog.length+" produits disponibles depuis les achats.":"Catalogue achats vide.";
  }catch(e){msg="Catalogue achats : "+e.message}
  render();
@@ -159,6 +172,7 @@ function init(){
  let section=make(shell,"section");section.id=id;
  let style=make(document.head,"style");style.textContent=".rc-header{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}.rc-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:15px}.rc-panel{background:#fff;border:1px solid #e2e7e7;border-radius:12px;padding:16px;margin-bottom:14px}.rc-panel h3{font-size:14px}.rc-panel label{display:inline-flex;flex-direction:column;gap:5px;min-width:140px;margin:8px;font-size:11px}.rc-panel input,.rc-panel select{max-width:100%;border:1px solid #dce2e3;padding:9px;border-radius:7px;background:white;color:#203e4b}.rc-line{border-top:1px solid #e4e8e8;padding:12px 0}.rc-cost{font-weight:700}.rc-btn{border:1px solid #dae0e0;background:#fff;color:#24566b;border-radius:7px;padding:9px;cursor:pointer;margin:5px;font-size:11px}.rc-side{position:sticky;top:15px;background:#fbfcfb}.rc-stat{display:flex;justify-content:space-between;border-bottom:1px solid #e9eeee;padding:11px 0;gap:6px;font-size:11px}.rc-stat strong{font-size:15px;text-align:right}.rc-note{font-size:11px;color:#708089}.rc-warn{color:#986123;font-size:11px}@media(max-width:800px){.rc-layout{grid-template-columns:1fr}.rc-side{position:static}}";
  try{let data=JSON.parse(localStorage.getItem(key)||"[]");drafts=Array.isArray(data)?data:[]}catch(_){}
+ window.addEventListener("prism-catalog-updated",()=>loadCatalog(true));
  render();loadCatalog();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();

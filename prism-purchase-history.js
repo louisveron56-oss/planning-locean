@@ -97,10 +97,20 @@ async function readPurchaseFile(file){
  return rows;
 }
 async function importFlow(){
- const input=el("input");input.type="file";input.accept=".xlsx,.xls,.csv,text/csv";input.onchange=async()=>{
+ // Safari peut ignorer l’événement change d’un sélecteur de fichier non attaché au DOM.
+ const input=el("input");input.type="file";input.accept=".xlsx,.xls,.csv,text/csv";
+ input.setAttribute("aria-label","Choisir un fichier d’achats à importer");
+ input.style.cssText="position:fixed;left:-10000px;top:0;width:1px;height:1px;opacity:0;pointer-events:none";
+ document.body.appendChild(input);
+ info("Sélectionne ton fichier CSV ou Excel. Après lecture, PRISM affichera les colonnes à vérifier avant l’import.");
+ input.onchange=async()=>{
   try{
-   const file=input.files?.[0];if(!file)return;info("Lecture locale du fichier "+file.name+"…");
+   const file=input.files?.[0];if(!file)return;
+   info("Fichier sélectionné : "+file.name+" ("+(file.size/1024/1024).toFixed(1)+" Mo). Lecture en cours…");
+   // Laisser Safari afficher le message avant de parser le gros fichier.
+   await new Promise(resolve=>setTimeout(resolve,50));
    const rows=await readPurchaseFile(file),headers=rows.shift();if(!headers||!rows.length)throw Error("Fichier vide");
+   info("Fichier lu : "+rows.length.toLocaleString("fr-FR")+" lignes. Vérifie les colonnes ci-dessous, puis clique sur « Contrôler puis importer ».");
    detailHost.replaceChildren();detailHost.appendChild(el("h3","Correspondance des colonnes"));
    detailHost.appendChild(el("p","Fichier Excel original ou CSV accepté. Vérifie la correspondance des colonnes avant de valider. Les données restent privées."));
    const mapping=el("div",undefined,"ph-map");detailHost.appendChild(mapping);
@@ -126,8 +136,11 @@ async function importFlow(){
      info("Historique importé. Rechargement…");detailHost.replaceChildren();await load();
     }catch(e){info("Import interrompu : "+e.message+" — aucun nouvel historique publié si les lots sont incomplets.",true);submit.disabled=false;}
    };
-  }catch(e){info(e.message,true);}
- };input.click();
+  }catch(e){info("Lecture impossible : "+e.message,true);}
+  finally{input.remove();}
+ };
+ input.addEventListener("cancel",()=>{input.remove();info("Sélection de fichier annulée.");},{once:true});
+ input.click();
 }
 function init(){
  const host=document.querySelector("#module-purchase-invoices .module-shell")||document.body;
