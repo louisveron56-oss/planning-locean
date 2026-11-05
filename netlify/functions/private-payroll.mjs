@@ -3,7 +3,7 @@ import { getStore } from "@netlify/blobs";
 const respond=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store, private","X-Content-Type-Options":"nosniff"}});
 const adminList=()=>String(process.env.PRISM_PAYROLL_ADMIN_EMAILS||"").split(",").map(x=>x.trim().toLowerCase()).filter(Boolean);
 const legacyKey="remunerations-2026-09-v1";
-const validPeriod=s=>/^20\\d{2}-(0[1-9]|1[0-2])$/.test(String(s||""));
+const validPeriod=s=>/^20\d{2}-(0[1-9]|1[0-2])$/.test(String(s||""));
 const validNum=x=>typeof x==="number"&&Number.isFinite(x)&&x>=0&&x<100000;
 const legacyTotals={OCEAN:{count:40,gross:80922.78,net:58727.72,employer_cost:97641.01},ESCALE:{count:25,gross:43894.69,net:51204.63,employer_cost:51204.63}};
 const periodKey=p=>"remunerations-"+p+"-v1";
@@ -11,7 +11,7 @@ function validate(data){
  if(!["prism-private-payroll-v1","prism-private-payroll-v2"].includes(data?.schema)||!validPeriod(data.period)||!Array.isArray(data.rows)||!data.rows.length||data.rows.length>150)throw Error("Format de paie inattendu");
  const seen=new Set();
  for(const p of data.rows){
-  if(!["OCEAN","ESCALE"].includes(p.establishment)||!/^\\d{5}$/.test(p.employee_id)||typeof p.name!=="string"||!p.name.trim()||p.name.length>100)throw Error("Ligne d'identité invalide");
+  if(!["OCEAN","ESCALE"].includes(p.establishment)||!/^\d{5}$/.test(p.employee_id)||typeof p.name!=="string"||!p.name.trim()||p.name.length>100)throw Error("Ligne d'identité invalide");
   const id=p.establishment+"|"+p.employee_id;if(seen.has(id))throw Error("Matricule en doublon : "+id);seen.add(id);
   for(const k of ["gross","net","employer_cost"])if(!validNum(p[k]))throw Error("Montant de paie invalide");
   p.record_id=id;p.status=p.status==="archived"?"archived":"visible";
