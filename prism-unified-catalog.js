@@ -78,6 +78,15 @@ function joinSources(catalog,sheets){
    warning:!p.priceConfirmedAt&&!!(match&&number(match.prix_actuel_ht)!==null&&number(p.price)!==null&&Math.abs(Number(p.price)-number(match.prix_actuel_ht))>0.000001)
   });
  });
+ (catalog||[]).filter(p=>!p.archivedAt&&p.priceConfirmedAt).forEach(p=>{
+  if(norm(p.supplier)&&norm(p.supplierReference)){
+   const key=supplierKey(p.supplier,p.supplierReference);
+   if(catalogRefCounts.get(key)===1)(sheetsByRef.get(key)||[]).forEach(i=>matched.add(i));
+  }else if(norm(p.supplier)&&norm(p.sourceDesignation||p.name)){
+   const key=supplierKey(p.supplier,p.sourceDesignation||p.name);
+   if(catalogNameCounts.get(key)===1)(sheetsByName.get(key)||[]).forEach(i=>matched.add(i));
+  }
+ });
  sheets.forEach((p,i)=>{
   if(matched.has(i))return;
   const price=normalizedPrice(p.prix_actuel_ht,p.unite||p.unite_prix||'');
@@ -533,7 +542,7 @@ function editProductRow(row,item){
    item.warning=!product.priceConfirmedAt&&!!(item.sheet&&number(item.sheet.prix_actuel_ht)!==null&&Math.abs(Number(product.price)-number(item.sheet.prix_actuel_ht))>0.000001);item.source=product.source||'Catalogue Prism';
    item.confirmed=!!item.sheet;
    row.classList.remove('pcu-editing-row');
-   drawList();
+   await load();
    window.dispatchEvent(new CustomEvent('prism-catalog-updated',{detail:{source:'quick-edit'}}));
   }catch(err){status.textContent=err.message;save.disabled=false;}
  };

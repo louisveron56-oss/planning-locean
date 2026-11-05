@@ -159,7 +159,7 @@ export default async function(req){
     const unit=normalize(payload.unit,20);
     if(!["kg","L","pièce"].includes(unit))return send({error:"Choisis kg, L ou pièce"},400);
     if(!Number.isFinite(Number(p.price)))return send({error:"Prix source inexploitable; vérifie la facture"},409);
-    const updated={...p,unit,unitConfirmedAt:now,unitConfirmedBy:actor,
+    const updated={...p,unit,unitConfirmedAt:now,unitConfirmedBy:actor,priceStatus:"valide_manuellement",priceConfirmedAt:now,priceConfirmedBy:actor,
      priceHistory:sameUnit(p.unit,unit)?history:[...history,entry(p.price,unit,"Unité de prix confirmée manuellement, prix HT inchangé",actor,now,"confirmation-unite")]};
     products[index]=updated;
     await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
