@@ -416,6 +416,45 @@ async function purchasesFor(item,slot){
  }catch(e){if(stamp===detailRequest&&detailId===item.id)statusLine(slot,'Historique indisponible : '+e.message,true);}
 }
 
+function snapshotComparison(item,content){
+ // Lien visuel uniquement : conserve chaque référence et ses factures distinctes.
+ const candidates=rows.filter(p=>norm(p.supplier)===norm(item.supplier)&&norm(p.display)===norm(item.display)&&norm(p.supplierReference));
+ const refs=[...new Set(candidates.map(p=>norm(p.supplierReference)))];
+ if(refs.length<2||refs.length>6)return;
+ const observations=[];
+ candidates.forEach(p=>{
+  const source=p.sheet;
+  if(!source)return;
+  [["date_premier_achat","prix_debut_ht"],["date_dernier_achat","prix_actuel_ht"]].forEach(([dk,pk])=>{
+   const date=iso(source[dk]),price=number(source[pk]);
+   if(date&&price!==null&&price>0)observations.push({date,price,reference:p.supplierReference,unit:p.price.unit||""});
+  });
+ });
+ const unique=[...new Map(observations.map(o=>[o.reference+"|"+o.date+"|"+o.price,o])).values()].sort((a,b)=>a.date.localeCompare(b.date));
+ if(unique.length<2)return;
+ const section=make(content,"section","pcu-snapshot-comparison");
+ make(section,"h4","pcu-section-heading","Évolution indicative · références similaires");
+ statusLine(section,"Même fournisseur et désignation : "+refs.join(" / ")+". Points tirés des synthèses d'achats ; références conservées séparément.",false);
+ const knownUnits=[...new Set(candidates.map(p=>p.price.unit).filter(Boolean))];
+ const comparable=knownUnits.length===1&&candidates.every(p=>p.price.unit===knownUnits[0]);
+ if(!comparable)statusLine(section,"Attention : les unités ou conditionnements ne sont pas tous confirmés. Cette courbe ne prouve pas une variation à quantité équivalente.",true);
+ const ns="http://www.w3.org/2000/svg",svg=document.createElementNS(ns,"svg");
+ svg.setAttribute("viewBox","0 0 760 245");svg.setAttribute("role","img");
+ svg.setAttribute("aria-label","Comparaison indicative des prix de références distinctes, sans fusion");
+ const prices=unique.map(o=>o.price),times=unique.map(o=>Date.parse(o.date+"T12:00:00Z"));
+ const low=Math.min(...prices),high=Math.max(...prices),pad=Math.max((high-low)*.2,high*.07,.02);
+ const ymin=Math.max(0,low-pad),ymax=high+pad,tmin=Math.min(...times),tmax=Math.max(...times);
+ const x=i=>52+(tmax===tmin?i/(unique.length-1):((times[i]-tmin)/(tmax-tmin)))*655;
+ const y=n=>200-(n-ymin)/(ymax-ymin)*152;
+ const el=(tag,attrs,txt)=>{const n=document.createElementNS(ns,tag);Object.entries(attrs||{}).forEach(([k,v])=>n.setAttribute(k,String(v)));if(txt!==undefined)n.textContent=txt;svg.appendChild(n);return n};
+ [0,1,2,3].forEach(i=>{const yy=48+i*50.7;el("line",{x1:52,y1:yy,x2:712,y2:yy,stroke:"currentColor","stroke-opacity":".13"});el("text",{x:46,y:yy+4,"text-anchor":"end",fill:"currentColor","font-size":11},(ymax-(ymax-ymin)*i/3).toFixed(2));});
+ el("polyline",{points:unique.map((o,i)=>x(i)+","+y(o.price)).join(" "),fill:"none",stroke:"currentColor","stroke-width":2,"stroke-dasharray":"6 5","stroke-opacity":".75"});
+ unique.forEach((o,i)=>{const dot=el("circle",{cx:x(i),cy:y(o.price),r:5,fill:"none",stroke:"currentColor","stroke-width":2});const title=document.createElementNS(ns,"title");title.textContent=showDate(o.date)+" · "+money(o.price)+" · réf. "+o.reference+" · synthèse indicative";dot.appendChild(title);});
+ el("text",{x:52,y:235,fill:"currentColor","font-size":12},showDate(unique[0].date));
+ el("text",{x:712,y:235,"text-anchor":"end",fill:"currentColor","font-size":12},showDate(unique[unique.length-1].date));
+ svg.classList.add("pcu-chart");section.appendChild(svg);
+ statusLine(section,"Prix sources : "+unique.map(o=>showDate(o.date)+" · "+money(o.price)+" (réf. "+o.reference+")").join(" ; ")+". Historique des factures détaillé disponible séparément.",false);
+}
 function detail(item){
  const content=make(listHost,'section','pcu-detail');
  const head=make(content,'div','pcu-detail-head');
@@ -430,6 +469,7 @@ function detail(item){
  }
  const price=make(metrics,'div','pcu-metric');make(price,'small','','Dernier prix catalogue HT');make(price,'strong','',item.price.text);
  const when=make(metrics,'div','pcu-metric');make(when,'small','','Dernier achat rapproché');make(when,'strong','',item.date?showDate(item.date):'Aucune date reliée');
+ snapshotComparison(item,content);
  make(content,'h4','pcu-section-heading','Historique des prix d’achat');
  const slot=make(content,'section','pcu-purchases-host');
  slot.setAttribute('aria-live','polite');
