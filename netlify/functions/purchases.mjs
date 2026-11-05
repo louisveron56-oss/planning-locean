@@ -5,6 +5,17 @@ const send=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:
 const store=()=>getStore({name:"locean-private-purchase-catalog",consistency:"strong"});
 const normalize=(x,max=250)=>String(x??"").trim().slice(0,max);
 const priceNumber=(v)=>Number.isFinite(Number(v))&&Number(v)>=0&&Number(v)<=100000?Number(v):null;
+/* Le fichier initial d'inventaire sert uniquement d'archive.
+   Classification conservatrice : pas de fournisseur ni reference fournisseur,
+   et marqueur de la feuille d'inventaire source. */
+function fromLegacyInventory(p){
+ const hasSupplier=!!normalize(p.supplier,160),hasRef=!!normalize(p.supplierReference,140);
+ if(hasSupplier||hasRef)return false;
+ const source=normalize(p.source,150).toLowerCase();
+ // Never hide imported COCO recipes, verified invoices, Sheets-linked or manually created recipe ingredients.
+ if(/^(?:coco\s*-|fiche technique|facture valid[eé]e|sheets pennylane)/i.test(source))return false;
+ return !!normalize(p.sourceRow,60)||/^(?:feuil\d*|inventaire)(?:\b|\s|_)/i.test(source);
+}
 const subcategories={
  "Bar":["Vins rouges","Vins blancs","Vins rosés","Champagnes & effervescents","Spiritueux","Bières & cidres","Softs & eaux","Cafés, thés & boissons chaudes","Sirops & ingrédients bar","Autres boissons"],
  "Cuisine":["Viandes & volailles","Poissons & fruits de mer","Fruits & légumes","Crèmerie & fromages","Épicerie salée","Épicerie sucrée","Surgelés","Pain & boulangerie","Autres cuisine"],
@@ -32,7 +43,14 @@ export default async function(req){
    const coco=await db.get("ocean/coco-reference",{type:"json",consistency:"strong"});
    return send({ready:!!coco,reference:coco||null});
   }
-  if(req.method==="GET")return send({ready:!!saved,reference:saved?.reference||null,savedAt:saved?.savedAt||null,products:(saved?.products||[]).filter(p=>new URL(req.url).searchParams.get("archived")==="1"?!!p.archivedAt:!p.archivedAt).map(p=>({...p,id:p.id||idFor(p),priceHistory:historyOf(p)}))});
+  if(req.method==="GET"){
+   const params=new URL(req.url).searchParams,archived=params.get("archived")==="1",legacy=params.get("legacy")==="1";
+   const all=saved?.products||[],legacyCount=all.filter(p=>!p.archivedAt&&fromLegacyInventory(p)).length;
+   const products=all.filter(p=>legacy?fromLegacyInventory(p):(archived?!!p.archivedAt:!p.archivedAt&&!fromLegacyInventory(p)));
+   return send({ready:!!saved,reference:saved?.reference||null,savedAt:saved?.savedAt||null,
+    legacyExcluded:legacyCount,legacyPreserved:true,
+    products:products.map(p=>({...p,id:p.id||idFor(p),priceHistory:historyOf(p)}))});
+  }
   const raw=await req.text();if(raw.length>1700000)return send({error:"Requête trop volumineuse"},413);
   let payload;try{payload=JSON.parse(raw);}catch(_){return send({error:"JSON invalide"},400);}
   if(payload?.establishment!=="LOCEAN")return send({error:"Établissement incorrect"},400);
@@ -101,19 +119,23 @@ export default async function(req){
     // A Sheets-only product enters the shared private catalogue only after an explicit human unit confirmation.
     // Never alter the source import or infer a packaging conversion.
     if(payload.confirmUnit!==true)return send({error:"Confirmation explicite de l'unité requise"},400);
-    const raw=payload.product||{},name=normalize(raw.name),supplier=normalize(raw.supplier,160);
+    const raw=payload.product||{},name=normalize(raw.name),supplier=normalize(raw.supplier,160),sourceDesignation=normalize(raw.sourceDesignation||raw.name);
     const reference=normalize(raw.supplierReference,140),category=normalize(raw.category,60),unit=normalize(raw.unit,20);
     const price=priceNumber(raw.price);
     if(!name||!supplier||!["Bar","Cuisine","Hygiène","À classer"].includes(category)||!["kg","L","pièce"].includes(unit)||price===null)return send({error:"Produit, fournisseur, prix HT et unité obligatoires"},400);
     const key=x=>normalize(x).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
-    const dup=products.find(p=>!p.archivedAt&&key(p.supplier)===key(supplier)&&(reference&&key(p.supplierReference)===key(reference)||!reference&&key(p.name)===key(name)));
+    const dup=products.find(p=>!p.archivedAt&&key(p.supplier)===key(supplier)&&(reference&&key(p.supplierReference)===key(reference)||!reference&&key(p.sourceDesignation||p.name)===key(sourceDesignation)));
     if(dup)return send({error:"Une référence existe déjà pour ce fournisseur. Actualise Produits.",existingProductId:dup.id||idFor(dup)},409);
+    const originalSourcePriceHT=raw.originalSourcePriceHT===null||raw.originalSourcePriceHT===undefined?null:priceNumber(raw.originalSourcePriceHT);
+    const changedSourcePrice=originalSourcePriceHT!==null&&Math.abs(price-originalSourcePriceHT)>0.000001;
+    const correctionReason=normalize(raw.reason,200);
+    if(changedSourcePrice&&correctionReason.length<8)return send({error:"Motif requis pour corriger le prix de la source"},400);
     if(products.length>=5000)return send({error:"Limite du catalogue atteinte"},409);
-    const item={id:"prd-"+crypto.randomUUID(),name,supplier,supplierReference:reference,category,subcategory:"",locations:[],price,unit,
-     inventoryQuantity:null,source:"Sheets Pennylane",sourcePrice:"prix source à vérifier",priceStatus:"unite_confirmee_prix_a_verifier",
+    const item={id:"prd-"+crypto.randomUUID(),name,supplier,supplierReference:reference,sourceDesignation,category,subcategory:"",locations:[],price,unit,
+     inventoryQuantity:null,source:"Sheets Pennylane",sourcePrice:changedSourcePrice?"prix corrigé manuellement à rapprocher de facture":"prix source à vérifier",priceStatus:"unite_confirmee_prix_a_verifier",originalSourcePriceHT,sourcePriceReason:changedSourcePrice?correctionReason:"",
      unitConfirmedAt:now,unitConfirmedBy:actor,
      sourceLastPurchaseDate:/^\d{4}-\d{2}-\d{2}$/.test(raw.date||"")?raw.date:"",
-     priceHistory:[entry(price,unit,"Unité de prix confirmée manuellement; montant issu de la source, facture non validée",actor,now,"sheets-unite")],
+     priceHistory:[entry(price,unit,changedSourcePrice?"Prix HT saisi manuellement : "+correctionReason:"Unité de prix confirmée manuellement; montant issu de la source, facture non validée",actor,now,"sheets-unite")],
      archivedAt:null,archivedBy:null,createdAt:now,createdBy:actor};
     products.push(item);
     await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
