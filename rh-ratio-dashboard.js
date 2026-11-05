@@ -147,7 +147,7 @@ function renderSmall(p,id){
  const heading=put(p,"div","rh-header");put(heading,"h3","",id==="dashboard"?"Ratio RH · L'Océan":"Masse salariale · synthèse");put(heading,"span","rh-state","PROVISOIRE");
  if(!data){put(p,"p","rh-muted",loading?"Chargement…":error||"Ouvre l’analyse RH.");button(p,"Actualiser",()=>load(true));return;}
  pendingPayrollDiagnostic(p);
- const item=data.months.find(x=>x.month==="2026-09")||data.months.at(-1);
+ const item=data.months.at(-1);
  put(p,"div","rh-main",percentage(ratio({rh:item.rh,ca:item.ca})));
  put(p,"p","rh-muted",item.month+" · "+money(item.rh)+" de coût salarial chargé / "+money(item.ca)+" CA HT");
  button(p,"Ouvrir l'analyse RH →",()=>{const b=document.querySelector('.app-nav-item[data-page="reports"]');if(b)b.click();else window.navigateApp?.("reports");});
