@@ -1,5 +1,6 @@
 
 import { getUser } from "@netlify/identity";
+import { readSheetCached, wantsRefresh, cacheInfo } from "./lib/sheet-cache.mjs";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -9,35 +10,6 @@ function json(data, status = 200) {
       "Cache-Control": "no-store"
     }
   });
-}
-
-async function readSheet(url, secret, startRow) {
-  const response = await fetch(url, {
-    method: "POST",
-    redirect: "follow",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8"
-    },
-    body: JSON.stringify({
-      secret,
-      action: "readSheet",
-      sheet: "Jours",
-      startRow,
-      limit: 1000
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error("Erreur HTTP " + response.status);
-  }
-
-  const data = await response.json();
-
-  if (!data.ok) {
-    throw new Error(data.error || "Erreur Apps Script");
-  }
-
-  return data;
 }
 
 export default async function(request) {
@@ -67,8 +39,8 @@ export default async function(request) {
   }
 
   try {
-    const first = await readSheet(url, secret, 1);
-    const headers = first.rows[0] || [];
+    const sheet = await readSheetCached({ url, secret, sheet: "Jours", maxRows: 21000, refresh: wantsRefresh(request) });
+    const headers = sheet.rows[0] || [];
 
     const required = [
       "date", "etablissement", "ca_ttc",
@@ -79,14 +51,7 @@ export default async function(request) {
       throw new Error("Colonnes attendues introuvables");
     }
 
-    const values = first.rows.slice(1);
-    const total = Number(first.totalRows) || 0;
-
-    for (let start = 1001; start <= total; start += 1000) {
-      if (start > 20001) throw new Error("Volume inattendu");
-      const page = await readSheet(url, secret, start);
-      values.push(...page.rows);
-    }
+    const values = sheet.rows.slice(1);
 
     const fields = [
       "date", "etablissement", "ca_ttc", "ca_ht",
@@ -107,7 +72,8 @@ export default async function(request) {
     return json({
       ok: true,
       source: "LOCEAN_DATA_API",
-      rows
+      rows,
+      cache: cacheInfo(sheet)
     });
 
   } catch (error) {

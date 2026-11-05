@@ -1,11 +1,6 @@
 import { getUser } from "@netlify/identity";
+import { readSheetCached, wantsRefresh, cacheInfo } from "./lib/sheet-cache.mjs";
 const reply=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
-async function readPage(url,secret,startRow){
- const response=await fetch(url,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({secret,action:"readSheet",sheet:"RH_Mensuel",startRow,limit:1000})});
- if(!response.ok)throw new Error("Lecture RH HTTP "+response.status);
- const data=await response.json();if(!data.ok||!Array.isArray(data.rows))throw new Error(data.error||"Source RH indisponible");
- return data;
-}
 const parse=v=>{const x=String(v??"").replace(/[\s\u00a0\u202f€]/g,"").replace(",",".");return x===""?null:Number.isFinite(Number(x))?Number(x):null};
 export default async function(request){
  if(request.method!=="GET")return reply({error:"Méthode non autorisée"},405);
@@ -16,12 +11,10 @@ export default async function(request){
  const url=process.env.LOCEAN_SHEETS_API_URL,secret=process.env.LOCEAN_SHEETS_API_SECRET;
  if(!url||!secret)return reply({error:"Connexion RH Sheets non configurée"},503);
  try{
-  const first=await readPage(url,secret,1),headers=first.rows[0]||[];
+  const sheet=await readSheetCached({url,secret,sheet:"RH_Mensuel",maxRows:5000,refresh:wantsRefresh(request)}),headers=sheet.rows[0]||[];
   const keys=["mois","etablissement","brut","charges_patronales","cout_charge","cout_global_mysilae","avantages_nourriture","compte_641","comptes_633_645","ecart_641","ecart_charges","statut_rapprochement"];
   if(!keys.every(k=>headers.includes(k)))throw new Error("RH_Mensuel : colonnes obligatoires manquantes");
-  const values=first.rows.slice(1),total=Number(first.totalRows)||values.length+1;
-  if(total>5000)throw new Error("Taille RH inattendue");
-  for(let start=1001;start<=total;start+=1000){const next=await readPage(url,secret,start);values.push(...next.rows)}
+  const values=sheet.rows.slice(1);
   const cols=Object.fromEntries(keys.map(k=>[k,headers.indexOf(k)])),seen=new Set(),months=[],duplicates=[],invalid=[];
   for(const r of values){
    const month=String(r[cols.mois]||"").trim(),site=String(r[cols.etablissement]||"");
@@ -35,7 +28,7 @@ export default async function(request){
   }
   months.sort((a,b)=>a.month.localeCompare(b.month));
   const specific=new URL(request.url).searchParams.get("month");
-  if(specific){const found=months.find(x=>x.month===specific);return reply({ok:true,available:!!found,month:specific,payroll:found?{gross:found.brut,patronales:found.charges_patronales,charged:found.cout_charge,status:found.status}:null,duplicates,invalid})}
-  return reply({ok:true,months,duplicates,invalid,source:"Google Sheets / RH_Mensuel",definition:"Salaire brut + charges patronales ; provisions CP et avantages repas non ajoutés une seconde fois"});
+  if(specific){const found=months.find(x=>x.month===specific);return reply({ok:true,available:!!found,month:specific,payroll:found?{gross:found.brut,patronales:found.charges_patronales,charged:found.cout_charge,status:found.status}:null,duplicates,invalid,cache:cacheInfo(sheet)})}
+  return reply({ok:true,months,duplicates,invalid,source:"Google Sheets / RH_Mensuel",definition:"Salaire brut + charges patronales ; provisions CP et avantages repas non ajoutés une seconde fois",cache:cacheInfo(sheet)});
  }catch(err){console.error("RH monthly:",err);return reply({error:"Impossible de lire RH_Mensuel : "+err.message},502)}
 }

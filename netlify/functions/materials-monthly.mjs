@@ -1,10 +1,6 @@
 import { getUser } from "@netlify/identity";
+import { readSheetCached, wantsRefresh, cacheInfo } from "./lib/sheet-cache.mjs";
 const send=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
-async function page(url,secret,startRow){
- const res=await fetch(url,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({secret,action:"readSheet",sheet:"Ratios",startRow,limit:1000})});
- if(!res.ok)throw new Error("Source Sheets HTTP "+res.status);
- const data=await res.json();if(!data.ok||!Array.isArray(data.rows))throw new Error(data.error||"Lecture Ratios indisponible");return data;
-}
 const decimal=x=>{const s=String(x??"").replace(/[\s\u00a0\u202f€%]/g,"").replace(",",".");return s===""?null:Number.isFinite(Number(s))?Number(s):null};
 export default async function(request){
  if(request.method!=="GET")return send({error:"Méthode non autorisée"},405);
@@ -15,12 +11,10 @@ export default async function(request){
  const url=process.env.LOCEAN_SHEETS_API_URL,secret=process.env.LOCEAN_SHEETS_API_SECRET;
  if(!url||!secret)return send({error:"Connecteur Sheets non configuré"},503);
  try{
-  const first=await page(url,secret,1),header=first.rows[0]||[];
+  const sheet=await readSheetCached({url,secret,sheet:"Ratios",maxRows:5000,refresh:wantsRefresh(request)}),header=sheet.rows[0]||[];
   const fields=["mois","ca_ht","achats_alim_ht","achats_boissons_ht","matiere_ht","statut"];
   if(!fields.every(k=>header.includes(k)))throw new Error("Colonnes Ratios introuvables");
-  const rows=first.rows.slice(1),total=Number(first.totalRows)||rows.length+1;
-  if(total>5000)throw new Error("Volume Ratios inattendu");
-  for(let start=1001;start<=total;start+=1000)rows.push(...(await page(url,secret,start)).rows);
+  const rows=sheet.rows.slice(1);
   const col=Object.fromEntries(fields.map(k=>[k,header.indexOf(k)])),seen=new Set(),duplicates=[],invalid=[];
   const months=[];
   for(const r of rows){
@@ -35,6 +29,6 @@ export default async function(request){
    months.push({month,ca,food,drinks,total,ratio:total/ca*100,ratioFood:food/ca*100,ratioDrinks:drinks/ca*100,status,warnings,validated:warnings.length===0});
   }
   months.sort((a,b)=>a.month.localeCompare(b.month));
-  return send({ok:true,months,duplicates,invalid,source:"LOCEAN_DATA_API / Ratios (achats fournisseurs)",definition:"Achats de matières HT / CA HT ; ne comprend pas la variation de stocks",notConsumption:true});
+  return send({ok:true,months,duplicates,invalid,source:"LOCEAN_DATA_API / Ratios (achats fournisseurs)",definition:"Achats de matières HT / CA HT ; ne comprend pas la variation de stocks",notConsumption:true,cache:cacheInfo(sheet)});
  }catch(err){console.error("materials:",err);return send({error:"Impossible de lire Ratios : "+err.message},502)}
 }
