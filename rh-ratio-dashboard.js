@@ -29,8 +29,9 @@ async function load(force){
    if(!Number.isFinite(v))s.invalid++;else s.ca+=v;
   });
   const months=(rh.months||[]).map(p=>{
-   const s=salesMap.get(p.month);return {...p,rh:p.cout_charge,ca:s&&s.invalid===0?round(s.ca):NaN,z:s?.z||0,days:s?.dates.size||0,invalidZ:s?.invalid||0,
-    warnings:[...(Math.abs(p.ecart_641||0)>.02?["Écart 641 : "+money(p.ecart_641)]:[]),
+   const s=salesMap.get(p.month),reconciled=p.status==="complet"&&Number.isFinite(p.cout_comptable);
+   return {...p,rh:reconciled?p.cout_comptable:p.cout_charge,baseRH:reconciled?"comptable nette":"brut + charges",ca:s&&s.invalid===0?round(s.ca):NaN,z:s?.z||0,days:s?.dates.size||0,invalidZ:s?.invalid||0,
+    warnings:[...(Math.abs(p.ecart_641||0)>.02&&!reconciled?["Écart 641 : "+money(p.ecart_641)]:[]),
       ...(Math.abs(p.ecart_charges||0)>.02?["Écart 633/645 : "+money(p.ecart_charges)]:[]),
       ...(p.avantages_nourriture<0?["Contrepartie nourriture négative"]:[]),
       ...(!s?["Z de caisse absents"]:s.invalid?["CA HT non numérique"]:s.dates.size!==calMonth(p.month)?["Dates de Z à contrôler ("+s.dates.size+"/"+calMonth(p.month)+")"]:[])]};
@@ -116,8 +117,8 @@ function pendingPayrollDiagnostic(p){
 }
 function renderReport(p){
  p.replaceChildren();
- const top=put(p,"div","rh-header");put(top,"h3","","Analyse financière · Masse salariale");put(top,"span","rh-state","DONNÉES À RAPPROCHER");
- put(p,"p","rh-muted","L'Océan · MySilae brut + charges patronales / CA HT des Z KSD. Pas de doublons, pas de provision CP ajoutée.");
+ const top=put(p,"div","rh-header");put(top,"h3","","Analyse financière · Masse salariale");put(top,"span","rh-state",data?.months.at(-1)?.status==="complet"?"PAIE COMPTABLE INTÉGRÉE":"DONNÉES À RAPPROCHER");
+ put(p,"p","rh-muted","L'Océan · RH sur CA HT KSD. Coût comptable net retenu lorsqu'il est explicitement rapproché avec les comptes 641, 633/645 et 649 ; sinon brut + charges patronales. Pas de provision CP ajoutée deux fois.");
  if(!data){put(p,"p","rh-warn",loading?"Synchronisation des données RH et CA…":error||"Connexion nécessaire pour afficher les données.");button(p,"↻ Charger",()=>load(true));return;}
  pendingPayrollDiagnostic(p);
  const actions=put(p,"div","rh-controls");
@@ -129,7 +130,7 @@ function renderReport(p){
  const focus=shown.at(-1),prior=focus&&!(period==="year"&&focus.months!==12)?comparison(all,focus.label):null;
  const cards=put(p,"div","rh-summary-grid");
  stat(cards,"Ratio RH · "+(focus?.label||"—"),percentage(focus?.ratio),focus&&period==="year"&&focus.months<12?focus.months+" mois disponibles · année incomplète":"Coût chargé / CA HT");
- stat(cards,"Masse salariale chargée",money(focus?.rh),"Brut + charges patronales");
+ stat(cards,"Coût RH retenu",money(focus?.rh),focus&&period==="month"&&data.months.find(m=>m.month===focus.label)?.baseRH==="comptable nette"?"Coût comptable après indemnités 649":"Brut + charges patronales");
  stat(cards,"CA HT",money(focus?.ca),"KSD · ventes mensuelles");
  stat(cards,"Évolution du ratio N-1",prior?(prior.delta>=0?"+":"")+pct.format(prior.delta)+" pt":"—",prior?"Même période année précédente":"Comparer uniquement des périodes équivalentes");
  const chart=put(p,"div","rh-chart");put(chart,"h4","","Comparaison des ratios RH · "+(period==="year"?"exercices":year));drawBars(chart,shown,period);
@@ -137,19 +138,19 @@ function renderReport(p){
  put(p,"h4","","Détail de gestion et rapprochements");table(p,shown);
  const notes=put(p,"div","rh-notes");
  put(notes,"strong","","Contrôles non clos");
- put(notes,"p","","Écarts entre récapitulatifs et écritures 641, février 2026 sur 633/645, août 2025 sur avantages nourriture, et certains Z datés sur une même journée. Sources non certifiées par le comptable.");
+ put(notes,"p","","Autres périodes : des écarts historiques restent signalés. Octobre 2026 : chiffres issus du cabinet comptable, rapprochés suivant les explications communiquées par la direction.");
  put(notes,"p","","Repas et logements : ne pas ajouter ni déduire deux fois les rubriques. Coût global MySilae et provisions CP conservés pour réconciliation, hors ratio principal.");
- put(notes,"p","","Octobre 2026 : la direction a identifié les 700 € d'écart comme liés aux appartements ; baisse des provisions de repos cohérente avec les fins de contrats saisonniers ; Z du 26 octobre estimé à cause d'un incident de clé de caisse. Ces explications documentent les écarts mais ne constituent pas une certification comptable.");
+ put(notes,"p","","Octobre 2026 : 700 € de logements expliqués ; coût comptable 641 + 633/645 - 649 retenu ; fin des contrats saisonniers et variation des provisions de repos documentées sans double comptage ; Z du 26 octobre estimé en raison d'un incident de clé de caisse.");
  if(data.duplicates.length||data.invalid.length)put(notes,"p","","Imports : "+data.duplicates.length+" doublon(s) ; "+data.invalid.length+" mois invalide(s).");
 }
 function renderSmall(p,id){
  p.replaceChildren();
- const heading=put(p,"div","rh-header");put(heading,"h3","",id==="dashboard"?"Ratio RH · L'Océan":"Masse salariale · synthèse");put(heading,"span","rh-state","PROVISOIRE");
+ const heading=put(p,"div","rh-header");put(heading,"h3","",id==="dashboard"?"Ratio RH · L'Océan":"Masse salariale · synthèse");put(heading,"span","rh-state",data?.months.at(-1)?.status==="complet"?"PAIE INTÉGRÉE":"PROVISOIRE");
  if(!data){put(p,"p","rh-muted",loading?"Chargement…":error||"Ouvre l’analyse RH.");button(p,"Actualiser",()=>load(true));return;}
  pendingPayrollDiagnostic(p);
  const item=data.months.at(-1);
  put(p,"div","rh-main",percentage(ratio({rh:item.rh,ca:item.ca})));
- put(p,"p","rh-muted",item.month+" · "+money(item.rh)+" de coût salarial chargé / "+money(item.ca)+" CA HT");
+ put(p,"p","rh-muted",item.month+" · "+money(item.rh)+" de coût RH "+(item.baseRH==="comptable nette"?"comptable net":"brut + charges")+" / "+money(item.ca)+" CA HT");
  button(p,"Ouvrir l'analyse RH →",()=>{const b=document.querySelector('.app-nav-item[data-page="reports"]');if(b)b.click();else window.navigateApp?.("reports");});
 }
 function render(){
