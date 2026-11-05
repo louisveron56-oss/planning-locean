@@ -542,7 +542,14 @@ function editProductRow(row,item){
    item.warning=!product.priceConfirmedAt&&!!(item.sheet&&number(item.sheet.prix_actuel_ht)!==null&&Math.abs(Number(product.price)-number(item.sheet.prix_actuel_ht))>0.000001);item.source=product.source||'Catalogue Prism';
    item.confirmed=!!item.sheet;
    row.classList.remove('pcu-editing-row');
-   await load();
+   // Mettre à jour uniquement la ligne et le filtre : pas de relecture des milliers de produits.
+   if(groupFilter==='À vérifier'&&!needsCheck(item)){
+    row.remove();
+    drawChips();
+   }else{
+    renderProductRow(row,item);
+    drawChips();
+   }
    window.dispatchEvent(new CustomEvent('prism-catalog-updated',{detail:{source:'quick-edit'}}));
   }catch(err){status.textContent=err.message;save.disabled=false;}
  };
