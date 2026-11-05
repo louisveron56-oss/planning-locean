@@ -18,7 +18,7 @@ async function load(force){
  try{
   const user=window.netlifyIdentity?.currentUser?.();if(!user)throw Error("Connecte-toi pour accéder à l'analyse RH.");
   const token=await user.jwt();
-  const [rh,sales]=await Promise.all([read("/.netlify/functions/rh-monthly",token),read("/.netlify/functions/sales",token)]);
+  const [rh,sales]=await Promise.all([read("/.netlify/functions/rh-monthly"+(force?"?refresh=1":""),token),read("/.netlify/functions/sales",token)]);
   const salesMap=new Map();
   (sales.rows||[]).forEach(r=>{
    const m=String(r.date||"").slice(0,7);if(!/^20\d\d-(0[1-9]|1[0-2])$/.test(m))return;
