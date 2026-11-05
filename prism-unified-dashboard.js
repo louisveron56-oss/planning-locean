@@ -21,7 +21,7 @@ async function load(force){
  try{
   const user=window.netlifyIdentity?.currentUser?.();if(!user)throw Error("Connexion Prism requise.");
   const token=await user.jwt();
-  const [sales,rh,mat]=await Promise.all([fetchJson("/.netlify/functions/sales",token),fetchJson("/.netlify/functions/rh-monthly",token),fetchJson("/.netlify/functions/materials-monthly",token)]);
+  const [sales,rh,mat]=await Promise.all([fetchJson("/.netlify/functions/sales",token),fetchJson("/.netlify/functions/rh-monthly"+(force?"?refresh=1":""),token),fetchJson("/.netlify/functions/materials-monthly",token)]);
   const salesRows=(sales.rows||[]).filter(x=>String(x.etablissement||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().includes("ocean")).map(x=>({...x,day:keydate(x.date),ttc:amount(x.ca_ttc),ht:amount(x.ca_ht),cover:amount(x.couverts),ticket:amount(x.ticket_moyen)})).filter(x=>/^\d{4}-\d\d-\d\d$/.test(x.day));
   const last=salesRows.map(x=>x.day).sort().at(-1);if(last&&anchor>last)anchor=last;
   sources={sales:salesRows,rh:rh.months||[],materials:mat.months||[]};
@@ -39,17 +39,20 @@ function summarize(){
  if(mode==="month"){const month=anchor.slice(0,7);rh=sources.rh.filter(x=>x.month===month);mat=sources.materials.filter(x=>x.month===month);}
  if(mode==="year"){const year=anchor.slice(0,4);rh=sources.rh.filter(x=>x.month.startsWith(year));mat=sources.materials.filter(x=>x.month.startsWith(year));}
  const needed=mode==="year"?12:1;
- const availableRH=mode!=="day"&&rh.length===needed&&rh.every(x=>Number.isFinite(x.cout_charge));
+ const rhCost=x=>x.status==="complet"&&Number.isFinite(x.cout_comptable)?x.cout_comptable:x.cout_charge;
+ const availableRH=mode!=="day"&&rh.length===needed&&rh.every(x=>Number.isFinite(rhCost(x)));
  const availableMat=mode!=="day"&&mat.length===needed&&mat.every(x=>Number.isFinite(x.total));
- const costRH=availableRH?total(rh,"cout_charge"):NaN,costMat=availableMat?total(mat,"total"):NaN;
+ const costRH=availableRH?rh.reduce((sum,row)=>sum+rhCost(row),0):NaN,costMat=availableMat?total(mat,"total"):NaN;
+ const rhCostBasis=availableRH?(rh.every(x=>x.status==="complet"&&Number.isFinite(x.cout_comptable))?"coût comptable net":rh.some(x=>x.status==="complet"&&Number.isFinite(x.cout_comptable))?"bases mixtes : contrôle":"brut + patronales"):"";
  const warnings=[];
  if(s.invalid)warnings.push("Une ligne de vente présente un montant invalide.");
  if(!s.hasSales)warnings.push("Pas encore de données pour cette période.");
  if(mode==="day")warnings.push("RH et achats matières : sources mensuelles, pas de coût journalier constaté.");
  if(mode==="year"&&(!availableRH||!availableMat))warnings.push("Exercice partiel : aucun ratio annuel RH ou matières extrapolé.");
  if(mat.some(x=>x.warnings?.length))warnings.push("Achats matières incomplets ou à rapprocher : voir Rapports.");
- if(rh.some(x=>x.status!=="rapproche_sources"))warnings.push("RH : écarts de rapprochement comptable encore ouverts.");
- return {p,s,rh,mat,availableRH,availableMat,costRH,costMat,warnings,
+ if(rh.some(x=>!["rapproche_sources","complet"].includes(x.status)))warnings.push("RH : écarts de rapprochement comptable encore ouverts.");
+ if(availableRH&&rhCostBasis==="bases mixtes : contrôle")warnings.push("RH annuel : bases historiques différentes ; harmoniser les mois avant comparaison.");
+ return {p,s,rh,mat,availableRH,availableMat,costRH,costMat,rhCostBasis,warnings,
   ratioRH:availableRH&&s.ca>0&&!s.invalid?costRH/s.ca*100:NaN,
   ratioMat:availableMat&&s.ca>0&&!s.invalid?costMat/s.ca*100:NaN};
 }
@@ -72,7 +75,7 @@ function render(){
  card(grid,"Chiffre d'affaires HT",valid?money(d.s.ca):"—","");
  card(grid,"Couverts",d.s.hasSales?integer.format(d.s.covers):"—","");
  card(grid,"Ticket moyen",d.s.hasSales&&Number.isFinite(d.s.ticket)?money(d.s.ticket):"—","");
- card(grid,"Ratio RH",percent(d.ratioRH),mode==="day"?"Non disponible au jour · coûts mensuels":d.availableRH?money(d.costRH)+" · brut + patronales":"Période RH incomplète");
+ card(grid,"Ratio RH",percent(d.ratioRH),mode==="day"?"Non disponible au jour · coûts mensuels":d.availableRH?money(d.costRH)+" · "+d.rhCostBasis:"Période RH incomplète");
  card(grid,"Ratio achats matières",percent(d.ratioMat),mode==="day"?"Non disponible au jour · achats mensuels":d.availableMat?money(d.costMat)+" · hors variation de stocks":"Période achats incomplète");
 
  if(d.warnings.length){const notes=create(root,"div","prism-overview-warnings");notes.setAttribute("role","status");d.warnings.forEach(w=>create(notes,"p","",w));}
