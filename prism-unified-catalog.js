@@ -75,7 +75,7 @@ function joinSources(catalog,sheets){
    supplierReference:p.supplierReference||match?.code||'',category:p.subcategory||p.category||match?.famille||'À classer',
    price,source:p.source||'Catalogue Prism',date:'',
    added:iso(p.createdAt||match?.date_dernier_achat),confirmed:!!sourceCount,
-   warning:!!(match&&number(match.prix_actuel_ht)!==null&&number(p.price)!==null&&Math.abs(Number(p.price)-number(match.prix_actuel_ht))>0.000001)
+   warning:!p.priceConfirmedAt&&!!(match&&number(match.prix_actuel_ht)!==null&&number(p.price)!==null&&Math.abs(Number(p.price)-number(match.prix_actuel_ht))>0.000001)
   });
  });
  sheets.forEach((p,i)=>{
@@ -530,7 +530,7 @@ function editProductRow(row,item){
    item.catalog=product;item.id='catalog:'+product.id;item.name=product.name;item.display=cleanName(product.name);
    item.category=product.subcategory||product.category;item.group=groupOf(item);
    item.price=normalizedPrice(product.price,product.unit);
-   item.warning=!!(item.sheet&&number(item.sheet.prix_actuel_ht)!==null&&Math.abs(Number(product.price)-number(item.sheet.prix_actuel_ht))>0.000001);item.source=product.source||'Catalogue Prism';
+   item.warning=!product.priceConfirmedAt&&!!(item.sheet&&number(item.sheet.prix_actuel_ht)!==null&&Math.abs(Number(product.price)-number(item.sheet.prix_actuel_ht))>0.000001);item.source=product.source||'Catalogue Prism';
    item.confirmed=!!item.sheet;
    row.classList.remove('pcu-editing-row');
    renderProductRow(row,item);
