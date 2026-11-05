@@ -17,7 +17,7 @@ async function archive(r){try{await api({action:"archive",record_id:r.record_id,
 function draw(){
  const box=root();if(!box)return;box.replaceChildren();
  make(box,"h3","Rémunérations · "+period+" — accès administrateur");
- const chooser=make(box,"label","Période : ");const picker=make(chooser,"input");picker.type="month";picker.value=period;picker.min="2026-01";picker.max="2035-12";picker.onchange=()=>{if(!/^20\\d\\d-(0[1-9]|1[0-2])$/.test(picker.value))return;period=picker.value;loaded=false;load()};
+ const chooser=make(box,"label","Période : ");const picker=make(chooser,"input");picker.type="month";picker.value=period;picker.min="2026-01";picker.max="2035-12";picker.onchange=()=>{if(!/^20\d\d-(0[1-9]|1[0-2])$/.test(picker.value))return;period=picker.value;loaded=false;load()};
  make(box,"p","Données individuelles confidentielles. Chaque mois est conservé séparément ; archiver masque sans supprimer les montants.");
  if(!rows.length){make(box,"p","Aucune fiche de salaire individuelle importée pour ce mois. La synthèse RH comptable est indépendante et reste disponible.");
  const input=make(box,"input");input.type="file";input.accept=".json";input.onchange=()=>upload(input.files[0]);return}
