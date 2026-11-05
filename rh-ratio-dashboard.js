@@ -96,12 +96,20 @@ function pendingPayrollDiagnostic(p){
  const panel=put(p,"section","rh-pending");
  put(panel,"strong","","⚠ "+waiting.month+" · paie absente des données RH consolidées");
  put(panel,"p","","CA HT KSD "+money(waiting.ca)+" sur "+waiting.days+" jour(s), mais aucun coût de paie MySilae n'est encore intégré pour ce mois dans RH_Mensuel. Le ratio RH n'est donc pas calculable de manière fiable.");
- const warnings=[
+ const knownOctober=waiting.month==="2026-10";
+ const warnings=knownOctober?[
+  "Écart de 700 € entre brut MySilae et comptes de rémunération : appartements / avantages en nature identifiés par la direction. Rapprocher l'imputation comptable, sans compter deux fois le logement.",
+  "Fin des contrats saisonniers au 31 octobre : indemnités et soldes de congés peuvent gonfler le coût mensuel ; distinguer sorties exceptionnelles et charges récurrentes.",
+  "Provisions de repos : baisse de 7 940,50 € entre fin septembre et fin octobre, expliquée par les sorties saisonnières. Vérifier son passage en comptabilité avant tout ajustement.",
+  "Vérifier les charges patronales 633/645 et les indemnités du compte 649 sans double comptage."
+ ]:[
   "Rapprocher le brut du journal de paie avec le compte 641 (et les avantages en nature).",
   "Vérifier les charges patronales 633/645 et les indemnités du compte 649 sans double comptage.",
   "Vérifier les variations des provisions de repos en comptabilité d'engagement avant le ratio."
  ];
- if(waiting.duplicateZ)warnings.push(waiting.duplicateZ+" numéro(s) de Z répété(s) à contrôler sur les ventes du mois.");
+ if(waiting.duplicateZ)warnings.push(knownOctober?
+  "Z n° 1067 reporté sur les 26 et 27 octobre : incident de saturation de la clé de caisse le 26 octobre déclaré par la direction. La valeur du 26 est une estimation, non une seconde clôture réelle. Contrôler uniquement le CA reconstitué.":
+  waiting.duplicateZ+" numéro(s) de Z répété(s) à contrôler sur les ventes du mois.");
  if(waiting.invalid)warnings.push(waiting.invalid+" ligne(s) de CA HT non numérique(s).");
  const ul=put(panel,"ul","");warnings.forEach(t=>put(ul,"li","",t));
  put(panel,"p","rh-muted","Diagnostic uniquement : les ratios précédents et les données de paie n'ont pas été modifiés.");
@@ -131,6 +139,7 @@ function renderReport(p){
  put(notes,"strong","","Contrôles non clos");
  put(notes,"p","","Écarts entre récapitulatifs et écritures 641, février 2026 sur 633/645, août 2025 sur avantages nourriture, et certains Z datés sur une même journée. Sources non certifiées par le comptable.");
  put(notes,"p","","Repas et logements : ne pas ajouter ni déduire deux fois les rubriques. Coût global MySilae et provisions CP conservés pour réconciliation, hors ratio principal.");
+ put(notes,"p","","Octobre 2026 : la direction a identifié les 700 € d'écart comme liés aux appartements ; baisse des provisions de repos cohérente avec les fins de contrats saisonniers ; Z du 26 octobre estimé à cause d'un incident de clé de caisse. Ces explications documentent les écarts mais ne constituent pas une certification comptable.");
  if(data.duplicates.length||data.invalid.length)put(notes,"p","","Imports : "+data.duplicates.length+" doublon(s) ; "+data.invalid.length+" mois invalide(s).");
 }
 function renderSmall(p,id){
