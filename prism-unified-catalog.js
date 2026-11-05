@@ -75,7 +75,7 @@ function joinSources(catalog,sheets){
    supplierReference:p.supplierReference||match?.code||'',category:p.subcategory||p.category||match?.famille||'À classer',
    price,source:p.source||'Catalogue Prism',date:'',
    added:iso(p.createdAt||match?.date_dernier_achat),confirmed:!!sourceCount,
-   warning:!!(match&&number(match.prix_actuel_ht)!==null&&number(p.price)!==null&&Math.abs(Number(p.price)-number(match.prix_actuel_ht))>0.000001)
+   warning:!p.priceConfirmedAt&&!!(match&&number(match.prix_actuel_ht)!==null&&number(p.price)!==null&&Math.abs(Number(p.price)-number(match.prix_actuel_ht))>0.000001)
   });
  });
  sheets.forEach((p,i)=>{
@@ -489,13 +489,13 @@ function editProductRow(row,item){
  const category=make(categoryWrap,'select','pcu-edit-input');
  ['Bar','Cuisine','Hygiène','À classer'].forEach(v=>{const o=make(category,'option','',v);o.value=v;});
  category.value=item.catalog?.category||groupOf(item);
- const price=field('Prix HT de l’unité','number',item.catalog?.price??item.sheet?.prix_actuel_ht??'');
+ const currentPrice=number(item.catalog?.price)??number(item.sheet?.prix_actuel_ht);
+ const price=field('Prix HT de l’unité','number',currentPrice??'');
  const unitWrap=make(fields,'label','pcu-edit-field');make(unitWrap,'span','','Unité du prix');
  const unit=make(unitWrap,'select','pcu-edit-input');
  [['','À vérifier'],['kg','kg'],['L','L'],['pièce','pièce']].forEach(([v,label])=>{const o=make(unit,'option','',label);o.value=v;});
  unit.value=unitLabel(item.catalog?.unit||item.sheet?.unite||item.sheet?.unite_prix||'')||'';
- const originalPrice=number(item.catalog?.price??item.sheet?.prix_actuel_ht);
- const reason=field('Motif si prix corrigé','text','');
+ const originalPrice=currentPrice;
  const actions=make(form,'div','pcu-edit-actions');
  const note=make(actions,'span','pcu-edit-note','Unité confirmée à l’enregistrement · prix sans conversion automatique');
  const save=make(actions,'button','pcu-edit-save','Enregistrer');save.type='submit';
@@ -507,19 +507,19 @@ function editProductRow(row,item){
   const value=number(price.value),newName=name.value.trim(),newUnit=unit.value;
   if(!newName||!newUnit||value===null){status.textContent='Nom, prix et unité requis.';return;}
   const priceChanged=originalPrice!==null&&Math.abs(value-originalPrice)>0.000001;
-  if(priceChanged&&reason.value.trim().length<8){status.textContent='Pour corriger un prix, indique le motif (8 caractères minimum).';reason.focus();return;}
+  
   const user=window.netlifyIdentity?.currentUser?.();if(!user){status.textContent='Connexion requise.';return;}
   save.disabled=true;status.textContent='Enregistrement…';
   const original=item.catalog;
   const payload=original?{
    establishment:'LOCEAN',action:'update',productId:original.id,
-   reason:priceChanged?reason.value.trim():'Confirmation de fiche produit',
+   reason:priceChanged?'Prix mis à jour manuellement':'Confirmation de fiche produit',
    changes:{name:newName,category:category.value,subcategory:original.subcategory||'',locations:original.locations||[],
      inventoryQuantity:original.inventoryQuantity??null,price:value,unit:newUnit}
   }:{
    establishment:'LOCEAN',action:'create-from-source',confirmUnit:true,
    product:{name:newName,sourceDesignation:item.name,supplier:item.supplier,supplierReference:item.supplierReference,
-     category:category.value,price:value,originalSourcePriceHT:originalPrice,reason:priceChanged?reason.value.trim():'',unit:newUnit,date:item.date}
+     category:category.value,price:value,originalSourcePriceHT:originalPrice,reason:'',unit:newUnit,date:item.date}
   };
   try{
    const token=await user.jwt(),response=await fetch('/.netlify/functions/purchases',{
@@ -530,10 +530,10 @@ function editProductRow(row,item){
    item.catalog=product;item.id='catalog:'+product.id;item.name=product.name;item.display=cleanName(product.name);
    item.category=product.subcategory||product.category;item.group=groupOf(item);
    item.price=normalizedPrice(product.price,product.unit);
-   item.warning=!!(item.sheet&&number(item.sheet.prix_actuel_ht)!==null&&Math.abs(Number(product.price)-number(item.sheet.prix_actuel_ht))>0.000001);item.source=product.source||'Catalogue Prism';
+   item.warning=!product.priceConfirmedAt&&!!(item.sheet&&number(item.sheet.prix_actuel_ht)!==null&&Math.abs(Number(product.price)-number(item.sheet.prix_actuel_ht))>0.000001);item.source=product.source||'Catalogue Prism';
    item.confirmed=!!item.sheet;
    row.classList.remove('pcu-editing-row');
-   renderProductRow(row,item);
+   drawList();
    window.dispatchEvent(new CustomEvent('prism-catalog-updated',{detail:{source:'quick-edit'}}));
   }catch(err){status.textContent=err.message;save.disabled=false;}
  };
