@@ -129,10 +129,10 @@ export default async function(req){
     const originalSourcePriceHT=raw.originalSourcePriceHT===null||raw.originalSourcePriceHT===undefined?null:priceNumber(raw.originalSourcePriceHT);
     const changedSourcePrice=originalSourcePriceHT!==null&&Math.abs(price-originalSourcePriceHT)>0.000001;
     const correctionReason=normalize(raw.reason,200);
-    if(changedSourcePrice&&correctionReason.length<8)return send({error:"Motif requis pour corriger le prix de la source"},400);
+    
     if(products.length>=5000)return send({error:"Limite du catalogue atteinte"},409);
     const item={id:"prd-"+crypto.randomUUID(),name,supplier,supplierReference:reference,sourceDesignation,category,subcategory:"",locations:[],price,unit,
-     inventoryQuantity:null,source:"Sheets Pennylane",sourcePrice:changedSourcePrice?"prix corrigé manuellement à rapprocher de facture":"prix source à vérifier",priceStatus:"unite_confirmee_prix_a_verifier",originalSourcePriceHT,sourcePriceReason:changedSourcePrice?correctionReason:"",
+     inventoryQuantity:null,source:"Sheets Pennylane",sourcePrice:changedSourcePrice?"prix corrigé manuellement à rapprocher de facture":"prix source à vérifier",priceStatus:"valide_manuellement",priceConfirmedAt:now,priceConfirmedBy:actor,originalSourcePriceHT,sourcePriceReason:changedSourcePrice?correctionReason:"",
      unitConfirmedAt:now,unitConfirmedBy:actor,
      sourceLastPurchaseDate:/^\d{4}-\d{2}-\d{2}$/.test(raw.date||"")?raw.date:"",
      priceHistory:[entry(price,unit,changedSourcePrice?"Prix HT saisi manuellement : "+correctionReason:"Unité de prix confirmée manuellement; montant issu de la source, facture non validée",actor,now,"sheets-unite")],
@@ -173,7 +173,7 @@ export default async function(req){
     if(quantity!==null&&(!Number.isFinite(quantity)||quantity<0))return send({error:"Quantité d'inventaire invalide"},400);
     const changedPrice=Number(p.price)!==price||!sameUnit(p.unit,unit);
     const initial=history.length?history:[entry(Number(p.price),p.unit,"Valeur initiale enregistrée au catalogue",actor,saved.importedAt||saved.savedAt||now,"import")];
-    const updated={...p,name,category,subcategory:subtype(category,normalize(changes.subcategory,90)),locations:locations(changes.locations),unit,price,inventoryQuantity:quantity,priceHistory:changedPrice?[...initial,entry(price,unit,normalize(payload.reason,200)||"Modification manuelle",actor)]:history,sourcePrice:changedPrice?"manuel":p.sourcePrice};
+    const updated={...p,name,category,subcategory:subtype(category,normalize(changes.subcategory,90)),locations:locations(changes.locations),unit,price,inventoryQuantity:quantity,priceStatus:"valide_manuellement",priceConfirmedAt:now,priceConfirmedBy:actor,priceHistory:changedPrice?[...initial,entry(price,unit,normalize(payload.reason,200)||"Modification manuelle",actor)]:history,sourcePrice:changedPrice?"manuel":p.sourcePrice};
     products[index]=updated;
     await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
     return send({ok:true,product:updated,savedAt:now});
