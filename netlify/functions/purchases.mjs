@@ -58,6 +58,25 @@ export default async function(req){
   if(req.method==="PATCH"){
    if(!saved)return send({error:"Catalogue non importé"},404);
    const products=Array.isArray(saved.products)?saved.products:[];
+   if(payload.action==="promocash-billed-unit"){
+    // Le PUHT Promocash est par unité commerciale facturée (pièce, carton, lot).
+    // Jamais de conversion vers les pièces contenues dans un carton.
+    const key=v=>normalize(v,180).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ");
+    const targeted=products.filter(p=>!p.archivedAt&&key(p.supplier)==="promocash");
+    const missing=p=>!normalize(p.unit)||/^(non precisee|non precise|a verifier|unite \?)$/.test(key(p.unit));
+    const candidates=targeted.filter(missing);
+    const report={supplier:"PROMOCASH",total:targeted.length,withoutUnit:candidates.length,alreadySpecified:targeted.length-candidates.length,unit:"pièce",meaning:"une unité de vente facturée (carton/lot/pièce selon la ligne)",pricesUnchanged:true};
+    if(payload.preview===true)return send({ok:true,preview:true,...report});
+    if(payload.confirm!=="PROMOCASH_PUHT")return send({error:"Confirme explicitement la règle PUHT Promocash"},400);
+    if(candidates.length){
+     for(const p of candidates){
+      p.unit="pièce";p.unitPriceMeaning="unite-commerciale-facturee";p.unitConfirmedAt=now;p.unitConfirmedBy=actor;
+      p.unitConfirmationSource="Règle fournisseur Promocash : PUHT par unité de vente, contenu du lot à confirmer";
+     }
+     await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
+    }
+    return send({ok:true,updated:candidates.length,...report});
+   }
    if(payload.action==="import-coco-reference"){
     const doc=payload.document;
     if(doc?.schema!=="prism-coco-reference-v1"||doc?.sourceEstablishment!=="COCO"||!Array.isArray(doc.ingredients)||doc.ingredients.length>300||!Array.isArray(doc.recipeLines)||doc.recipeLines.length>1500||!Array.isArray(doc.recipePrices)||doc.recipePrices.length>300)return send({error:"Fichier COCO non reconnu"},400);
