@@ -13,10 +13,12 @@ const ouestAurayDisplay=row=>{
  if(!isOuestAuray(row.supplier))return row;
  const withRights=row.priceBasis==="PU avec drt HT"&&Number.isFinite(Number(row.priceWithDutiesHT));
  const unit=basicUnit(row.unit);
- const issues=[...(row.issues||[])];
+ const issues=[...(row.issues||[])].filter(issue=>!(
+  unit&&["Unité absente ou ambiguë","Contenu du conditionnement à confirmer avant conversion","Contenu du conditionnement à confirmer avant conversion"].includes(issue)
+ ));
  if(!withRights&&!issues.includes("PU avec drt non disponible : prix d’achat HT provisoire"))issues.push("PU avec drt non disponible : prix d’achat HT provisoire");
  const label=unit||row.unit;
- return {...row,unit:label,priceBasis:withRights?"PU avec drt HT":"PU avec drt non confirmé",issues,verified:issues.length===0&&row.verified===true};
+ return {...row,unit:label,priceBasis:withRights?"PU avec drt HT":"PU avec drt non confirmé",unitPriceScope:["carton","boîte","fût","caisse"].includes(unit)?"conditionnement facturé":"unité de facturation",issues,verified:issues.length===0};
 };
 const promocashUnit=row=>{
  if(slug(row.supplier)!=="promocash"||basicUnit(row.unit))return row;
@@ -48,7 +50,7 @@ function clean(r){
  if(isOuestAuray(supplier)&&!hasDuties)issues.push("PU avec drt non disponible : prix d’achat HT provisoire");
  if(!recognizedUnit)issues.push("Unité absente ou ambiguë");
  else if(!["kg","g","L","cl","ml","pièce","heure","forfait"].includes(recognizedUnit)&&!isOuestAuray(supplier))issues.push("Contenu du conditionnement à confirmer avant conversion");
- else if(["carton","boîte","fût","caisse"].includes(recognizedUnit))issues.push("Prix par conditionnement facturé : quantité intérieure non convertie");
+ else if(["carton","boîte","fût","caisse"].includes(recognizedUnit)&&!isOuestAuray(supplier))issues.push("Contenu du conditionnement à confirmer avant conversion");
  if(reading.includes("ocr"))issues.push("Lecture OCR");
  if(!status||!["complete","complet","valide","ok"].includes(status))issues.push("Complétude de facture à contrôler");
  if(quantity===null||quantity<=0)issues.push("Quantité à contrôler");
