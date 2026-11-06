@@ -16,7 +16,7 @@ const qty=x=>fmt.format(x||0);
 const key=p=>[norm(p.supplier),norm(p.reference),norm(p.unit)].join('|');
 let overlay=null,host=null,summary=null,tableHost=null,detailHost=null,loadingHost=null;
 let entries=[],index=new Map(),loaded=false,loading=null,ignored={},importedAt='',lineCount=0;
-let year=2026,basisYear=2025,search='',supplier='',page=0,selection='',discount=0.03,mode='litre',litresPerUnit=null;
+let year=2026,basisYear=2025,search='',supplier='',page=0,selection='',discount=0.03,mode='litre',litresPerUnit=null,scenarioType='discount',targetPrice=null;
 const style=el(document.head,'style',`
 .pa-overlay{position:fixed;z-index:99995;inset:0;background:rgba(12,19,28,.74);display:flex;align-items:center;justify-content:center;padding:14px}
 .pa-panel{box-sizing:border-box;position:relative;background:#fff;color:#1b2833;font:14px system-ui,sans-serif;border-radius:16px;width:min(1240px,96vw);max-height:94vh;overflow:auto;padding:22px;box-shadow:0 20px 65px #0005}
@@ -155,7 +155,7 @@ function drawContent(){
   const row=el(body,'tr');if(key(p)===selection)row.className='pa-selected';
   const c=el(row,'td');const button=el(c,'button',p.description,'pa-select');
   el(c,'div',p.supplier+' · réf. '+p.reference+' · '+p.unit,'pa-muted');
-  button.onclick=()=>{selection=key(p);litresPerUnit=null;drawContent();};
+  button.onclick=()=>{selection=key(p);litresPerUnit=null;targetPrice=null;drawContent();};
   el(row,'td',qty(p.quantity),'num');el(row,'td',money(p.amountHT),'num');
   el(row,'td',p.flagged?'⚠ '+p.flagged:'—');
  });
@@ -195,14 +195,24 @@ function drawDetail(p){
  p.months.forEach((m,i)=>{const row=el(mtBody,'tr');el(row,'td',months[i]);el(row,'td',qty(m.qty)+' '+p.unit,'num');el(row,'td',money(m.amount),'num');});
 
  const scenario=el(detailHost,'div',undefined,'pa-scenario');el(scenario,'h3','Simulateur de négociation');
- el(scenario,'p','Estime une économie en appliquant une réduction au volume effectivement acheté sur l’année de référence, sans projection automatique.','pa-muted');
+ el(scenario,'p','Simule un nouveau prix d’achat HT ou une baisse unitaire sur les volumes réellement achetés. Aucun prix fournisseur n’est modifié.','pa-muted');
  const wrap=el(scenario,'div',undefined,'pa-scenario-grid');
  const yrs=yearList().filter(y=>(index.get(selection)||[]).some(x=>x.year===y));if(!yrs.includes(basisYear))basisYear=yrs.includes(year-1)?year-1:year;
  const yearField=el(wrap,'label','Année de référence','pa-field'),yearSel=el(yearField,'select');
  yrs.forEach(y=>{const o=el(yearSel,'option',String(y));o.value=String(y);});yearSel.value=String(basisYear);
  yearSel.onchange=()=>{basisYear=Number(yearSel.value);drawDetail(p);};
- const discountField=el(wrap,'label','Baisse négociée (€ HT)','pa-field'),price=el(discountField,'input');price.type='number';price.min='0';price.step='0.01';price.value=String(discount);
- price.oninput=()=>{const v=num(price.value);discount=v!==null&&v>=0?v:0;update();};
+ const typeField=el(wrap,'label','Type de simulation','pa-field'),type=el(typeField,'select');
+ [['target','Nouveau prix d’achat HT'],['discount','Baisse négociée HT']].forEach(([v,t])=>{const o=el(type,'option',t);o.value=v;});
+ type.value=scenarioType;type.onchange=()=>{scenarioType=type.value;drawDetail(p);};
+ let price=null,target=null;
+ if(scenarioType==='discount'){
+  const discountField=el(wrap,'label','Baisse négociée (€ HT)','pa-field');price=el(discountField,'input');price.type='number';price.min='0';price.step='0.01';price.value=String(discount);
+  price.oninput=()=>{const v=num(price.value);discount=v!==null&&v>=0?v:0;update();};
+ }else{
+  const targetField=el(wrap,'label','Prix d’achat proposé (€ HT)','pa-field');target=el(targetField,'input');target.type='number';target.min='0';target.step='0.0001';target.placeholder='Saisir le prix négocié';
+  if(targetPrice!==null)target.value=String(targetPrice);
+  target.oninput=()=>{targetPrice=num(target.value);update();};
+ }
  const modeField=el(wrap,'label','Base de la négociation','pa-field'),unit=el(modeField,'select');
  [['litre','€ / litre'],['unite','€ / unité facturée']].forEach(([v,t])=>{const o=el(unit,'option',t);o.value=v;});
  unit.value=mode;unit.onchange=()=>{mode=unit.value;drawDetail(p);};
@@ -222,12 +232,25 @@ function drawDetail(p){
   const monthsKnown=new Set(records.map(x=>x.month)).size;
   const direct=p.unit==='L'?1:p.unit==='cl'?0.01:p.unit==='ml'?0.001:null;
   const liters=mode==='litre'?(direct===null?num(volumeInput?.value):direct):null;
-  const valid=mode==='unite'||(liters!==null&&liters>0);
-  const volume=mode==='unite'?q:valid?q*liters:0;
-  result.textContent=valid?money(volume*discount)+' HT':'—';
-  note.textContent=valid?'Économie indicative : '+qty(volume)+' '+(mode==='litre'?'litres':'unités facturées')+' × '+money(discount)+' / '+(mode==='litre'?'L':'unité')+' sur '+basisYear+'.':'Indique le nombre de litres dans chaque '+p.unit+' pour chiffrer une baisse en €/L.';
+  const validUnit=mode==='unite'||(liters!==null&&liters>0);
+  const volume=mode==='unite'?q:validUnit?q*liters:0;
+  const totalHT=records.reduce((n,x)=>n+x.amountHT,0);
+  const avgPrice=volume>0?totalHT/volume:null;
+  const validTarget=scenarioType==='discount'||(targetPrice!==null&&targetPrice>=0);
+  const valid=validUnit&&volume>0&&avgPrice!==null&&validTarget;
+  const newPrice=scenarioType==='target'?targetPrice:avgPrice-discount;
+  const gain=valid?totalHT-volume*newPrice:null;
+  result.textContent=valid?(gain>=0?'+':'−')+money(Math.abs(gain))+' HT':'—';
+  result.style.color=valid?(gain>=0?'#176b47':'#a03a32'):'';
+  const unitLabel=mode==='litre'?'L':'unité facturée';
+  if(!validUnit)note.textContent='Indique le nombre de litres par unité facturée pour comparer des tarifs en €/L.';
+  else if(!volume)note.textContent='Aucune quantité exploitable sur cette année de référence.';
+  else if(!validTarget)note.textContent='Prix moyen actuel : '+money(avgPrice)+' HT / '+unitLabel+'. Saisis ton prix négocié pour calculer le gain.';
+  else note.textContent='Prix moyen actuel : '+money(avgPrice)+' HT / '+unitLabel+' → prix simulé : '+money(newPrice)+' HT / '+unitLabel+'. Sur '+qty(volume)+' '+(mode==='litre'?'L':'unités')+', achats simulés : '+money(volume*newPrice)+' HT contre '+money(totalHT)+' HT actuellement ('+(gain>=0?'+':'')+fmt.format(totalHT?gain/totalHT*100:0)+' % d’économie sur le coût). Impact théorique sur marge brute à prix de vente constant : '+(gain>=0?'+':'−')+money(Math.abs(gain))+'.';
+  const negative=valid&&newPrice<0;
+  if(negative){result.textContent='—';note.textContent='La baisse dépasse le prix moyen actuel : prix négocié négatif impossible.';}
   const flagged=records.reduce((n,x)=>n+x.flagged,0),missing=records.reduce((n,x)=>n+x.dutyMissing,0);
-  caveat.textContent='Période couverte : '+monthsKnown+' mois avec achats enregistrés sur '+basisYear+'. '+(flagged?'⚠ '+flagged+' ligne(s) incertaines. ':'')+(missing?'⚠ Prix avec droits manquant sur '+missing+' ligne(s). ':'')+'Aucune hypothèse sur les ventes KSD, les factures manquantes, avoirs ou volumes futurs.';
+  caveat.textContent='Simulation non enregistrée, sans changement du tarif réel. Période : '+monthsKnown+' mois avec achats en '+basisYear+'. '+(flagged?'⚠ '+flagged+' ligne(s) incertaines. ':'')+(missing?'⚠ Prix avec droits manquant sur '+missing+' ligne(s). ':'')+'Gain théorique à quantités achetées et prix de vente constants ; il ne constitue ni un gain de chiffre d’affaires, ni une prévision des ventes KSD. Factures manquantes, avoirs et conditionnements non rapprochés exclus.';
  }
  update();
 }
