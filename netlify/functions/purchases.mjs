@@ -31,6 +31,12 @@ function entry(price,unit,reason,actor,at=new Date().toISOString(),source="manue
 }
 function historyOf(p){return Array.isArray(p.priceHistory)?p.priceHistory.slice(0,500):[];}
 function sameUnit(a,b){return normalize(a,120).toLocaleLowerCase("fr")===normalize(b,120).toLocaleLowerCase("fr");}
+const sourceKey=(supplier,ref,name)=>{
+ const key=v=>normalize(v,250).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ");
+ return key(supplier)+"|"+(key(ref)?"ref:"+key(ref):"name:"+key(name));
+};
+const sourceEntry=(p,status,now,actor)=>({key:sourceKey(p.supplier,p.supplierReference,p.sourceDesignation||p.name),name:normalize(p.sourceDesignation||p.name),supplier:normalize(p.supplier,160),supplierReference:normalize(p.supplierReference,140),status,at:now,by:actor});
+
 export default async function(req){
  if(!["GET","POST","PATCH"].includes(req.method))return send({error:"Méthode non autorisée"},405);
  let user;try{user=await getUser();}catch(_){return send({error:"Session indisponible"},401);}
@@ -49,7 +55,7 @@ export default async function(req){
    const products=all.filter(p=>legacy?fromLegacyInventory(p):(archived?!!p.archivedAt:!p.archivedAt&&!fromLegacyInventory(p)));
    return send({ready:!!saved,reference:saved?.reference||null,savedAt:saved?.savedAt||null,
     legacyExcluded:legacyCount,legacyPreserved:true,
-    products:products.map(p=>({...p,id:p.id||idFor(p),priceHistory:historyOf(p)}))});
+    products:products.map(p=>({...p,id:p.id||idFor(p),priceHistory:historyOf(p)})),sourceExclusions:saved?.sourceExclusions||[]});
   }
   const raw=await req.text();if(raw.length>1700000)return send({error:"Requête trop volumineuse"},413);
   let payload;try{payload=JSON.parse(raw);}catch(_){return send({error:"JSON invalide"},400);}
@@ -58,6 +64,27 @@ export default async function(req){
   if(req.method==="PATCH"){
    if(!saved)return send({error:"Catalogue non importé"},404);
    const products=Array.isArray(saved.products)?saved.products:[];
+   if(["archive-source","restore-source","delete-source"].includes(payload.action)){
+    const src=payload.source||{},supplier=normalize(src.supplier,160),reference=normalize(src.supplierReference,140),name=normalize(src.name);
+    if(!supplier||(!reference&&!name))return send({error:"Source produit incomplète"},400);
+    const id=sourceKey(supplier,reference,name);
+    const exclusions=Array.isArray(saved.sourceExclusions)?saved.sourceExclusions.slice():[];
+    const at=exclusions.findIndex(x=>x.key===id);
+    if(payload.action==="archive-source"){
+     if(at>=0&&exclusions[at].status==="permanent")return send({error:"Cette source a été supprimée définitivement"},409);
+     const record=sourceEntry({supplier,supplierReference:reference,name},"archived",now,actor);
+     if(at>=0)exclusions[at]=record;else exclusions.push(record);
+    }else if(payload.action==="restore-source"){
+     if(at<0||exclusions[at].status!=="archived")return send({error:"Source non présente dans les produits retirés"},409);
+     exclusions.splice(at,1);
+    }else{
+     if(payload.confirm!=="DELETE_FOREVER")return send({error:"Confirmation de suppression définitive requise"},400);
+     const record=sourceEntry({supplier,supplierReference:reference,name},"permanent",now,actor);
+     if(at>=0)exclusions[at]=record;else exclusions.push(record);
+    }
+    await db.setJSON("ocean/latest",{...saved,savedAt:now,sourceExclusions:exclusions});
+    return send({ok:true,sourceExclusions:exclusions});
+   }
    if(payload.action==="default-missing-unit"){
     // Unité absente = unité commerciale facturée, sans conversion du contenu du lot.
     const key=x=>normalize(x,120).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ");
@@ -178,12 +205,31 @@ export default async function(req){
    if(index<0)return send({error:"Produit introuvable. Actualise le catalogue."},404);
    const p={...products[index],id:products[index].id||idFor(products[index])};
    const history=historyOf(p);
+   if(payload.action==="delete-permanent"){
+    if(payload.confirm!=="DELETE_FOREVER")return send({error:"Confirmation explicite requise"},400);
+    if(!p.archivedAt)return send({error:"Retire d'abord le produit avant suppression définitive"},409);
+    const exclusions=Array.isArray(saved.sourceExclusions)?saved.sourceExclusions.slice():[];
+    if(p.supplier&&(p.supplierReference||p.sourceDesignation||p.name)){
+     const record=sourceEntry(p,"permanent",now,actor),at=exclusions.findIndex(x=>x.key===record.key);
+     if(at>=0)exclusions[at]=record;else exclusions.push(record);
+    }
+    products.splice(index,1);
+    await db.setJSON("ocean/latest",{...saved,savedAt:now,products,sourceExclusions:exclusions});
+    return send({ok:true,deleted:true});
+   }
    if(payload.action==="archive"||payload.action==="restore"){
     if(payload.action==="archive"&&p.archivedAt)return send({error:"Produit déjà dans la corbeille"},409);
     if(payload.action==="restore"&&!p.archivedAt)return send({error:"Produit déjà actif"},409);
     const updated={...p,archivedAt:payload.action==="archive"?now:null,archivedBy:payload.action==="archive"?actor:null};
     products[index]=updated;
-    await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
+    const exclusions=Array.isArray(saved.sourceExclusions)?saved.sourceExclusions.slice():[];
+    if(p.supplier&&(p.supplierReference||p.sourceDesignation||p.name)){
+     const record=sourceEntry(p,payload.action==="archive"?"archived":"active",now,actor);
+     const at=exclusions.findIndex(x=>x.key===record.key);
+     if(payload.action==="archive"){if(at>=0)exclusions[at]=record;else exclusions.push(record);}
+     else if(at>=0&&exclusions[at].status==="archived")exclusions.splice(at,1);
+    }
+    await db.setJSON("ocean/latest",{...saved,savedAt:now,products,sourceExclusions:exclusions});
     return send({ok:true,product:updated,savedAt:now});
    }
    if(p.archivedAt)return send({error:"Produit archivé : restaure-le avant modification"},409);
@@ -247,7 +293,7 @@ export default async function(req){
    const key=normalize(prior.name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
    if(!importedNames.has(key)){products.push(prior);importedNames.add(key);}
   }
-  const record={reference:"Inventaire L’Océan · septembre 2026",savedAt:now,importedAt:now,products};
+  const record={reference:"Inventaire L’Océan · septembre 2026",savedAt:now,importedAt:now,products,sourceExclusions:saved?.sourceExclusions||[]};
   await db.setJSON("ocean/latest",record);
   return send({ok:true,count:products.length,savedAt:now,products});
  }catch(error){console.error("Catalogue achats",error);return send({error:"Stockage du catalogue indisponible"},503);}
