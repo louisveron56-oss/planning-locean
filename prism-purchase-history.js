@@ -3,6 +3,7 @@
 "use strict";
 const API="/.netlify/functions/purchase-history", cash=new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR"});
 const norm=x=>String(x??"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
+const drinksAlias=x=>/^(ouest|auray)boissons?$/.test(norm(x));
 const el=(t,text,cls)=>{const n=document.createElement(t);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const st=document.createElement("style");st.textContent=`
 .ph-overlay{position:fixed;z-index:99999;inset:0;background:#121a27bb;display:flex;align-items:center;justify-content:center;padding:14px}
@@ -57,16 +58,21 @@ function chart(rows){
  return svg;
 }
 async function loadProduct(p){
- const d=await request("GET",null,"?mode=product&key="+encodeURIComponent(p.key));history=d.rows||[];detailHost.replaceChildren();
- detailHost.appendChild(el("h3",p.description));detailHost.appendChild(el("p",p.supplier+" · réf. "+p.reference+" · "+history.length+" achats"));
+ const related=drinksAlias(p.supplier)&&norm(p.reference)
+  ?products.filter(x=>drinksAlias(x.supplier)&&norm(x.reference)===norm(p.reference))
+  :[p];
+ const sources=[...new Map([p,...related].map(x=>[x.key,x])).values()];
+ const outputs=await Promise.all(sources.map(x=>request("GET",null,"?mode=product&key="+encodeURIComponent(x.key))));
+ history=outputs.flatMap(d=>d.rows||[]).sort((a,b)=>a.date.localeCompare(b.date));detailHost.replaceChildren();
+ detailHost.appendChild(el("h3",p.description));detailHost.appendChild(el("p",(sources.length>1?"Ouest Boissons / Auray Boissons":p.supplier)+" · réf. "+p.reference+" · "+history.length+" achats"));
  const clean=history.filter(r=>r.verified);const unique=[...new Set(clean.map(x=>x.unit))],comparable=unique.length===1&&clean.length>=2;
  const first=clean[0],last=clean[clean.length-1],change=comparable&&first.priceHT>0?(last.priceHT/first.priceHT-1)*100:null;
  detailHost.appendChild(el("p",change===null?"⚠ Variation non calculable de façon fiable : unités, factures ou lectures à vérifier.":"Variation sur achats comparables : "+(change>0?"+":"")+change.toFixed(1)+" %",change===null?"ph-warning":"ph-stat"));
  detailHost.appendChild(chart(history));
  detailHost.appendChild(el("p","Rouge : observation avec alerte · Bleu : ligne sans alerte. Les points datés d'achats isolés restent visibles, sans inventer de prix intermédiaires.","ph-secondary"));
- const table=el("table",undefined,"ph-table"),head=el("thead"),tr=el("tr");["Date","Prix HT","Quantité","Unité","Facture / source","Fiabilité"].forEach(t=>tr.appendChild(el("th",t)));head.appendChild(tr);table.appendChild(head);
+ const table=el("table",undefined,"ph-table"),head=el("thead"),tr=el("tr");["Date","Prix HT (droits compris si renseignés)","Quantité","Unité","Facture / source","Fiabilité"].forEach(t=>tr.appendChild(el("th",t)));head.appendChild(tr);table.appendChild(head);
  const body=el("tbody");
- for(const r of history){const row=el("tr");[r.date,cash.format(r.priceHT),r.quantity??"—",r.unit||"—",r.invoice||r.document||r.source||"—",r.issues.join("; ")||"Sans alerte"].forEach((t,i)=>{const td=el("td",String(t));if(i===5)td.className=r.issues.length?"ph-warning":"ph-ok";row.appendChild(td);});body.appendChild(row);}
+ for(const r of history){const row=el("tr");[r.date,cash.format(r.priceHT)+(r.priceBasis?" · "+r.priceBasis:""),r.quantity??"—",r.unit||"—",r.invoice||r.document||r.source||"—",r.issues.join("; ")||"Sans alerte"].forEach((t,i)=>{const td=el("td",String(t));if(i===5)td.className=r.issues.length?"ph-warning":"ph-ok";row.appendChild(td);});body.appendChild(row);}
  table.appendChild(body);const sc=el("div");sc.style.cssText="overflow:auto;max-height:340px";sc.appendChild(table);detailHost.appendChild(sc);
 }
 function parseCSV(s){
@@ -113,8 +119,9 @@ async function importFlow(){
    info("Fichier lu : "+rows.length.toLocaleString("fr-FR")+" lignes. Vérifie les colonnes ci-dessous, puis clique sur « Contrôler puis importer ».");
    detailHost.replaceChildren();detailHost.appendChild(el("h3","Correspondance des colonnes"));
    detailHost.appendChild(el("p","Fichier Excel original ou CSV accepté. Vérifie la correspondance des colonnes avant de valider. Les données restent privées."));
+   detailHost.appendChild(el("p","Ouest/Auray Boissons : la colonne « PU avec drt » doit être associée pour corriger le vrai prix HT avec droits. Les prix historiques sans ce montant restent provisoires.","ph-warning"));
    const mapping=el("div",undefined,"ph-map");detailHost.appendChild(mapping);
-   const fields={supplier:["fournisseur","supplier"],reference:["codeproduit","referenceproduit","reference","code","ref"],description:["designation","produit","description","libelle","label"],date:["datefacture","date","dateachat"],priceHT:["prixunitaireht","prixht","puht","unitpriceht","prixachatht","price"],quantity:["quantite","qte","quantity","qty"],unit:["unite","unit"],invoice:["numerofacture","nfacture","facture","invoice"],document:["fichiersource","cheminfacture","document","fichier","file"],source:["source"],reading:["modelecture","lecture","ocr","read"],invoiceStatus:["statutfacture","controlefacture","completude","control"]};
+   const fields={supplier:["fournisseur","supplier"],reference:["codeproduit","referenceproduit","reference","code","ref"],description:["designation","produit","description","libelle","label"],date:["datefacture","date","dateachat"],priceHT:["prixunitaireht","prixht","puht","unitpriceht","prixachatht","price"],priceWithDutiesHT:["puavecdrt","puavecdroit","puavecdroits","puavecdrtht","prixunitaireavecdroit","prixunitaireavecdroits","prixunitaireavecdroitht","prixunitaireavecdrt","pudrt"],quantity:["quantite","qte","quantity","qty"],unit:["unite","unit"],invoice:["numerofacture","nfacture","facture","invoice"],document:["fichiersource","cheminfacture","document","fichier","file"],source:["source"],reading:["modelecture","lecture","ocr","read"],invoiceStatus:["statutfacture","controlefacture","completude","control"]};
    const selects={};for(const [field,hints] of Object.entries(fields)){
     const label=el("label",field),sel=el("select");sel.appendChild(new Option("— Non renseigné —",""));
     headers.forEach((h,i)=>sel.appendChild(new Option(h,i+"")));
@@ -124,12 +131,17 @@ async function importFlow(){
    const submit=el("button","Contrôler puis importer","ph-primary");detailHost.appendChild(submit);
    submit.onclick=async()=>{
     submit.disabled=true;try{
-     const mandatory=["supplier","description","date","priceHT"];
-     if(mandatory.some(x=>selects[x].value===""))throw Error("Il manque une colonne obligatoire : fournisseur, désignation, date ou prix HT.");
+     const mandatory=["supplier","description","date"];
+     if(mandatory.some(x=>selects[x].value==="")||(selects.priceHT.value===""&&selects.priceWithDutiesHT.value===""))throw Error("Il manque une colonne obligatoire : fournisseur, désignation, date ou prix unitaire HT (avec droits accepté).");
      const mapped=rows.map(r=>Object.fromEntries(Object.keys(fields).map(f=>[f,selects[f].value===""?"":r[Number(selects[f].value)]??""])));
-     if(!confirm("Importer "+mapped.length+" lignes dans le stockage privé de PRISM ? Les prix du catalogue et les ratios ne seront pas modifiés.")){submit.disabled=false;return;}
+     const drinks=mapped.filter(r=>/^(ouest|auray)boissons?$/.test(norm(r.supplier)));
+     if(drinks.length&&selects.priceWithDutiesHT.value===""&&!confirm(drinks.length+" lignes Ouest/Auray sans PU avec drt : ces prix resteront provisoires. Continuer ?")){submit.disabled=false;return;}
+     const allDrinks=mapped.length>0&&mapped.every(r=>/^(ouest|auray)boissons?$/.test(norm(r.supplier)));
+     const scope=allDrinks?"ouest-auray":"all";
+     const question=allDrinks?"Réimporter uniquement "+mapped.length+" lignes Ouest/Auray Boissons ? Leurs anciennes lignes seront remplacées ; tous les autres fournisseurs seront conservés. Les prix du catalogue et les ratios ne sont pas modifiés.":"Importer "+mapped.length+" lignes dans l'historique PRISM ? ATTENTION : ce fichier contient plusieurs fournisseurs et remplacera l'historique actif en entier. Les prix du catalogue et les ratios restent inchangés.";
+     if(!confirm(question)){submit.disabled=false;return;}
      const run="historique-"+Date.now(),existing=products.length>0;
-     await request("POST",{action:"begin",run,replace:existing});
+     await request("POST",{action:"begin",run,scope,replace:scope==="all"&&existing});
      let done=0;
      for(let i=0;i<mapped.length;i+=200){const batch=mapped.slice(i,i+200);await request("POST",{action:"batch",run,batch:Math.floor(i/200),rows:batch});done+=batch.length;info("Import privé : "+done.toLocaleString("fr-FR")+" / "+mapped.length.toLocaleString("fr-FR")+" lignes");}
      await request("POST",{action:"publish",run,expectedRows:mapped.length});
