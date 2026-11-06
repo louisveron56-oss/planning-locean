@@ -48,6 +48,8 @@ function prettySupplier(raw){
  return t.toLowerCase().split(/(\s+|-)/).map((w,i)=>(i&&SMALL_WORDS[w])?w:w.charAt(0).toUpperCase()+w.slice(1)).join('');
 }
 function supplierKey(supplier,ref){return norm(supplier)+'|'+norm(ref);}
+// Promocash : PUHT pour l'unité commerciale facturée, même lorsqu'il s'agit d'un lot.
+const billedUnit=(supplier,unit)=>norm(supplier)==='promocash'&&!unitLabel(unit)?'pièce':unit;
 function joinSources(catalog,sheets){
  const items=[],matched=new Set(),sheetsByRef=new Map(),catalogRefCounts=new Map(),sheetsByName=new Map(),catalogNameCounts=new Map();
  (catalog||[]).filter(p=>!p.archivedAt).forEach(p=>{if(norm(p.supplier)&&norm(p.supplierReference)){const k=supplierKey(p.supplier,p.supplierReference);catalogRefCounts.set(k,(catalogRefCounts.get(k)||0)+1);}else if(norm(p.supplier)&&norm(p.sourceDesignation||p.name)){const k=supplierKey(p.supplier,p.sourceDesignation||p.name);catalogNameCounts.set(k,(catalogNameCounts.get(k)||0)+1);}});
@@ -68,7 +70,7 @@ function joinSources(catalog,sheets){
    const exact=supplierKey(p.supplier,p.sourceDesignation||p.name),candidates=sheetsByName.get(exact)||[];
    if(catalogNameCounts.get(exact)===1&&candidates.length===1&&!matched.has(candidates[0])){match=sheets[candidates[0]];matched.add(candidates[0]);sourceCount=1;}
   }
-  const price=normalizedPrice(p.price,p.unit);
+  const price=normalizedPrice(p.price,billedUnit(p.supplier,p.unit));
   items.push({
    id:'catalog:'+String(p.id||i),catalog:p,sheet:match,
    name:p.name||match?.designation||'Sans nom',supplier:p.supplier||match?.fournisseur||'Non renseigné',
@@ -89,7 +91,7 @@ function joinSources(catalog,sheets){
  });
  sheets.forEach((p,i)=>{
   if(matched.has(i))return;
-  const price=normalizedPrice(p.prix_actuel_ht,p.unite||p.unite_prix||'');
+  const price=normalizedPrice(p.prix_actuel_ht,billedUnit(p.fournisseur,p.unite||p.unite_prix||''));
   items.push({
    id:'sheet:'+i,catalog:null,sheet:p,name:p.designation||'Sans nom',
    supplier:p.fournisseur||'Non renseigné',supplierReference:p.code||'',category:p.famille||'À classer',
@@ -508,7 +510,7 @@ function drawPrice(cell,p){
  const raw=priceValue(p);
  if(raw===null){make(cell,'span','pcu-price-missing','à brancher');return;}
  make(cell,'span','pcu-price-amount',money(raw));
- if(p.price.valid)make(cell,'span','pcu-price-unit','/'+p.price.unit);
+ if(p.price.valid)make(cell,'span','pcu-price-unit',norm(p.supplier)==='promocash'&&p.price.unit==='pièce'?'/unité facturée':'/'+p.price.unit);
 
 }
 function sortHeader(tr,label,key,cls){
@@ -543,7 +545,7 @@ function editProductRow(row,item){
  const unitWrap=make(fields,'label','pcu-edit-field');make(unitWrap,'span','','Unité du prix');
  const unit=make(unitWrap,'select','pcu-edit-input');
  [['','À vérifier'],['kg','kg'],['L','L'],['pièce','pièce']].forEach(([v,label])=>{const o=make(unit,'option','',label);o.value=v;});
- unit.value=unitLabel(item.catalog?.unit||item.sheet?.unite||item.sheet?.unite_prix||'')||'';
+ unit.value=unitLabel(billedUnit(item.supplier,item.catalog?.unit||item.sheet?.unite||item.sheet?.unite_prix||''))||'';
  const originalPrice=currentPrice;
  const actions=make(form,'div','pcu-edit-actions');
  const note=make(actions,'span','pcu-edit-note','Unité confirmée à l’enregistrement · prix sans conversion automatique');
@@ -661,6 +663,25 @@ function render(){
  root.replaceChildren();
  const header=make(root,'div','pcu-header');
  make(header,'h3','','Produits');
+ const batch=make(header,'button','pcu-link','Régulariser les unités Promocash');batch.type='button';
+ batch.title='Compléter les unités manquantes des produits Promocash du catalogue, sans modifier leurs prix';
+ batch.onclick=async()=>{
+  const user=window.netlifyIdentity?.currentUser?.();if(!user){alert('Connexion nécessaire');return;}
+  batch.disabled=true;
+  try{
+   const token=await user.jwt();
+   const request=async payload=>{
+    const res=await fetch('/.netlify/functions/purchases',{method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({establishment:'LOCEAN',action:'promocash-billed-unit',...payload}),cache:'no-store'});
+    const data=await res.json();if(!res.ok||!data.ok)throw Error(data.error||'Correction impossible');return data;
+   };
+   const preview=await request({preview:true});
+   if(!confirm('Promocash : '+preview.withoutUnit+' produits sans unité sur '+preview.total+' produits du catalogue privé.\\n\\nRenseigner « pièce » = une unité commerciale facturée (pack, carton, lot ou article).\\n\\nAucun prix HT, quantité ni historique ne sera modifié. Les unités déjà renseignées restent inchangées.\\n\\nConfirmer la correction groupée ?'))return;
+   const saved=await request({confirm:'PROMOCASH_PUHT'});
+   alert(saved.updated+' produits Promocash régularisés. Les lignes issues directement de Sheets bénéficient aussi de cette règle d’affichage.');
+   await load();
+  }catch(e){alert(e.message);}
+  finally{batch.disabled=false;}
+ };
  const importBtn=make(header,'button','pcu-primary','Importer des factures');importBtn.type='button';
  importBtn.onclick=()=>{const b=document.querySelector('.app-nav-item[data-page="purchase-invoices"]');if(b)b.click();else if(typeof window.navigateApp==='function')window.navigateApp('purchase-invoices');};
  const tools=make(root,'div','pcu-tools');
