@@ -64,9 +64,9 @@ async function loadProduct(p){
  detailHost.appendChild(el("p",change===null?"⚠ Variation non calculable de façon fiable : unités, factures ou lectures à vérifier.":"Variation sur achats comparables : "+(change>0?"+":"")+change.toFixed(1)+" %",change===null?"ph-warning":"ph-stat"));
  detailHost.appendChild(chart(history));
  detailHost.appendChild(el("p","Rouge : observation avec alerte · Bleu : ligne sans alerte. Les points datés d'achats isolés restent visibles, sans inventer de prix intermédiaires.","ph-secondary"));
- const table=el("table",undefined,"ph-table"),head=el("thead"),tr=el("tr");["Date","Prix HT","Quantité","Unité","Facture / source","Fiabilité"].forEach(t=>tr.appendChild(el("th",t)));head.appendChild(tr);table.appendChild(head);
+ const table=el("table",undefined,"ph-table"),head=el("thead"),tr=el("tr");["Date","Prix HT (droits compris si renseignés)","Quantité","Unité","Facture / source","Fiabilité"].forEach(t=>tr.appendChild(el("th",t)));head.appendChild(tr);table.appendChild(head);
  const body=el("tbody");
- for(const r of history){const row=el("tr");[r.date,cash.format(r.priceHT),r.quantity??"—",r.unit||"—",r.invoice||r.document||r.source||"—",r.issues.join("; ")||"Sans alerte"].forEach((t,i)=>{const td=el("td",String(t));if(i===5)td.className=r.issues.length?"ph-warning":"ph-ok";row.appendChild(td);});body.appendChild(row);}
+ for(const r of history){const row=el("tr");[r.date,cash.format(r.priceHT)+(r.priceBasis?" · "+r.priceBasis:""),r.quantity??"—",r.unit||"—",r.invoice||r.document||r.source||"—",r.issues.join("; ")||"Sans alerte"].forEach((t,i)=>{const td=el("td",String(t));if(i===5)td.className=r.issues.length?"ph-warning":"ph-ok";row.appendChild(td);});body.appendChild(row);}
  table.appendChild(body);const sc=el("div");sc.style.cssText="overflow:auto;max-height:340px";sc.appendChild(table);detailHost.appendChild(sc);
 }
 function parseCSV(s){
@@ -113,8 +113,9 @@ async function importFlow(){
    info("Fichier lu : "+rows.length.toLocaleString("fr-FR")+" lignes. Vérifie les colonnes ci-dessous, puis clique sur « Contrôler puis importer ».");
    detailHost.replaceChildren();detailHost.appendChild(el("h3","Correspondance des colonnes"));
    detailHost.appendChild(el("p","Fichier Excel original ou CSV accepté. Vérifie la correspondance des colonnes avant de valider. Les données restent privées."));
+   detailHost.appendChild(el("p","Ouest/Auray Boissons : la colonne « PU avec drt » doit être associée pour corriger le vrai prix HT avec droits. Les prix historiques sans ce montant restent provisoires.","ph-warning"));
    const mapping=el("div",undefined,"ph-map");detailHost.appendChild(mapping);
-   const fields={supplier:["fournisseur","supplier"],reference:["codeproduit","referenceproduit","reference","code","ref"],description:["designation","produit","description","libelle","label"],date:["datefacture","date","dateachat"],priceHT:["prixunitaireht","prixht","puht","unitpriceht","prixachatht","price"],quantity:["quantite","qte","quantity","qty"],unit:["unite","unit"],invoice:["numerofacture","nfacture","facture","invoice"],document:["fichiersource","cheminfacture","document","fichier","file"],source:["source"],reading:["modelecture","lecture","ocr","read"],invoiceStatus:["statutfacture","controlefacture","completude","control"]};
+   const fields={supplier:["fournisseur","supplier"],reference:["codeproduit","referenceproduit","reference","code","ref"],description:["designation","produit","description","libelle","label"],date:["datefacture","date","dateachat"],priceHT:["prixunitaireht","prixht","puht","unitpriceht","prixachatht","price"],priceWithDutiesHT:["puavecdrt","puavecdroit","puavecdroits","puavecdrtht","prixunitaireavecdroit","prixunitaireavecdroits","prixunitaireavecdroitht","prixunitaireavecdrt","pudrt"],quantity:["quantite","qte","quantity","qty"],unit:["unite","unit"],invoice:["numerofacture","nfacture","facture","invoice"],document:["fichiersource","cheminfacture","document","fichier","file"],source:["source"],reading:["modelecture","lecture","ocr","read"],invoiceStatus:["statutfacture","controlefacture","completude","control"]};
    const selects={};for(const [field,hints] of Object.entries(fields)){
     const label=el("label",field),sel=el("select");sel.appendChild(new Option("— Non renseigné —",""));
     headers.forEach((h,i)=>sel.appendChild(new Option(h,i+"")));
@@ -124,9 +125,11 @@ async function importFlow(){
    const submit=el("button","Contrôler puis importer","ph-primary");detailHost.appendChild(submit);
    submit.onclick=async()=>{
     submit.disabled=true;try{
-     const mandatory=["supplier","description","date","priceHT"];
-     if(mandatory.some(x=>selects[x].value===""))throw Error("Il manque une colonne obligatoire : fournisseur, désignation, date ou prix HT.");
+     const mandatory=["supplier","description","date"];
+     if(mandatory.some(x=>selects[x].value==="")||(selects.priceHT.value===""&&selects.priceWithDutiesHT.value===""))throw Error("Il manque une colonne obligatoire : fournisseur, désignation, date ou prix unitaire HT (avec droits accepté).");
      const mapped=rows.map(r=>Object.fromEntries(Object.keys(fields).map(f=>[f,selects[f].value===""?"":r[Number(selects[f].value)]??""])));
+     const drinks=mapped.filter(r=>/^(ouest|auray)boissons?$/.test(norm(r.supplier)));
+     if(drinks.length&&selects.priceWithDutiesHT.value===""&&!confirm(drinks.length+" lignes Ouest/Auray sans PU avec drt : ces prix resteront provisoires. Continuer ?")){submit.disabled=false;return;}
      if(!confirm("Importer "+mapped.length+" lignes dans le stockage privé de PRISM ? Les prix du catalogue et les ratios ne seront pas modifiés.")){submit.disabled=false;return;}
      const run="historique-"+Date.now(),existing=products.length>0;
      await request("POST",{action:"begin",run,replace:existing});
