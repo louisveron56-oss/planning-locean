@@ -16,7 +16,7 @@ const qty=x=>fmt.format(x||0);
 const key=p=>[norm(p.supplier),norm(p.reference),norm(p.unit)].join('|');
 let overlay=null,host=null,summary=null,tableHost=null,detailHost=null,loadingHost=null;
 let entries=[],index=new Map(),loaded=false,loading=null,ignored={},importedAt='',lineCount=0;
-let year=2026,basisYear=2025,search='',supplier='',page=0,selection='',discount=0.03,mode='litre',litresPerUnit=null,scenarioType='discount',targetPrice=null;
+let year=2026,basisYear=2025,search='',supplier='',page=0,selection='',discount=0.03,mode='litre',litresPerUnit=null,scenarioType='target',targetPrice=null;
 const style=el(document.head,'style',`
 .pa-overlay{position:fixed;z-index:99995;inset:0;background:rgba(12,19,28,.74);display:flex;align-items:center;justify-content:center;padding:14px}
 .pa-panel{box-sizing:border-box;position:relative;background:#fff;color:#1b2833;font:14px system-ui,sans-serif;border-radius:16px;width:min(1240px,96vw);max-height:94vh;overflow:auto;padding:22px;box-shadow:0 20px 65px #0005}
