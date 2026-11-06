@@ -9,6 +9,15 @@ const slug=v=>norm(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCas
 const parseNum=v=>{if(v===null||v===undefined||v==="")return null;const a=Number(String(v).replace(/[€\s\u00a0\u202f]/g,"").replace(",","."));return Number.isFinite(a)?a:null;};
 const date=v=>{const s=norm(v,30);if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const a=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(a)return a[3]+"-"+a[2].padStart(2,"0")+"-"+a[1].padStart(2,"0");if(/^\d{5}(?:\.0+)?$/.test(s)){const num=Number(s);if(num>=20000&&num<=80000)return new Date(Date.UTC(1899,11,30)+Math.round(num)*86400000).toISOString().slice(0,10);}return "";};
 const k=(supplier,reference)=>slug(supplier)+"|"+slug(reference);
+const ouestAurayDisplay=row=>{
+ if(!isOuestAuray(row.supplier))return row;
+ const withRights=row.priceBasis==="PU avec drt HT"&&Number.isFinite(Number(row.priceWithDutiesHT));
+ const unit=basicUnit(row.unit);
+ const issues=[...(row.issues||[])];
+ if(!withRights&&!issues.includes("PU avec drt non disponible : prix d’achat HT provisoire"))issues.push("PU avec drt non disponible : prix d’achat HT provisoire");
+ const label=unit||row.unit;
+ return {...row,unit:label,priceBasis:withRights?"PU avec drt HT":"PU avec drt non confirmé",issues,verified:issues.length===0&&row.verified===true};
+};
 const promocashUnit=row=>{
  if(slug(row.supplier)!=="promocash"||basicUnit(row.unit))return row;
  // Règle fournisseur confirmée : PUHT par unité commerciale facturée.
@@ -61,7 +70,7 @@ export default async function(req){
     if(!meta)return reply({key:id,rows:[],meta:null});
     const chunks=(meta.chunks||[]).slice(0,250);
     const loaded=await Promise.all(chunks.map(c=>db.get("runs/"+current.run+"/batches/"+c,{type:"json",consistency:"strong"})));
-    const rows=loaded.flatMap(a=>Array.isArray(a)?a:[]).filter(x=>k(x.supplier,x.reference)===id).map(promocashUnit).sort((a,b)=>a.date.localeCompare(b.date));
+    const rows=loaded.flatMap(a=>Array.isArray(a)?a:[]).filter(x=>k(x.supplier,x.reference)===id).map(promocashUnit).map(ouestAurayDisplay).sort((a,b)=>a.date.localeCompare(b.date));
     return reply({key:id,rows,meta});
    }
    return reply({ready:!!current,run:current?.run||null,importedAt:current?.importedAt||null,
