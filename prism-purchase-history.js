@@ -3,6 +3,7 @@
 "use strict";
 const API="/.netlify/functions/purchase-history", cash=new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR"});
 const norm=x=>String(x??"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
+const drinksAlias=x=>/^(ouest|auray)boissons?$/.test(norm(x));
 const el=(t,text,cls)=>{const n=document.createElement(t);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const st=document.createElement("style");st.textContent=`
 .ph-overlay{position:fixed;z-index:99999;inset:0;background:#121a27bb;display:flex;align-items:center;justify-content:center;padding:14px}
@@ -57,8 +58,13 @@ function chart(rows){
  return svg;
 }
 async function loadProduct(p){
- const d=await request("GET",null,"?mode=product&key="+encodeURIComponent(p.key));history=d.rows||[];detailHost.replaceChildren();
- detailHost.appendChild(el("h3",p.description));detailHost.appendChild(el("p",p.supplier+" · réf. "+p.reference+" · "+history.length+" achats"));
+ const related=drinksAlias(p.supplier)&&norm(p.reference)
+  ?products.filter(x=>drinksAlias(x.supplier)&&norm(x.reference)===norm(p.reference))
+  :[p];
+ const sources=[...new Map([p,...related].map(x=>[x.key,x])).values()];
+ const outputs=await Promise.all(sources.map(x=>request("GET",null,"?mode=product&key="+encodeURIComponent(x.key))));
+ history=outputs.flatMap(d=>d.rows||[]).sort((a,b)=>a.date.localeCompare(b.date));detailHost.replaceChildren();
+ detailHost.appendChild(el("h3",p.description));detailHost.appendChild(el("p",(sources.length>1?"Ouest Boissons / Auray Boissons":p.supplier)+" · réf. "+p.reference+" · "+history.length+" achats"));
  const clean=history.filter(r=>r.verified);const unique=[...new Set(clean.map(x=>x.unit))],comparable=unique.length===1&&clean.length>=2;
  const first=clean[0],last=clean[clean.length-1],change=comparable&&first.priceHT>0?(last.priceHT/first.priceHT-1)*100:null;
  detailHost.appendChild(el("p",change===null?"⚠ Variation non calculable de façon fiable : unités, factures ou lectures à vérifier.":"Variation sur achats comparables : "+(change>0?"+":"")+change.toFixed(1)+" %",change===null?"ph-warning":"ph-stat"));
