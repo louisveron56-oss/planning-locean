@@ -1134,7 +1134,10 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
         <summary><span class="prism-nav-symbol">▤</span><span>ACHATS & STOCKS</span><span class="prism-nav-chevron">⌄</span></summary>
         <div class="app-nav-group">
           <div class="app-nav-label">Achats & Stocks</div>
+          <div class="prism-nav-subheading">RÉFÉRENTIEL & NÉGOCIATION</div>
           <button class="app-nav-item" data-page="suppliers" onclick="navigateApp('suppliers')"><span class="app-nav-icon">▣</span>Produits</button>
+          <button class="app-nav-item" data-page="agreements" onclick="navigateApp('agreements')"><span class="app-nav-icon">◇</span>Accords fournisseurs</button>
+          <div class="prism-nav-subheading">GESTION DES STOCKS</div>
           <button class="app-nav-item" data-page="inventory" onclick="navigateApp('inventory')"><span class="app-nav-icon">☷</span>Inventaires</button>
           <button class="app-nav-item" data-page="stocks" onclick="navigateApp('stocks')"><span class="app-nav-icon">⬡</span>Stocks <span class="app-nav-badge">bientôt</span></button>
         </div>
@@ -5421,6 +5424,6 @@ window.addEventListener('beforeunload',function(){
 <script src="./remunerations-admin-demo.js?v=20261105-mois"></script>
 <script src="./recipe-simulator.js?v=20261106-ttc"></script>
 <!-- Navigation principale unique : prism-native-nav intégrée à index.html. Ne pas charger prism-functional-navigation.js (doublons). -->
-<script src="./prism-supplier-agreements.js?v=20261106-2"></script>
+<script src="./prism-supplier-agreements.js?v=20261106-3"></script>
 </body>
 </html>
