@@ -48,12 +48,15 @@ function prettySupplier(raw){
  return t.toLowerCase().split(/(\s+|-)/).map((w,i)=>(i&&SMALL_WORDS[w])?w:w.charAt(0).toUpperCase()+w.slice(1)).join('');
 }
 function supplierKey(supplier,ref){return norm(supplier)+'|'+norm(ref);}
+function removalKey(supplier,ref,name){return norm(supplier)+'|'+(norm(ref)?'ref:'+norm(ref):'name:'+norm(name));}
+function keyFor(item){return removalKey(item.supplier,item.supplierReference,item.catalog?.sourceDesignation||item.name);}
 // Promocash : PUHT pour l'unité commerciale facturée, même lorsqu'il s'agit d'un lot.
 const emptyUnit=unit=>!norm(unit)||/^(non precisee|non precise|a verifier|unite \?|inconnue|inconnu|n\/a)$/.test(norm(unit));
 const billedUnit=(supplier,unit)=>emptyUnit(unit)?'pièce':unit;
-function joinSources(catalog,sheets){
+function joinSources(catalog,sheets,exclusions=[]){
+ const excluded=new Set(exclusions.filter(x=>x.status==='archived'||x.status==='permanent').map(x=>x.key));
  const items=[],matched=new Set(),sheetsByRef=new Map(),catalogRefCounts=new Map(),sheetsByName=new Map(),catalogNameCounts=new Map();
- (catalog||[]).filter(p=>!p.archivedAt).forEach(p=>{if(norm(p.supplier)&&norm(p.supplierReference)){const k=supplierKey(p.supplier,p.supplierReference);catalogRefCounts.set(k,(catalogRefCounts.get(k)||0)+1);}else if(norm(p.supplier)&&norm(p.sourceDesignation||p.name)){const k=supplierKey(p.supplier,p.sourceDesignation||p.name);catalogNameCounts.set(k,(catalogNameCounts.get(k)||0)+1);}});
+ (catalog||[]).filter(p=>!p.archivedAt&&!excluded.has(removalKey(p.supplier,p.supplierReference,p.sourceDesignation||p.name))).forEach(p=>{if(norm(p.supplier)&&norm(p.supplierReference)){const k=supplierKey(p.supplier,p.supplierReference);catalogRefCounts.set(k,(catalogRefCounts.get(k)||0)+1);}else if(norm(p.supplier)&&norm(p.sourceDesignation||p.name)){const k=supplierKey(p.supplier,p.sourceDesignation||p.name);catalogNameCounts.set(k,(catalogNameCounts.get(k)||0)+1);}});
  sheets.forEach((x,i)=>{
   const key=supplierKey(x.fournisseur,x.code);
   if(norm(x.fournisseur)&&norm(x.designation)){const nameKey=supplierKey(x.fournisseur,x.designation);const found=sheetsByName.get(nameKey)||[];found.push(i);sheetsByName.set(nameKey,found);}
@@ -61,7 +64,7 @@ function joinSources(catalog,sheets){
    const list=sheetsByRef.get(key)||[];list.push(i);sheetsByRef.set(key,list);
   }
  });
- (catalog||[]).filter(p=>!p.archivedAt).forEach((p,i)=>{
+ (catalog||[]).filter(p=>!p.archivedAt&&!excluded.has(removalKey(p.supplier,p.supplierReference,p.sourceDesignation||p.name))).forEach((p,i)=>{
   let match=null,sourceCount=0;
   const key=supplierKey(p.supplier,p.supplierReference);
   if(norm(p.supplier)&&norm(p.supplierReference)){
@@ -81,7 +84,7 @@ function joinSources(catalog,sheets){
    warning:!p.priceConfirmedAt&&!!(match&&number(match.prix_actuel_ht)!==null&&number(p.price)!==null&&Math.abs(Number(p.price)-number(match.prix_actuel_ht))>0.000001)
   });
  });
- (catalog||[]).filter(p=>!p.archivedAt&&p.priceConfirmedAt).forEach(p=>{
+ (catalog||[]).filter(p=>!p.archivedAt&&!excluded.has(removalKey(p.supplier,p.supplierReference,p.sourceDesignation||p.name))&&p.priceConfirmedAt).forEach(p=>{
   if(norm(p.supplier)&&norm(p.supplierReference)){
    const key=supplierKey(p.supplier,p.supplierReference);
    if(catalogRefCounts.get(key)===1)(sheetsByRef.get(key)||[]).forEach(i=>matched.add(i));
@@ -91,7 +94,7 @@ function joinSources(catalog,sheets){
   }
  });
  sheets.forEach((p,i)=>{
-  if(matched.has(i))return;
+  if(matched.has(i)||excluded.has(removalKey(p.fournisseur,p.code,p.designation)))return;
   const price=normalizedPrice(p.prix_actuel_ht,billedUnit(p.fournisseur,p.unite||p.unite_prix||''));
   items.push({
    id:'sheet:'+i,catalog:null,sheet:p,name:p.designation||'Sans nom',
@@ -103,6 +106,7 @@ function joinSources(catalog,sheets){
  return items;
 }
 let groupFilter='Tous',sortDir='asc',chipsHost=null,rows=[],loading=false,loadedOnce=false,partialSources=false,initialized=false,search='',supplierFilter='',sort='name',pageIndex=0,detailId='',pendingSupplier='',listHost=null,stateHost=null;
+let showRemoved=false,removedItems=[],sourceExclusions=[],privateCatalog=[],sourceSheetRows=[];
 const fetchJson=async(url,token)=>{
  const r=await fetch(url,{headers:{Authorization:'Bearer '+token},cache:'no-store'});
  const json=await r.json();if(!r.ok)throw Error(json.error||'Données indisponibles');
@@ -472,6 +476,7 @@ function detail(item){
  const head=make(content,'div','pcu-detail-head');
  const back=make(head,'button','pcu-back','← Produits');back.type='button';back.onclick=()=>{detailId='';detailRequest++;drawList();};
  const info=make(head,'button','pcu-info-button','i');info.type='button';info.title='Informations complètes';info.setAttribute('aria-label','Informations complètes sur le produit');info.onclick=()=>infoModal(item);
+ const removeBtn=make(head,'button','pcu-link','Retirer ce produit');removeBtn.type='button';removeBtn.onclick=()=>productAction('archive',item);
  make(content,'h3','pcu-product-name',item.name);
  make(content,'p','pcu-product-supplier',item.supplier);
  if(!item.price.valid){const unitLine=make(content,'div','pcu-unit-inline-detail');make(unitLine,'span','','Unité de prix à vérifier');inlineUnitEditor(item,unitLine);}
@@ -531,6 +536,56 @@ function sortHeader(tr,label,key,cls){
  b.onclick=()=>{if(sort===key)sortDir=sortDir==='asc'?'desc':'asc';else{sort=key;sortDir='asc';}pageIndex=0;drawList();};
 }
 
+async function productAction(action,item){
+ const user=window.netlifyIdentity?.currentUser?.();if(!user){alert('Connexion requise');return;}
+ const hard=action==='delete-permanent';
+ const prompt=action==='archive'?'Retirer « '+item.name+' » des produits actifs ? Tu pourras le remettre depuis Produits retirés.':action==='restore'?'Remettre « '+item.name+' » dans les produits actifs ?':'Supprimer DÉFINITIVEMENT « '+item.name+' » du catalogue ? Cette action est irréversible. Les factures restent conservées, mais les fiches techniques qui utilisent cet article risquent de ne plus le retrouver.';
+ if(!confirm(prompt))return;
+ const payload={establishment:'LOCEAN',action:item.catalog?action:hard?'delete-source':action+'-source'};
+ if(item.catalog)payload.productId=item.catalog.id;else payload.source={supplier:item.supplier,supplierReference:item.supplierReference,name:item.name};
+ if(hard)payload.confirm='DELETE_FOREVER';
+ try{
+  const response=await fetch('/.netlify/functions/purchases',{method:'PATCH',headers:{Authorization:'Bearer '+await user.jwt(),'Content-Type':'application/json'},body:JSON.stringify(payload),cache:'no-store'});
+  const data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'Opération refusée');
+  const key=keyFor(item);
+  if(action==='archive'){
+   rows=rows.filter(p=>keyFor(p)!==key);
+   removedItems.push({...item,archivedAt:new Date().toISOString()});
+  }else if(hard)removedItems=removedItems.filter(p=>keyFor(p)!==key);
+  else{
+   removedItems=removedItems.filter(p=>keyFor(p)!==key);
+   // Reconstruire immédiatement depuis les sources déjà en mémoire, sans requête réseau.
+   sourceExclusions=sourceExclusions.filter(x=>x.key!==key);
+   if(item.catalog)privateCatalog=privateCatalog.map(p=>p.id===item.catalog.id?{...p,archivedAt:null}:p);
+   rows=joinSources(privateCatalog,sourceSheetRows,sourceExclusions).map(p=>Object.assign(p,{display:cleanName(p.name),supplierDisplay:prettySupplier(p.supplier),group:groupOf(p)}));
+   attachPurchaseDates(rows,historyIndex||[]);rows=reconciledRows(rows);
+  }
+  if(action==='archive'&&item.catalog)privateCatalog=privateCatalog.map(p=>p.id===item.catalog.id?{...p,archivedAt:new Date().toISOString()}:p);
+  if(action==='archive'&&!item.catalog)sourceExclusions.push({key,status:'archived'});
+  if(hard&&item.catalog)privateCatalog=privateCatalog.filter(p=>p.id!==item.catalog.id);
+  detailId='';pageIndex=0;render();
+  window.dispatchEvent(new CustomEvent('prism-catalog-updated',{detail:{source:'lifecycle'}}));
+ }catch(e){alert(e.message);}
+}
+function drawRemoved(){
+ const found=removedItems.filter(p=>!search||norm([p.name,p.supplier,p.supplierReference].join(' ')).includes(norm(search)));
+ make(listHost,'p','pcu-muted',found.length+' produit(s) retiré(s). Tu peux les restaurer ou les supprimer définitivement.');
+ if(!found.length){make(listHost,'p','pcu-empty','Aucun produit retiré.');return;}
+ const card=make(listHost,'div','pcu-card'),wrap=make(card,'div','pcu-scroll'),table=make(wrap,'table','pcu-table');
+ const head=make(make(table,'thead'),'tr');['Produit','Fournisseur','Référence','Actions'].forEach(t=>make(head,'th','',t));
+ const body=make(table,'tbody');
+ found.slice(pageIndex*PAGE_SIZE,(pageIndex+1)*PAGE_SIZE).forEach(p=>{
+  const tr=make(body,'tr','pcu-product-row');make(tr,'td','',p.name);make(tr,'td','',prettySupplier(p.supplier));make(tr,'td','',p.supplierReference||'—');
+  const actions=make(tr,'td','pcu-price');
+  const restore=make(actions,'button','pcu-link','Restaurer');restore.onclick=()=>productAction('restore',p);
+  const del=make(actions,'button','pcu-link','Supprimer définitivement');del.onclick=()=>productAction('delete-permanent',p);
+ });
+ if(found.length>PAGE_SIZE){
+  const foot=make(card,'div','pcu-foot'),prev=make(foot,'button','pcu-link','←');prev.disabled=pageIndex===0;prev.onclick=()=>{pageIndex--;drawList();};
+  make(foot,'span','',(pageIndex+1)+' / '+Math.ceil(found.length/PAGE_SIZE));
+  const next=make(foot,'button','pcu-link','→');next.disabled=(pageIndex+1)*PAGE_SIZE>=found.length;next.onclick=()=>{pageIndex++;drawList();};
+ }
+}
 function editProductRow(row,item){
  row.replaceChildren();row.classList.add('pcu-editing-row');
  row.removeAttribute('tabindex');
@@ -622,12 +677,14 @@ function renderProductRow(row,p){
  const edit=make(priceCell,'button','pcu-pencil','✎');
  edit.type='button';edit.title='Modifier ce produit';edit.setAttribute('aria-label','Modifier '+p.display);
  edit.onclick=e=>{e.stopPropagation();editProductRow(row,p);};
+ const remove=make(priceCell,'button','pcu-pencil','×');remove.type='button';remove.title='Retirer ce produit (restaurable)';remove.setAttribute('aria-label','Retirer '+p.display);remove.onclick=e=>{e.stopPropagation();productAction('archive',p);};
  row.setAttribute('aria-label','Ouvrir '+p.display);
  row.onclick=e=>{if(e.target.closest('button,select,input,form'))return;detailId=p.id;drawList();};
  row.onkeydown=e=>{if(e.key==='Enter'&&!e.target.closest('button,input,select,form')){detailId=p.id;drawList();}};
 }
 function drawList(){
  if(!listHost)return;listHost.replaceChildren();
+ if(showRemoved){if(chipsHost)chipsHost.hidden=true;drawRemoved();return;}
  const selected=rows.find(p=>p.id===detailId);
  if(selected){if(chipsHost)chipsHost.hidden=true;detail(selected);return;}
  if(chipsHost)chipsHost.hidden=false;
@@ -673,6 +730,7 @@ function render(){
  root.replaceChildren();
  const header=make(root,'div','pcu-header');
  make(header,'h3','','Produits');
+ const trash=make(header,'button','pcu-link',showRemoved?'← Produits actifs':'Produits retirés ('+removedItems.length+')');trash.type='button';trash.onclick=()=>{showRemoved=!showRemoved;detailId='';pageIndex=0;render();};
  const defaultBtn=make(header,'button','pcu-link','Appliquer « pièce » aux unités manquantes');defaultBtn.type='button';
  defaultBtn.onclick=async()=>{
   const u=window.netlifyIdentity?.currentUser?.();if(!u){alert('Connexion requise');return;}
@@ -727,14 +785,21 @@ async function load(){
   const token=await u.jwt();
   const results=await Promise.allSettled([
    fetchJson('/.netlify/functions/purchases',token),
+   fetchJson('/.netlify/functions/purchases?archived=1',token),
    fetchJson('/.netlify/functions/purchase-sheets?type=products',token),
    historicalIndex()
   ]);
   const catalog=results[0].status==='fulfilled'?results[0].value:null;
-  const sheets=results[1].status==='fulfilled'?results[1].value:null;
+  const sheets=results[2].status==='fulfilled'?results[2].value:null;
+  const archived=results[1].status==='fulfilled'?results[1].value:null;
+  sourceExclusions=catalog?.sourceExclusions||[];
+  privateCatalog=[...(catalog?.products||[]),...(archived?.products||[])];sourceSheetRows=sheets?.rows||[];
+  removedItems=(archived?.products||[]).map(p=>({id:'catalog:'+p.id,catalog:p,name:p.name,supplier:p.supplier,supplierReference:p.supplierReference||'',archivedAt:p.archivedAt}));
+  const known=new Set(removedItems.map(keyFor));
+  sourceExclusions.filter(x=>x.status==='archived'&&!known.has(x.key)).forEach(x=>removedItems.push({id:'source:'+x.key,catalog:null,name:x.name,supplier:x.supplier,supplierReference:x.supplierReference||'',archivedAt:x.at}));
   if(!catalog&&!sheets)throw Error('Catalogue indisponible : '+[results[0],results[1]].map(x=>x.status==='rejected'?x.reason.message:'').filter(Boolean).join(' ; '));
-  rows=joinSources(catalog?.products||[],sheets?.rows||[]).map(p=>Object.assign(p,{display:cleanName(p.name),supplierDisplay:prettySupplier(p.supplier),group:groupOf(p)}));
-  const historyProducts=results[2].status==='fulfilled'?results[2].value:[];
+  rows=joinSources(catalog?.products||[],sheets?.rows||[],sourceExclusions).map(p=>Object.assign(p,{display:cleanName(p.name),supplierDisplay:prettySupplier(p.supplier),group:groupOf(p)}));
+  const historyProducts=results[3].status==='fulfilled'?results[3].value:[];
   const dateStats=attachPurchaseDates(rows,historyProducts);
   rows=reconciledRows(rows);
   loadedOnce=true;
@@ -742,7 +807,7 @@ async function load(){
   hideLegacy(true);
   render();
   if((!catalog||!sheets)&&root)make(root,'p','pcu-alert','Une source est indisponible : la liste est partielle. Aucun produit ni prix n’a été modifié.');
-  if(results[2].status==='rejected'&&root)make(root,'p','pcu-alert','Dates de factures indisponibles : '+results[2].reason.message+'. Aucun historique n’a été effacé.');
+  if(results[3].status==='rejected'&&root)make(root,'p','pcu-alert','Dates de factures indisponibles : '+results[3].reason.message+'. Aucun historique n’a été effacé.');
   if(catalog?.legacyExcluded&&root)make(root,'p','pcu-muted',catalog.legacyExcluded+' référence(s) de l’ancien inventaire retirée(s) du catalogue actif et conservée(s) en archive.');
  }catch(err){
   hideLegacy(true);
