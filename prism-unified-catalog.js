@@ -49,7 +49,8 @@ function prettySupplier(raw){
 }
 function supplierKey(supplier,ref){return norm(supplier)+'|'+norm(ref);}
 // Promocash : PUHT pour l'unité commerciale facturée, même lorsqu'il s'agit d'un lot.
-const billedUnit=(supplier,unit)=>norm(supplier)==='promocash'&&!unitLabel(unit)?'pièce':unit;
+const emptyUnit=unit=>!norm(unit)||/^(non precisee|non precise|a verifier|unite \?|inconnue|inconnu|n\/a)$/.test(norm(unit));
+const billedUnit=(supplier,unit)=>emptyUnit(unit)?'pièce':unit;
 function joinSources(catalog,sheets){
  const items=[],matched=new Set(),sheetsByRef=new Map(),catalogRefCounts=new Map(),sheetsByName=new Map(),catalogNameCounts=new Map();
  (catalog||[]).filter(p=>!p.archivedAt).forEach(p=>{if(norm(p.supplier)&&norm(p.supplierReference)){const k=supplierKey(p.supplier,p.supplierReference);catalogRefCounts.set(k,(catalogRefCounts.get(k)||0)+1);}else if(norm(p.supplier)&&norm(p.sourceDesignation||p.name)){const k=supplierKey(p.supplier,p.sourceDesignation||p.name);catalogNameCounts.set(k,(catalogNameCounts.get(k)||0)+1);}});
@@ -519,7 +520,7 @@ function drawPrice(cell,p){
  const raw=priceValue(p);
  if(raw===null){make(cell,'span','pcu-price-missing','à brancher');return;}
  make(cell,'span','pcu-price-amount',money(raw));
- if(p.price.valid)make(cell,'span','pcu-price-unit',norm(p.supplier)==='promocash'&&p.price.unit==='pièce'?'/unité facturée':'/'+p.price.unit);
+ if(p.price.valid)make(cell,'span','pcu-price-unit',(p.price.unit==='pièce'&&(emptyUnit(p.catalog?.unit??p.sheet?.unite??p.sheet?.unite_prix)||p.catalog?.unitAssumed))?'/unité facturée (défaut)':'/'+p.price.unit);
 
 }
 function sortHeader(tr,label,key,cls){
@@ -672,6 +673,24 @@ function render(){
  root.replaceChildren();
  const header=make(root,'div','pcu-header');
  make(header,'h3','','Produits');
+ const defaultBtn=make(header,'button','pcu-link','Appliquer « pièce » aux unités manquantes');defaultBtn.type='button';
+ defaultBtn.onclick=async()=>{
+  const u=window.netlifyIdentity?.currentUser?.();if(!u){alert('Connexion requise');return;}
+  defaultBtn.disabled=true;
+  try{
+   const jwt=await u.jwt(),call=async x=>{
+    const res=await fetch('/.netlify/functions/purchases',{method:'PATCH',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},body:JSON.stringify({establishment:'LOCEAN',action:'default-missing-unit',...x}),cache:'no-store'});
+    const data=await res.json();if(!res.ok||!data.ok)throw Error(data.error||'Erreur de régularisation');return data;
+   };
+   const before=await call({preview:true});
+   if(!before.missing){alert('Aucun produit du catalogue privé avec unité manquante. La règle est déjà appliquée à l’affichage de Google Sheets.');return;}
+   if(!confirm(before.missing+' unités manquantes parmi '+before.total+' produits du catalogue privé.\\n\\nAppliquer « pièce » comme unité commerciale facturée par défaut ?\\n\\nPrix, montants des factures et historiques inchangés. Unité non certifiée pour le contenu des lots.'))return;
+   const result=await call({confirm:'DEFAULT_PIECE'});
+   alert(result.updated+' fiches du catalogue privé mises à jour. Les produits issus de Sheets utilisent déjà la même règle d’affichage.');
+   await load();
+  }catch(e){alert(e.message);}
+  finally{defaultBtn.disabled=false;}
+ };
  const batch=make(header,'button','pcu-link','Régulariser les unités Promocash');batch.type='button';
  batch.title='Compléter les unités manquantes des produits Promocash du catalogue, sans modifier leurs prix';
  batch.onclick=async()=>{
