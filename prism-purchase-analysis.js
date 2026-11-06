@@ -16,7 +16,7 @@ const qty=x=>fmt.format(x||0);
 const key=p=>[norm(p.supplier),norm(p.reference),norm(p.unit)].join('|');
 let overlay=null,host=null,summary=null,tableHost=null,detailHost=null,loadingHost=null;
 let entries=[],index=new Map(),loaded=false,loading=null,ignored={},importedAt='',lineCount=0;
-let year=2026,basisYear=2025,search='',supplier='',page=0,selection='',discount=0.03,mode='litre',litresPerUnit=null,scenarioType='target',targetPrice=null;
+let year=2026,basisYear=2025,search='',supplier='',page=0,selection='',discount=0.03,mode='litre',litresPerUnit=null,scenarioType='target',targetPrice=null,salePriceTTC=null,servingCl=25,saleVat=20,servingLoss=0,salePackL=null;
 const style=el(document.head,'style',`
 .pa-overlay{position:fixed;z-index:99995;inset:0;background:rgba(12,19,28,.74);display:flex;align-items:center;justify-content:center;padding:14px}
 .pa-panel{box-sizing:border-box;position:relative;background:#fff;color:#1b2833;font:14px system-ui,sans-serif;border-radius:16px;width:min(1240px,96vw);max-height:94vh;overflow:auto;padding:22px;box-shadow:0 20px 65px #0005}
@@ -155,7 +155,7 @@ function drawContent(){
   const row=el(body,'tr');if(key(p)===selection)row.className='pa-selected';
   const c=el(row,'td');const button=el(c,'button',p.description,'pa-select');
   el(c,'div',p.supplier+' · réf. '+p.reference+' · '+p.unit,'pa-muted');
-  button.onclick=()=>{selection=key(p);litresPerUnit=null;targetPrice=null;drawContent();};
+  button.onclick=()=>{selection=key(p);litresPerUnit=null;targetPrice=null;salePriceTTC=null;salePackL=null;servingCl=/vin|bouteille/i.test(p.description+' '+p.unit)?12.5:25;drawContent();};
   el(row,'td',qty(p.quantity),'num');el(row,'td',money(p.amountHT),'num');
   el(row,'td',p.flagged?'⚠ '+p.flagged:'—');
  });
@@ -226,6 +226,19 @@ function drawDetail(p){
   volumeInput.oninput=()=>{litresPerUnit=num(volumeInput.value);update();};
  }
  const result=el(scenario,'div',undefined,'pa-result'),note=el(scenario,'p',undefined,'pa-muted'),caveat=el(scenario,'p',undefined,'pa-warning');
+ const sales=el(scenario,'div',undefined,'pa-scenario');el(sales,'h3','Rentabilité à la vente · bière et vin');
+ el(sales,'p','Une bouteille de vin 75 cl représente 6 verres de 12,5 cl (sans pertes). Un litre de bière représente 4 demis de 25 cl.','pa-muted');
+ const sg=el(sales,'div',undefined,'pa-scenario-grid');
+ const packField=el(sg,'label','Litres par unité facturée','pa-field'),packInput=el(packField,'input');packInput.type='number';packInput.min='0.001';packInput.step='0.01';packInput.placeholder='Vin : 0,75 · fût : 30 · litre : 1';
+ const directPack=p.unit==='L'?1:p.unit==='cl'?0.01:p.unit==='ml'?0.001:null;
+ packInput.value=String(salePackL!==null?salePackL:directPack!==null?directPack:'');
+ if(directPack!==null){packInput.value=String(directPack);packInput.readOnly=true;}
+ packInput.oninput=()=>{salePackL=num(packInput.value);update();};
+ const sizeField=el(sg,'label','Contenance du verre (cl)','pa-field'),sizeInput=el(sizeField,'input');sizeInput.type='number';sizeInput.min='0.1';sizeInput.step='0.5';sizeInput.value=String(servingCl);sizeInput.oninput=()=>{servingCl=num(sizeInput.value);update();};
+ const saleField=el(sg,'label','Prix de vente du verre (€ TTC)','pa-field'),saleInput=el(saleField,'input');saleInput.type='number';saleInput.min='0';saleInput.step='0.01';saleInput.placeholder='Prix sur la carte';if(salePriceTTC!==null)saleInput.value=String(salePriceTTC);saleInput.oninput=()=>{salePriceTTC=num(saleInput.value);update();};
+ const taxField=el(sg,'label','TVA de vente','pa-field'),taxInput=el(taxField,'select');[['20','20 % · boissons alcoolisées'],['10','10 %'],['5.5','5,5 %']].forEach(([v,t])=>{const o=el(taxInput,'option',t);o.value=v;});taxInput.value=String(saleVat);taxInput.onchange=()=>{saleVat=Number(taxInput.value);update();};
+ const lossField=el(sg,'label','Pertes / mousse / fonds (%)','pa-field'),lossInput=el(lossField,'input');lossInput.type='number';lossInput.min='0';lossInput.max='99';lossInput.step='1';lossInput.value=String(servingLoss);lossInput.oninput=()=>{servingLoss=num(lossInput.value);update();};
+ const saleMetrics=el(sales,'div',undefined,'pa-metrics'),saleNote=el(sales,'p',undefined,'pa-warning');
  function update(){
   const records=(index.get(selection)||[]).filter(x=>x.year===basisYear);
   const q=records.reduce((n,x)=>n+x.quantity,0);
@@ -251,6 +264,32 @@ function drawDetail(p){
   if(negative){result.textContent='—';note.textContent='La baisse dépasse le prix moyen actuel : prix négocié négatif impossible.';}
   const flagged=records.reduce((n,x)=>n+x.flagged,0),missing=records.reduce((n,x)=>n+x.dutyMissing,0);
   caveat.textContent='Simulation non enregistrée, sans changement du tarif réel. Période : '+monthsKnown+' mois avec achats en '+basisYear+'. '+(flagged?'⚠ '+flagged+' ligne(s) incertaines. ':'')+(missing?'⚠ Prix avec droits manquant sur '+missing+' ligne(s). ':'')+'Gain théorique à quantités achetées et prix de vente constants ; il ne constitue ni un gain de chiffre d’affaires, ni une prévision des ventes KSD. Factures manquantes, avoirs et conditionnements non rapprochés exclus.';
+  saleMetrics.replaceChildren();
+  saleNote.className='pa-warning';
+  const pack=directPack!==null?directPack:num(packInput.value),sz=num(sizeInput.value),saleTTC=num(saleInput.value),loss=num(lossInput.value);
+  const ok=valid&&!negative&&pack!==null&&pack>0&&sz!==null&&sz>0&&saleTTC!==null&&saleTTC>=0&&loss!==null&&loss>=0&&loss<100;
+  if(!ok){
+   saleNote.textContent=!pack?'Renseigne la contenance du conditionnement acheté : 0,75 pour une bouteille de vin de 75 cl, 30 pour un fût de 30 L.':'Complète le prix négocié, le prix de vente TTC, la taille du verre et les pertes (moins de 100 %) pour visualiser la marge.';
+  }else{
+   const oldPerLiter=mode==='litre'?avgPrice:avgPrice/pack;
+   const newPerLiter=mode==='litre'?newPrice:newPrice/pack;
+   const consumedLiters=(sz/100)/(1-loss/100),oldCost=oldPerLiter*consumedLiters,newCost=newPerLiter*consumedLiters;
+   const saleHT=saleTTC/(1+saleVat/100),oldMargin=saleHT-oldCost,newMargin=saleHT-newCost,delta=oldCost-newCost;
+   const cards=[
+    ['Prix de vente du verre HT',money(saleHT)],
+    ['Coût matière actuel / verre HT',money(oldCost)],
+    ['Coût matière négocié / verre HT',money(newCost)],
+    ['Marge brute actuelle / verre',money(oldMargin)],
+    ['Marge brute négociée / verre',money(newMargin)],
+    ['Gain de négociation / verre',(delta>=0?'+':'−')+money(Math.abs(delta))]
+   ];
+   cards.forEach(([label,value])=>{const card=el(saleMetrics,'div',undefined,'pa-metric');el(card,'span',label,'pa-muted');el(card,'b',value);});
+   const yieldGlasses=pack*(1-loss/100)/(sz/100);
+   const rate=saleHT>0?fmt.format(newMargin/saleHT*100)+' %':'non calculable';
+   saleNote.className='pa-muted';
+   saleNote.textContent='Rendement théorique : '+qty(yieldGlasses)+' verres / unité achetée. Taux de marge brute négocié : '+rate+'. Calcul à prix de vente TTC saisi, TVA '+saleVat+' %, coûts HT et pertes '+loss+' %. Hors personnel, frais fixes et autres consommables. Volumes vendus non connus : ne pas assimiler les achats à des ventes.';
+  }
+
  }
  update();
 }
