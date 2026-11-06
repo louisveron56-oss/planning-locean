@@ -136,9 +136,12 @@ async function importFlow(){
      const mapped=rows.map(r=>Object.fromEntries(Object.keys(fields).map(f=>[f,selects[f].value===""?"":r[Number(selects[f].value)]??""])));
      const drinks=mapped.filter(r=>/^(ouest|auray)boissons?$/.test(norm(r.supplier)));
      if(drinks.length&&selects.priceWithDutiesHT.value===""&&!confirm(drinks.length+" lignes Ouest/Auray sans PU avec drt : ces prix resteront provisoires. Continuer ?")){submit.disabled=false;return;}
-     if(!confirm("Importer "+mapped.length+" lignes dans le stockage privé de PRISM ? Les prix du catalogue et les ratios ne seront pas modifiés.")){submit.disabled=false;return;}
+     const allDrinks=mapped.length>0&&mapped.every(r=>/^(ouest|auray)boissons?$/.test(norm(r.supplier)));
+     const scope=allDrinks?"ouest-auray":"all";
+     const question=allDrinks?"Réimporter uniquement "+mapped.length+" lignes Ouest/Auray Boissons ? Leurs anciennes lignes seront remplacées ; tous les autres fournisseurs seront conservés. Les prix du catalogue et les ratios ne sont pas modifiés.":"Importer "+mapped.length+" lignes dans l'historique PRISM ? ATTENTION : ce fichier contient plusieurs fournisseurs et remplacera l'historique actif en entier. Les prix du catalogue et les ratios restent inchangés.";
+     if(!confirm(question)){submit.disabled=false;return;}
      const run="historique-"+Date.now(),existing=products.length>0;
-     await request("POST",{action:"begin",run,replace:existing});
+     await request("POST",{action:"begin",run,scope,replace:scope==="all"&&existing});
      let done=0;
      for(let i=0;i<mapped.length;i+=200){const batch=mapped.slice(i,i+200);await request("POST",{action:"batch",run,batch:Math.floor(i/200),rows:batch});done+=batch.length;info("Import privé : "+done.toLocaleString("fr-FR")+" / "+mapped.length.toLocaleString("fr-FR")+" lignes");}
      await request("POST",{action:"publish",run,expectedRows:mapped.length});
