@@ -178,7 +178,7 @@ function drawDetail(p){
  const prior=(index.get(selection)||[]).filter(x=>x.year===year-1);
  if(prior.length){
   const pq=prior.reduce((n,x)=>n+x.quantity,0),pa=prior.reduce((n,x)=>n+x.amountHT,0);
-  el(detailHost,'p','Comparaison '+(year-1)+' : '+qty(pq)+' '+p.unit+' · '+money(pa)+' HT'+(pa>0?' · évolution dépenses '+fmt.format((p.amountHT/pa-1)*100)+' %':''),'pa-muted');
+  el(detailHost,'p','N-1 ('+(year-1)+') : '+qty(pq)+' '+p.unit+' · '+money(pa)+' HT. Comparaison brute : les périodes et la complétude des factures peuvent différer.','pa-muted');
  }
  el(detailHost,'p','Répartition mensuelle des achats · '+year,'pa-muted');
  const bars=el(detailHost,'div',undefined,'pa-chart'),max=Math.max(...p.months.map(x=>x.qty),1);
@@ -233,7 +233,7 @@ function drawDetail(p){
 }
 function open(event){
  const d=event?.detail||{};
- if(d.name)search=d.name;else if(d.reference)search=d.reference;else if(d.supplier)search=d.supplier;
+ if(d.reference)search=d.reference;else if(d.name)search=d.name;else if(d.supplier)search=d.supplier;
  page=0;selection='';pane();if(loaded)render();
 }
 window.addEventListener('prism-open-purchase-analysis',open);
