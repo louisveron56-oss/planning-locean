@@ -28,6 +28,10 @@ const norm = x => String(x ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLow
 const n = x => { const v = Number(String(x ?? '').replace(',', '.')); return Number.isFinite(v) ? v : NaN; };
 const pct = v => Number.isFinite(v) ? pctFmt.format(v) + ' %' : '—';
 const money = v => Number.isFinite(v) ? euro.format(v) : '—';
+// Stockage des fiches inchangé : price reste en HT. La simulation et la saisie sont en TTC.
+const rate = vat => 1 + (n(vat) || 0) / 100;
+const toTtc = (ht, vat) => Math.round((n(ht) * rate(vat) + Number.EPSILON) * 100) / 100;
+const toHt = (ttc, vat) => Math.round((n(ttc) / rate(vat) + Number.EPSILON) * 10000) / 10000;
 const dateFr = iso => { const d = String(iso || '').slice(0, 10); return /^\d{4}-\d\d-\d\d$/.test(d) ? new Date(d + 'T12:00:00').toLocaleDateString('fr-FR') : ''; };
 
 /* ---------- Unités et prix ---------- */
@@ -115,7 +119,7 @@ function touch() { dirty = true; live(); }
 async function save() {
   if (!current || busy) return;
   if (norm(current.name).length < 2) { msg = 'Donne un nom à la fiche.'; render(); return; }
-  if (!(n(current.price) > 0)) { msg = 'Le prix de vente HT doit être supérieur à zéro.'; render(); return; }
+  if (!(n(current.price) > 0)) { msg = 'Le prix de vente TTC doit être supérieur à zéro.'; render(); return; }
   const now = new Date().toISOString();
   const payload = Object.assign({}, current, {
     lines: current.lines.map(l => { const lp = linePrice(l); return { productId: l.productId, name: l.name, qty: n(l.qty) || 0, unit: l.unit, priceSnapshot: Number.isFinite(lp.price) ? lp.price : null, basisSnapshot: lp.basis || '', snapshotAt: lp.live ? (lp.date || now) : l.snapshotAt }; })
@@ -333,16 +337,16 @@ function drawSim(r) {
   el(hero, 'span', 'ft-hero-value', '—').id = 'ftRatio';
   el(hero, 'span', 'ft-hero-verdict', '').id = 'ftVerdict';
   const pr = el(hero, 'div', 'ft-price');
-  const prHead = el(pr, 'div', 'ft-price-head'); el(prHead, 'span', '', 'Prix de vente HT');
-  const pi = el(prHead, 'input', 'ft-price-input'); pi.type = 'text'; pi.inputMode = 'decimal'; pi.id = 'ftPriceInput'; pi.setAttribute('aria-label', 'Prix de vente HT en euros');
-  pi.value = fmtQty(current.price);
-  const slider = el(pr, 'input', 'ft-slider'); slider.type = 'range'; slider.id = 'ftSlider'; slider.step = '0.1'; slider.setAttribute('aria-label', 'Prix de vente HT');
-  const range = () => { const p = n(current.price) || 17; slider.min = '1'; slider.max = String(Math.max(30, Math.ceil(p * 1.6))); slider.value = String(p); };
+  const prHead = el(pr, 'div', 'ft-price-head'); el(prHead, 'span', '', 'Prix de vente TTC');
+  const pi = el(prHead, 'input', 'ft-price-input'); pi.type = 'text'; pi.inputMode = 'decimal'; pi.id = 'ftPriceInput'; pi.setAttribute('aria-label', 'Prix de vente TTC en euros');
+  pi.value = fmtQty(toTtc(current.price, current.vat));
+  const slider = el(pr, 'input', 'ft-slider'); slider.type = 'range'; slider.id = 'ftSlider'; slider.step = '0.1'; slider.setAttribute('aria-label', 'Prix de vente TTC');
+  const range = () => { const p = toTtc(current.price, current.vat) || 17; slider.min = '1'; slider.max = String(Math.max(30, Math.ceil(p * 1.6))); slider.value = String(p); };
   range();
-  const ends = el(pr, 'div', 'ft-price-ends'); el(ends, 'span', '', '1 €'); el(ends, 'span', '', '').id = 'ftSliderMax';
-  slider.oninput = () => { current.price = Math.round(n(slider.value) * 10) / 10; pi.value = fmtQty(current.price); touch(); };
-  pi.oninput = () => { const v = n(pi.value); if (v > 0) { current.price = v; if (v > n(slider.max)) range(); slider.value = String(v); touch(); } };
-  pi.onblur = () => { pi.value = fmtQty(current.price); };
+  const ends = el(pr, 'div', 'ft-price-ends'); el(ends, 'span', '', '1 € TTC'); el(ends, 'span', '', '').id = 'ftSliderMax';
+  slider.oninput = () => { const ttc = Math.round(n(slider.value) * 10) / 10; current.price = toHt(ttc, current.vat); pi.value = fmtQty(ttc); touch(); };
+  pi.oninput = () => { const v = n(pi.value); if (v > 0) { current.price = toHt(v, current.vat); if (v > n(slider.max)) range(); slider.value = String(v); touch(); } };
+  pi.onblur = () => { pi.value = fmtQty(toTtc(current.price, current.vat)); };
 
   const box = el(r, 'div', 'ft-stats');
   const obj = el(box, 'div', 'ft-stat ft-stat-obj'); el(obj, 'span', '', 'Objectif ratio matière');
@@ -353,8 +357,8 @@ function drawSim(r) {
   const vat = el(box, 'div', 'ft-stat'); el(vat, 'span', '', 'TVA');
   const vs = el(vat, 'select', 'ft-vat'); vs.setAttribute('aria-label', 'Taux de TVA');
   [[5.5, '5,5 %'], [10, '10 %'], [20, '20 %']].forEach(([v, t]) => { const o = el(vs, 'option', '', t); o.value = String(v); }); vs.value = String(current.vat || 10);
-  vs.onchange = () => { current.vat = n(vs.value); touch(); };
-  [['Coût matière HT', 'ftCost'], ['Prix TTC', 'ftTtc'], ['Marge brute matière', 'ftMargin']].forEach(([label, id]) => { const s = el(box, 'div', 'ft-stat'); el(s, 'span', '', label); el(s, 'strong', '', '—').id = id; });
+  vs.onchange = () => { const ttc = toTtc(current.price, current.vat); current.vat = n(vs.value); current.price = toHt(ttc, current.vat); range(); pi.value = fmtQty(ttc); touch(); };
+  [['Coût matière HT', 'ftCost'], ['Prix de vente HT', 'ftHt'], ['Marge brute matière HT', 'ftMargin']].forEach(([label, id]) => { const s = el(box, 'div', 'ft-stat'); el(s, 'span', '', label); el(s, 'strong', '', '—').id = id; });
   const target = el(box, 'div', 'ft-stat ft-target'); el(target, 'span', '', 'Prix minimum pour l’objectif'); el(target, 'strong', '', '—').id = 'ftTarget';
   const save_ = btn(r, 'ft-primary ft-save', busy ? 'Enregistrement…' : 'Enregistrer la fiche', save); save_.disabled = busy; save_.id = 'ftSave';
   drawStatus(r);
@@ -370,10 +374,10 @@ function live() {
   current.lines.forEach((l, i) => { const c = document.querySelector('#' + ROOT_ID + ' .ft-cost[data-line="' + i + '"]'); if (c) { const v = lineCost(l); c.textContent = Number.isFinite(v) ? euro.format(v) : '—'; c.classList.toggle('ft-warn-text', !Number.isFinite(v)); } });
   const cost = sheetCost(current), price = n(current.price), ratio = sheetRatio(current), t = tone(ratio);
   const set = (id, v) => { const x = document.getElementById(id); if (x) x.textContent = v; };
-  set('ftRatio', pct(ratio)); set('ftCost', money(cost)); set('ftTtc', money(price * (1 + (n(current.vat) || 0) / 100)));
-  set('ftMargin', Number.isFinite(cost) ? money(price - cost) : '—'); set('ftTarget', Number.isFinite(cost) ? money(cost / (settings.objective / 100)) + ' HT' : '—');
+  set('ftRatio', pct(ratio)); set('ftCost', money(cost)); set('ftHt', money(price));
+  set('ftMargin', Number.isFinite(cost) ? money(price - cost) : '—'); set('ftTarget', Number.isFinite(cost) ? money(toTtc(cost / (settings.objective / 100), current.vat)) + ' TTC · ' + money(cost / (settings.objective / 100)) + ' HT' : '—');
   set('ftObjective', pct(settings.objective));
-  const sm = document.getElementById('ftSlider'); if (sm) set('ftSliderMax', sm.max + ' €');
+  const sm = document.getElementById('ftSlider'); if (sm) set('ftSliderMax', sm.max + ' € TTC');
   const r = document.getElementById('ftRatio'); if (r) r.dataset.tone = t;
   const v = document.getElementById('ftVerdict');
   if (v) { v.dataset.tone = t; v.textContent = t === 'none' ? (current.lines.length ? 'Un ingrédient n’a pas de prix ou d’unité exploitable' : 'Ajoute des ingrédients') : t === 'ok' ? '▼ ' + pct(settings.objective - ratio) + ' sous l’objectif' : '▲ ' + pct(ratio - settings.objective) + ' au-dessus de l’objectif'; }
