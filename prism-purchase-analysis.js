@@ -75,8 +75,9 @@ async function fetchAll(){
   lineCount=manifest.rowCount||0;importedAt=manifest.importedAt||'';
   const data=new Map(),loss={invalidDate:0,invalidQuantity:0,invalidPrice:0,missingBatch:0};
   const pages=manifest.totalBatches||0;
-  for(let offset=0;offset<pages;offset+=12){
-   const result=await api('offset='+offset+'&limit=12');
+  for(let offset=0;offset<pages;offset+=36){
+   const pagesRead=await Promise.all(Array.from({length:Math.min(3,Math.ceil((pages-offset)/12))},(_,j)=>api('offset='+(offset+j*12)+'&limit=12')));
+   for(const result of pagesRead){
    for(const part of result.entries||[]){
     const id=part.key,old=data.get(id);
     if(!old)data.set(id,{...part});
@@ -86,7 +87,8 @@ async function fetchAll(){
     }
    }
    for(const k of Object.keys(loss))loss[k]+=result.ignored?.[k]||0;
-   if(loadingHost)loadingHost.textContent='Analyse des factures : '+Math.min(offset+12,pages)+' / '+pages+' lots lus…';
+   }
+   if(loadingHost)loadingHost.textContent='Analyse des factures : '+Math.min(offset+36,pages)+' / '+pages+' lots lus…';
   }
   entries=[...data.values()];ignored=loss;index=new Map();
   for(const a of entries){
@@ -138,9 +140,9 @@ function render(){
 function drawContent(){
  if(!overlay||!loaded)return;
  const f=productsFor(year).filter(p=>(!supplier||p.supplier===supplier)&&(!search||norm([p.description,p.supplier,p.reference,p.unit,...(p.sourceNames||[])].join(' ')).includes(norm(search))));
- const amount=f.reduce((n,p)=>n+p.amountHT,0),units=f.reduce((n,p)=>n+p.quantity,0);
+ const amount=f.reduce((n,p)=>n+p.amountHT,0),lines=f.reduce((n,p)=>n+p.lines,0);
  const met=document.getElementById('paMetrics');if(met){met.replaceChildren();
-  [[String(f.length),'Références / conditionnements'],[money(amount),'Montant HT reconstitué'],[qty(units),'Somme des unités hétérogènes (non comparable)']].forEach(([v,t])=>{const c=el(met,'div',undefined,'pa-metric');el(c,'span',t,'pa-muted');el(c,'b',v);});
+  [[String(f.length),'Références / conditionnements'],[money(amount),'Montant HT reconstitué'],[qty(lines),'Lignes d’achats retenues']].forEach(([v,t])=>{const c=el(met,'div',undefined,'pa-metric');el(c,'span',t,'pa-muted');el(c,'b',v);});
  }
  const list=document.getElementById('paResults'),pager=document.getElementById('paPager');
  if(!list||!pager)return;list.replaceChildren();pager.replaceChildren();
@@ -153,7 +155,7 @@ function drawContent(){
   const row=el(body,'tr');if(key(p)===selection)row.className='pa-selected';
   const c=el(row,'td');const button=el(c,'button',p.description,'pa-select');
   el(c,'div',p.supplier+' · réf. '+p.reference+' · '+p.unit,'pa-muted');
-  button.onclick=()=>{selection=key(p);drawContent();};
+  button.onclick=()=>{selection=key(p);litresPerUnit=null;drawContent();};
   el(row,'td',qty(p.quantity),'num');el(row,'td',money(p.amountHT),'num');
   el(row,'td',p.flagged?'⚠ '+p.flagged:'—');
  });
@@ -173,6 +175,11 @@ function drawDetail(p){
  el(total,'b',qty(p.quantity)+' '+p.unit+' · '+money(p.amountHT)+' HT');
  el(total,'span',p.lines+' ligne(s) facturées · prix moyen pondéré '+money(p.amountHT/p.quantity)+' HT / '+p.unit,'pa-muted');
  if(p.flagged||p.dutyMissing||p.unitAssumed)el(detailHost,'p','⚠ Chiffres indicatifs : '+p.flagged+' ligne(s) avec alerte, '+p.dutyMissing+' ligne(s) sans PU avec droits. Vérifier les conditionnements et les factures avant de conclure une négociation.','pa-warning');
+ const prior=(index.get(selection)||[]).filter(x=>x.year===year-1);
+ if(prior.length){
+  const pq=prior.reduce((n,x)=>n+x.quantity,0),pa=prior.reduce((n,x)=>n+x.amountHT,0);
+  el(detailHost,'p','Comparaison '+(year-1)+' : '+qty(pq)+' '+p.unit+' · '+money(pa)+' HT'+(pa>0?' · évolution dépenses '+fmt.format((p.amountHT/pa-1)*100)+' %':''),'pa-muted');
+ }
  el(detailHost,'p','Répartition mensuelle des achats · '+year,'pa-muted');
  const bars=el(detailHost,'div',undefined,'pa-chart'),max=Math.max(...p.months.map(x=>x.qty),1);
  p.months.forEach((m,i)=>{
@@ -182,6 +189,11 @@ function drawDetail(p){
   bar.title=months[i]+' : '+qty(m.qty)+' '+p.unit+' · '+money(m.amount)+' HT';
   el(c,'div',months[i],'pa-month');
  });
+ const monthBox=el(detailHost,'div',undefined,'pa-scroll'),mt=el(monthBox,'table',undefined,'pa-table');
+ const mtHead=el(mt,'thead'),mh=el(mtHead,'tr');['Mois','Quantité achetée','Montant HT'].forEach(t=>el(mh,'th',t));
+ const mtBody=el(mt,'tbody');
+ p.months.forEach((m,i)=>{const row=el(mtBody,'tr');el(row,'td',months[i]);el(row,'td',qty(m.qty)+' '+p.unit,'num');el(row,'td',money(m.amount),'num');});
+
  const scenario=el(detailHost,'div',undefined,'pa-scenario');el(scenario,'h3','Simulateur de négociation');
  el(scenario,'p','Estime une économie en appliquant une réduction au volume effectivement acheté sur l’année de référence, sans projection automatique.','pa-muted');
  const wrap=el(scenario,'div',undefined,'pa-scenario-grid');
