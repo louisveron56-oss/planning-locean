@@ -71,7 +71,7 @@ export default async function(req){
     const id=norm(url.searchParams.get("key"),400),meta=current?.products?.[id];
     if(!meta)return reply({key:id,rows:[],meta:null});
     const chunks=(meta.chunks||[]).slice(0,250);
-    const loaded=await Promise.all(chunks.map(c=>db.get("runs/"+current.run+"/batches/"+c,{type:"json",consistency:"strong"})));
+    const loaded=await Promise.all(chunks.map(c=>db.get("runs/"+(meta.chunkRun||current.run)+"/batches/"+c,{type:"json",consistency:"strong"})));
     const rows=loaded.flatMap(a=>Array.isArray(a)?a:[]).filter(x=>k(x.supplier,x.reference)===id).map(promocashUnit).map(ouestAurayDisplay).sort((a,b)=>a.date.localeCompare(b.date));
     return reply({key:id,rows,meta});
    }
@@ -84,10 +84,10 @@ export default async function(req){
   const action=norm(body.action,40),run=norm(body.run,80);
   if(action==="begin"){
    if(!/^[a-z0-9-]{12,80}$/i.test(run))return reply({error:"Identifiant invalide"},400);
-   if(current&&!body.replace)return reply({error:"Un historique existe déjà. Remplacement explicitement requis."},409);
+   if(current&&!body.replace&&body.scope!=="ouest-auray")return reply({error:"Un historique existe déjà. Remplacement explicitement requis."},409);
    const pending=await db.get("pending/"+run,{type:"json",consistency:"strong"});
    if(pending)return reply({error:"Import déjà commencé"},409);
-   await db.setJSON("pending/"+run,{run,createdAt:new Date().toISOString(),owner:user.email.toLowerCase(),rowCount:0,products:{},batches:0});
+   await db.setJSON("pending/"+run,{run,createdAt:new Date().toISOString(),owner:user.email.toLowerCase(),rowCount:0,products:{},batches:0,scope:body.scope==="ouest-auray"?"ouest-auray":"all",baseRun:current?.run||null});
    return reply({ok:true,run});
   }
   if(!/^[a-z0-9-]{12,80}$/i.test(run))return reply({error:"Import inconnu"},400);
@@ -98,6 +98,7 @@ export default async function(req){
    if(!Number.isInteger(batch)||batch!==pending.batches||batch<0||batch>500)return reply({error:"Ordre des lots invalide"},409);
    if(!Array.isArray(body.rows)||body.rows.length<1||body.rows.length>250)return reply({error:"Lot invalide (1 à 250 lignes)"},400);
    const rows=body.rows.map(clean);
+   if(pending.scope==="ouest-auray"&&rows.some(r=>!isOuestAuray(r.supplier)))return reply({error:"Import ciblé : seules les lignes Ouest et Auray Boissons sont autorisées"},422);
    if(rows.some(x=>!x))return reply({error:"Ligne invalide : fournisseur, référence, date, produit ou prix manquant"},422);
    // Écrire le lot avant le manifeste, pour permettre la reprise sans activation partielle.
    await db.setJSON("runs/"+run+"/batches/"+batch,rows);
@@ -117,7 +118,14 @@ export default async function(req){
   if(action==="publish"){
    if(pending.rowCount<1)return reply({error:"Aucune ligne importée"},409);
    if(Number(body.expectedRows)!==pending.rowCount)return reply({error:"Nombre de lignes différent du contrôle import"},409);
-   const snapshot={...pending,importedAt:new Date().toISOString()};
+   let snapshot={...pending,importedAt:new Date().toISOString()};
+   if(pending.scope==="ouest-auray"&&current){
+    if(current.run!==pending.baseRun)return reply({error:"Historique modifié pendant l'import : relance le contrôle"},409);
+    const existing=Object.fromEntries(Object.entries(current.products||{}).filter(([,p])=>!isOuestAuray(p.supplier))
+      .map(([id,p])=>[id,{...p,chunkRun:p.chunkRun||current.run}]));
+    const fresh=Object.fromEntries(Object.entries(pending.products).map(([id,p])=>[id,{...p,chunkRun:run}]));
+    snapshot={...snapshot,products:{...existing,...fresh},rowCount:Object.values(existing).reduce((n,p)=>n+(p.count||0),0)+pending.rowCount};
+   }
    await db.setJSON("active",snapshot);
    return reply({ok:true,rowCount:snapshot.rowCount,productCount:Object.keys(snapshot.products).length});
   }
