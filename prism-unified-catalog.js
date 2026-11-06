@@ -538,23 +538,58 @@ function sortHeader(tr,label,key,cls){
  b.onclick=()=>{if(sort===key)sortDir=sortDir==='asc'?'desc':'asc';else{sort=key;sortDir='asc';}pageIndex=0;drawList();};
 }
 
+const pendingProductActions=new Set();
 async function productAction(action,item){
  const user=window.netlifyIdentity?.currentUser?.();if(!user){alert('Connexion requise');return;}
  const hard=action==='delete-permanent';
- const prompt=action==='archive'?'Retirer « '+item.name+' » des produits actifs ? Tu pourras le remettre depuis Produits retirés.':action==='restore'?'Remettre « '+item.name+' » dans les produits actifs ?':'Supprimer DÉFINITIVEMENT « '+item.name+' » du catalogue ? Cette action est irréversible. Les factures restent conservées, mais les fiches techniques qui utilisent cet article risquent de ne plus le retrouver.';
- if(!confirm(prompt))return;
+ // Retirer et restaurer : réversible via la corbeille, donc sans confirmation.
+ // Seule la suppression irréversible doit être explicitement confirmée.
+ if(hard&&!confirm('Supprimer DÉFINITIVEMENT « '+item.name+' » du catalogue ? Cette action est irréversible. Les factures restent conservées.'))return;
+ const key=keyFor(item);
+ if(pendingProductActions.has(key))return;
+ pendingProductActions.add(key);
  const payload={establishment:'LOCEAN',action:item.catalog?action:hard?'delete-source':action+'-source'};
  if(item.catalog)payload.productId=item.catalog.id;else payload.source={supplier:item.supplier,supplierReference:item.supplierReference,name:item.name};
  if(hard)payload.confirm='DELETE_FOREVER';
+ const previous={rows,removedItems,privateCatalog,sourceExclusions};
+ const archivedAt=new Date().toISOString();
  try{
+  // Mise à jour immédiate de la liste, sans chargement réseau ni retour en page 1.
+  if(action==='archive'){
+   rows=rows.filter(p=>keyFor(p)!==key);
+   removedItems=[...removedItems.filter(p=>keyFor(p)!==key),{...item,archivedAt}];
+   if(item.catalog)privateCatalog=privateCatalog.map(p=>p.id===item.catalog.id?{...p,archivedAt}:p);
+   else sourceExclusions=[...sourceExclusions.filter(x=>x.key!==key),{key,status:'archived',name:item.name,supplier:item.supplier,supplierReference:item.supplierReference,at:archivedAt}];
+  }else if(hard){
+   removedItems=removedItems.filter(p=>keyFor(p)!==key);
+   if(item.catalog)privateCatalog=privateCatalog.filter(p=>p.id!==item.catalog.id);
+   else sourceExclusions=[...sourceExclusions.filter(x=>x.key!==key),{key,status:'permanent',name:item.name,supplier:item.supplier,supplierReference:item.supplierReference}];
+  }else{
+   removedItems=removedItems.filter(p=>keyFor(p)!==key);
+   sourceExclusions=sourceExclusions.filter(x=>x.key!==key);
+   if(item.catalog)privateCatalog=privateCatalog.map(p=>p.id===item.catalog.id?{...p,archivedAt:null}:p);
+   rows=joinSources(privateCatalog,sourceSheetRows,sourceExclusions).map(p=>Object.assign(p,{display:cleanName(p.name),supplierDisplay:prettySupplier(p.supplier),group:groupOf(p)}));
+   attachPurchaseDates(rows,historyIndex||[]);rows=reconciledRows(rows);
+  }
+  detailId='';
+  // Ne pas réinitialiser pageIndex : préserver le contexte de travail.
+  const count=showRemoved?removedItems.length:visibleRows().length;
+  if(pageIndex>0&&pageIndex*PAGE_SIZE>=count)pageIndex=Math.max(0,Math.ceil(count/PAGE_SIZE)-1);
+  drawList();
+  // Actualiser uniquement l'intitulé de la corbeille, pas toute la page.
+  const trash=[...document.querySelectorAll('#prismUnifiedCatalog .pcu-header button')].find(b=>b.textContent.startsWith('Produits retirés ('));
+  if(trash)trash.textContent='Produits retirés ('+removedItems.length+')';
   const response=await fetch('/.netlify/functions/purchases',{method:'PATCH',headers:{Authorization:'Bearer '+await user.jwt(),'Content-Type':'application/json'},body:JSON.stringify(payload),cache:'no-store'});
   const data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'Opération refusée');
-  // Recharger les données serveur après la mutation, sans actualiser la page.
-  // Ceci synchronise la liste, les filtres et le compteur de la corbeille.
-  detailId='';pageIndex=0;
-  await load();
   window.dispatchEvent(new CustomEvent('prism-catalog-updated',{detail:{source:'lifecycle'}}));
- }catch(e){alert(e.message);}
+ }catch(e){
+  // Si le serveur refuse, restaurer exactement les données affichées.
+  rows=previous.rows;removedItems=previous.removedItems;privateCatalog=previous.privateCatalog;sourceExclusions=previous.sourceExclusions;
+  drawList();
+  const trash=[...document.querySelectorAll('#prismUnifiedCatalog .pcu-header button')].find(b=>b.textContent.startsWith('Produits retirés ('));
+  if(trash)trash.textContent='Produits retirés ('+removedItems.length+')';
+  alert('Suppression non enregistrée : '+e.message);
+ }finally{pendingProductActions.delete(key);}
 }
 function drawRemoved(){
  const found=removedItems.filter(p=>!search||norm([p.name,p.supplier,p.supplierReference].join(' ')).includes(norm(search)));
