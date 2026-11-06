@@ -130,6 +130,8 @@ const historyApi='/.netlify/functions/purchase-history';
 let historyIndex=null,historyIndexError='',historyIndexLoading=null,detailRequest=0;
 function compactKey(x){return norm(x).replace(/\s+/g,' ');}
 function historyKey(supplier,ref){return compactKey(supplier)+'|'+compactKey(ref);}
+function drinksAlias(supplier){return /^(ouest|auray) boissons?$/.test(compactKey(supplier))?'ouest-auray-boissons':'';}
+function sameDrinksReference(item,p){return drinksAlias(item.supplier)&&drinksAlias(p.supplier)&&compactKey(item.supplierReference)&&compactKey(item.supplierReference)===compactKey(p.reference);}
 async function historicalIndex(){
  if(historyIndex)return historyIndex;
  if(historyIndexLoading)return historyIndexLoading;
@@ -151,7 +153,9 @@ function matchingHistory(item,products){
  if(!supplier||supplier==='non renseigné')return null;
  if(reference){
   const exact=products.filter(p=>historyKey(p.supplier,p.reference)===historyKey(item.supplier,item.supplierReference));
-  return exact.length===1?exact[0]:null;
+  if(exact.length===1)return exact[0];
+  if(drinksAlias(item.supplier)){const related=products.filter(p=>sameDrinksReference(item,p));return related.length?related[0]:null;}
+  return null;
  }
  // For missing reference only: one exact supplier+description candidate is safe enough to suggest, but not assert linkage.
  const matches=products.filter(p=>compactKey(p.supplier)===supplier&&compactKey(p.description)===compactKey(item.name));
@@ -189,6 +193,7 @@ function attachPurchaseDates(items,historyProducts){
 /* Rapprochement explicitement confirmé par la direction : Red Boisson -> West Boisson.
    Ne fusionne ni les factures ni les IDs en base. Uniquement même libellé et unité non contradictoire. */
 function supplierAlias(supplier){
+ if(drinksAlias(supplier))return 'ouest-auray-boissons';
  const value=norm(supplier).replace(/[^a-z0-9]+/g,' ').trim();
  if(/^red boissons?$/.test(value)||/^west boissons?$/.test(value))return 'red-west-boisson';
  return '';
@@ -202,10 +207,14 @@ function reconciledRows(items){
  });
  for(const parts of groups.values()){
   // There must be exactly one row for each historical company.
-  if(parts.length!==2||supplierAlias(parts[0].supplier)!=='red-west-boisson'||supplierAlias(parts[1].supplier)!=='red-west-boisson')continue;
+  if(parts.length!==2)continue;
+  const alias=supplierAlias(parts[0].supplier);
+  if(!alias||alias!==supplierAlias(parts[1].supplier))continue;
+  if(alias==='ouest-auray-boissons'&&(!compactKey(parts[0].supplierReference)||compactKey(parts[0].supplierReference)!==compactKey(parts[1].supplierReference)))continue;
   const companyA=norm(parts[0].supplier).startsWith('red')?'red':'west';
   const companyB=norm(parts[1].supplier).startsWith('red')?'red':'west';
-  if(companyA===companyB)continue;
+  if(alias==='red-west-boisson'&&companyA===companyB)continue;
+  if(alias==='ouest-auray-boissons'&&compactKey(parts[0].supplier)===compactKey(parts[1].supplier))continue;
   const units=parts.map(p=>p.price.unit).filter(Boolean);
   if(new Set(units).size>1)continue; // Never compare unlike units.
   const categories=parts.map(p=>p.group).filter(x=>x&&x!=='À classer');
@@ -213,9 +222,9 @@ function reconciledRows(items){
   const [latest,older]=parts.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||Number(!!b.catalog)-Number(!!a.catalog));
   // In-place displayed row only; underlying catalogue objects and invoice records are untouched.
   latest.linkedItems=[latest,older];
-  latest.supplierDisplay='Red Boisson / West Boisson';
+  latest.supplierDisplay=alias==='ouest-auray-boissons'?'Ouest Boissons / Auray Boissons':'Red Boisson / West Boisson';
   latest.date=[latest.date,older.date].filter(Boolean).sort().at(-1)||'';
-  latest.purchaseDateSource='Achats rapprochés Red Boisson + West Boisson';
+  latest.purchaseDateSource='Achats rapprochés '+latest.supplierDisplay;
   latest.warning=latest.warning||older.warning||units.length!==2;
   hidden.add(older);
  }
@@ -301,7 +310,7 @@ function infoModal(item){
  const fields=make(modal,'dl','pcu-details');
  const attr=(label,value)=>{make(fields,'dt','',label);make(fields,'dd','',value||'Non renseigné');};
  attr('Désignation',item.name);
- attr('Fournisseur',item.linkedItems?.length?'Red Boisson / West Boisson':item.supplier);
+ attr('Fournisseur',item.linkedItems?.length?(item.supplierDisplay||item.supplier):item.supplier);
  if(item.linkedItems?.length)item.linkedItems.forEach((p,i)=>attr('Référence historique '+(i+1),p.supplier+' · '+(p.supplierReference||'sans référence')));
  attr('Référence fournisseur',item.supplierReference);
  attr('Famille / catégorie',item.category);
@@ -331,7 +340,7 @@ function infoModal(item){
 }
 function purchaseUnitLabel(value){
  const standard=unitLabel(value);if(standard)return standard;
- const words={boi:'boîte',bte:'boîte',boite:'boîte',car:'carton',ct:'carton',crt:'carton',carton:'carton',col:'colis',colis:'colis',btl:'bouteille',bouteille:'bouteille',boc:'bocal',bocal:'bocal',paq:'paquet',paquet:'paquet',sac:'sac',dz:'douzaine',douzaine:'douzaine',bar:'barquette',bq:'barquette',barquette:'barquette',emb:'emballage / consigne',pet:'bouteille PET',lot:'lot',pk:'pack',pack:'pack',fl:'flacon',flacon:'flacon',h:'heure',heure:'heure',forfait:'forfait'};
+ const words={fut:'fût','fût':'fût',cai:'caisse',caisse:'caisse',caisses:'caisse',boi:'boîte',bte:'boîte',boite:'boîte',car:'carton',ct:'carton',crt:'carton',carton:'carton',col:'colis',colis:'colis',btl:'bouteille',bouteille:'bouteille',boc:'bocal',bocal:'bocal',paq:'paquet',paquet:'paquet',sac:'sac',dz:'douzaine',douzaine:'douzaine',bar:'barquette',bq:'barquette',barquette:'barquette',emb:'emballage / consigne',pet:'bouteille PET',lot:'lot',pk:'pack',pack:'pack',fl:'flacon',flacon:'flacon',h:'heure',heure:'heure',forfait:'forfait'};
  return words[norm(value)]||'unité ?';
 }
 function purchasesChart(host,lines){
@@ -380,7 +389,7 @@ async function purchasesFor(item,slot){
   const index=await historicalIndex();
   if(stamp!==detailRequest||detailId!==item.id)return;
   const sources=item.linkedItems?.length?item.linkedItems:[item];
-  const matches=sources.map(source=>source.purchaseHistoryMatch||matchingHistory(source,index)).filter(Boolean);
+  const matches=sources.flatMap(source=>{const primary=source.purchaseHistoryMatch||matchingHistory(source,index);const related=drinksAlias(source.supplier)?index.filter(p=>sameDrinksReference(source,p)):[];return [...(primary?[primary]:[]),...related];});
   const unique=[...new Map(matches.map(m=>[m.key,m])).values()];
   if(!unique.length){
    statusLine(slot,'Aucun historique relié avec certitude à cette référence. Les achats importés restent consultables dans Historique achats.',true);
@@ -467,7 +476,7 @@ function detail(item){
  if(!item.price.valid){const unitLine=make(content,'div','pcu-unit-inline-detail');make(unitLine,'span','','Unité de prix à vérifier');inlineUnitEditor(item,unitLine);}
  const metrics=make(content,'div','pcu-metrics');
  if(item.linkedItems?.length>1){
-  make(content,'p','pcu-muted','Référence fournisseur rapprochée : Red Boisson et West Boisson · historique des deux noms conservé.');
+  make(content,'p','pcu-muted','Références rapprochées : '+(item.supplierDisplay||item.supplier)+' · archives des deux entités conservées.');
  }
  const price=make(metrics,'div','pcu-metric');make(price,'small','','Dernier prix catalogue HT');make(price,'strong','',item.price.text);
  const when=make(metrics,'div','pcu-metric');make(when,'small','','Dernier achat rapproché');make(when,'strong','',item.date?showDate(item.date):'Aucune date reliée');
