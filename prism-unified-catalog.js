@@ -94,7 +94,7 @@ function joinSources(catalog,sheets,exclusions=[]){
   }
  });
  sheets.forEach((p,i)=>{
-  if(matched.has(i)||excluded.has(removalKey(p.fournisseur,p.code,p.designation)))return;
+  if(matched.has(i)||excluded.has(removalKey(p.fournisseur||'Non renseigné',p.code,p.designation)))return;
   const price=normalizedPrice(p.prix_actuel_ht,billedUnit(p.fournisseur,p.unite||p.unite_prix||''));
   items.push({
    id:'sheet:'+i,catalog:null,sheet:p,name:p.designation||'Sans nom',
