@@ -16,14 +16,18 @@ const promocashUnit=row=>{
  return {...row,unit:"pièce",originalUnit:row.unit||"",unitInterpretation:"unité commerciale facturée (conditionnement à préciser)",verified:false,
   issues:[...new Set([...(row.issues||[]).filter(x=>x!=="Unité absente ou ambiguë"),"Contenu de l'unité commerciale à confirmer"])]};
 };
-const basicUnit=u=>{const a=slug(u);if(["kg","kil","kilogramme","kilogrammes"].includes(a))return "kg";if(["g","gramme","grammes"].includes(a))return "g";if(["l","lt","litre","litres"].includes(a))return "L";if(["cl"].includes(a))return "cl";if(["ml"].includes(a))return "ml";if(["piece","pieces","unite","unites","u","pc","pcs","pce","uni"].includes(a))return "pièce";const packs={boi:"boîte",bte:"boîte",boite:"boîte",boites:"boîte",car:"carton",ct:"carton",crt:"carton",carton:"carton",cartons:"carton",col:"colis",colis:"colis",btl:"bouteille",bouteille:"bouteille",bouteilles:"bouteille",boc:"bocal",bocal:"bocal",paq:"paquet",paquet:"paquet",sac:"sac",dz:"douzaine",douzaine:"douzaine",bar:"barquette",bq:"barquette",barquette:"barquette",emb:"emballage / consigne",emballage:"emballage / consigne","emballage / consigne":"emballage / consigne",pet:"bouteille PET","bouteille pet":"bouteille PET",lot:"lot",pk:"pack",pack:"pack",fl:"flacon",flacon:"flacon",h:"heure",heure:"heure",forfait:"forfait"};return packs[a]||"";};
+const isOuestAuray=s=>/^(ouest|auray) boissons?$/.test(slug(s));
+const basicUnit=u=>{const a=slug(u);if(["kg","kil","kilogramme","kilogrammes"].includes(a))return "kg";if(["g","gramme","grammes"].includes(a))return "g";if(["l","lt","litre","litres"].includes(a))return "L";if(["cl"].includes(a))return "cl";if(["ml"].includes(a))return "ml";if(["piece","pieces","unite","unites","u","pc","pcs","pce","uni"].includes(a))return "pièce";const packs={fut:"fût","fût":"fût",cai:"caisse",caisse:"caisse",caisses:"caisse",boi:"boîte",bte:"boîte",boite:"boîte",boites:"boîte",car:"carton",ct:"carton",crt:"carton",carton:"carton",cartons:"carton",col:"colis",colis:"colis",btl:"bouteille",bouteille:"bouteille",bouteilles:"bouteille",boc:"bocal",bocal:"bocal",paq:"paquet",paquet:"paquet",sac:"sac",dz:"douzaine",douzaine:"douzaine",bar:"barquette",bq:"barquette",barquette:"barquette",emb:"emballage / consigne",emballage:"emballage / consigne","emballage / consigne":"emballage / consigne",pet:"bouteille PET","bouteille pet":"bouteille PET",lot:"lot",pk:"pack",pack:"pack",fl:"flacon",flacon:"flacon",h:"heure",heure:"heure",forfait:"forfait"};return packs[a]||"";};
 function clean(r){
  // Ne supprimer aucune facture parce qu'une référence, une unité ou un prix manque.
  const supplier=norm(r.supplier,160)||"Fournisseur à identifier";
  const description=norm(r.description,250)||"Désignation à vérifier";
  const explicitReference=norm(r.reference,140);
  const reference=explicitReference||"sans-ref:"+slug(description).slice(0,110);
- const d=date(r.date),price=parseNum(r.priceHT),quantity=parseNum(r.quantity),unit=norm(r.unit,50);
+ const d=date(r.date),duties=parseNum(r.priceWithDutiesHT),basic=parseNum(r.priceHT);
+ const hasDuties=duties!==null&&duties>=0&&duties<=100000;
+ const price=hasDuties?duties:basic,quantity=parseNum(r.quantity),unit=norm(r.unit,50);
+ const priceBasis=isOuestAuray(supplier)?(hasDuties?"PU avec drt HT":"PU avec drt non confirmé"):"PUHT";
  const reading=slug(r.reading),status=slug(r.invoiceStatus);
  const issues=[];
  if(!explicitReference)issues.push("Référence absente : regroupement provisoire par désignation");
@@ -32,12 +36,14 @@ function clean(r){
  if(!d)issues.push("Date non reconnue");
  if(price===null||price<0||price>100000)issues.push("Prix unitaire non exploitable");
  const recognizedUnit=basicUnit(unit);
+ if(isOuestAuray(supplier)&&!hasDuties)issues.push("PU avec drt non disponible : prix d’achat HT provisoire");
  if(!recognizedUnit)issues.push("Unité absente ou ambiguë");
- else if(!["kg","g","L","cl","ml","pièce","heure","forfait"].includes(recognizedUnit))issues.push("Contenu du conditionnement à confirmer avant conversion");
+ else if(!["kg","g","L","cl","ml","pièce","heure","forfait"].includes(recognizedUnit)&&!isOuestAuray(supplier))issues.push("Contenu du conditionnement à confirmer avant conversion");
+ else if(["carton","boîte","fût","caisse"].includes(recognizedUnit))issues.push("Prix par conditionnement facturé : quantité intérieure non convertie");
  if(reading.includes("ocr"))issues.push("Lecture OCR");
  if(!status||!["complete","complet","valide","ok"].includes(status))issues.push("Complétude de facture à contrôler");
  if(quantity===null||quantity<=0)issues.push("Quantité à contrôler");
- return {supplier,reference,description,date:d||"",priceHT:price!==null&&price>=0&&price<=100000?price:null,quantity,unit,
+ return {supplier,reference,description,date:d||"",priceHT:price!==null&&price>=0&&price<=100000?price:null,priceBasis,priceWithDutiesHT:hasDuties?duties:null,basePriceHT:basic,quantity,unit,
   document: norm(r.document,180),invoice: norm(r.invoice,100),source: norm(r.source,240),
   reading:norm(r.reading,30),invoiceStatus:norm(r.invoiceStatus,40),
   issues,verified:issues.length===0};
