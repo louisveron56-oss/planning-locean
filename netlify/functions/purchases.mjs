@@ -58,6 +58,20 @@ export default async function(req){
   if(req.method==="PATCH"){
    if(!saved)return send({error:"Catalogue non importé"},404);
    const products=Array.isArray(saved.products)?saved.products:[];
+   if(payload.action==="default-missing-unit"){
+    // Unité absente = unité commerciale facturée, sans conversion du contenu du lot.
+    const key=x=>normalize(x,120).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ");
+    const missing=x=>!key(x)||/^(non precisee|non precise|a verifier|unite \?|inconnue|inconnu|n\/a)$/.test(key(x));
+    const candidates=products.filter(p=>!p.archivedAt&&!fromLegacyInventory(p)&&missing(p.unit));
+    if(payload.preview===true)return send({ok:true,preview:true,missing:candidates.length,total:products.filter(p=>!p.archivedAt&&!fromLegacyInventory(p)).length,pricesUnchanged:true});
+    if(payload.confirm!=="DEFAULT_PIECE")return send({error:"Confirmation de la règle pièce par défaut requise"},400);
+    for(const p of candidates){
+     p.unit="pièce";p.unitAssumed=true;p.unitAssumptionSource="Unité facturée par défaut ; contenu de conditionnement non confirmé";
+     p.unitAssumedAt=now;p.unitAssumedBy=actor;
+    }
+    if(candidates.length)await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
+    return send({ok:true,updated:candidates.length,pricesUnchanged:true});
+   }
    if(payload.action==="promocash-billed-unit"){
     // Le PUHT Promocash est par unité commerciale facturée (pièce, carton, lot).
     // Jamais de conversion vers les pièces contenues dans un carton.
@@ -178,7 +192,7 @@ export default async function(req){
     const unit=normalize(payload.unit,20);
     if(!["kg","L","pièce"].includes(unit))return send({error:"Choisis kg, L ou pièce"},400);
     if(!Number.isFinite(Number(p.price)))return send({error:"Prix source inexploitable; vérifie la facture"},409);
-    const updated={...p,unit,unitConfirmedAt:now,unitConfirmedBy:actor,priceStatus:"valide_manuellement",priceConfirmedAt:now,priceConfirmedBy:actor,
+    const updated={...p,unit,unitAssumed:false,unitConfirmedAt:now,unitConfirmedBy:actor,priceStatus:"valide_manuellement",priceConfirmedAt:now,priceConfirmedBy:actor,
      priceHistory:sameUnit(p.unit,unit)?history:[...history,entry(p.price,unit,"Unité de prix confirmée manuellement, prix HT inchangé",actor,now,"confirmation-unite")]};
     products[index]=updated;
     await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
@@ -192,7 +206,7 @@ export default async function(req){
     if(quantity!==null&&(!Number.isFinite(quantity)||quantity<0))return send({error:"Quantité d'inventaire invalide"},400);
     const changedPrice=Number(p.price)!==price||!sameUnit(p.unit,unit);
     const initial=history.length?history:[entry(Number(p.price),p.unit,"Valeur initiale enregistrée au catalogue",actor,saved.importedAt||saved.savedAt||now,"import")];
-    const updated={...p,name,category,subcategory:subtype(category,normalize(changes.subcategory,90)),locations:locations(changes.locations),unit,price,inventoryQuantity:quantity,priceStatus:"valide_manuellement",priceConfirmedAt:now,priceConfirmedBy:actor,priceHistory:changedPrice?[...initial,entry(price,unit,normalize(payload.reason,200)||"Modification manuelle",actor)]:history,sourcePrice:changedPrice?"manuel":p.sourcePrice};
+    const updated={...p,name,category,subcategory:subtype(category,normalize(changes.subcategory,90)),locations:locations(changes.locations),unit,unitAssumed:false,price,inventoryQuantity:quantity,priceStatus:"valide_manuellement",priceConfirmedAt:now,priceConfirmedBy:actor,priceHistory:changedPrice?[...initial,entry(price,unit,normalize(payload.reason,200)||"Modification manuelle",actor)]:history,sourcePrice:changedPrice?"manuel":p.sourcePrice};
     products[index]=updated;
     await db.setJSON("ocean/latest",{...saved,savedAt:now,products});
     return send({ok:true,product:updated,savedAt:now});
