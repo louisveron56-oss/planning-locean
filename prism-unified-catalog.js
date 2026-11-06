@@ -549,23 +549,10 @@ async function productAction(action,item){
  try{
   const response=await fetch('/.netlify/functions/purchases',{method:'PATCH',headers:{Authorization:'Bearer '+await user.jwt(),'Content-Type':'application/json'},body:JSON.stringify(payload),cache:'no-store'});
   const data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'Opération refusée');
-  const key=keyFor(item);
-  if(action==='archive'){
-   rows=rows.filter(p=>keyFor(p)!==key);
-   removedItems.push({...item,archivedAt:new Date().toISOString()});
-  }else if(hard)removedItems=removedItems.filter(p=>keyFor(p)!==key);
-  else{
-   removedItems=removedItems.filter(p=>keyFor(p)!==key);
-   // Reconstruire immédiatement depuis les sources déjà en mémoire, sans requête réseau.
-   sourceExclusions=sourceExclusions.filter(x=>x.key!==key);
-   if(item.catalog)privateCatalog=privateCatalog.map(p=>p.id===item.catalog.id?{...p,archivedAt:null}:p);
-   rows=joinSources(privateCatalog,sourceSheetRows,sourceExclusions).map(p=>Object.assign(p,{display:cleanName(p.name),supplierDisplay:prettySupplier(p.supplier),group:groupOf(p)}));
-   attachPurchaseDates(rows,historyIndex||[]);rows=reconciledRows(rows);
-  }
-  if(action==='archive'&&item.catalog)privateCatalog=privateCatalog.map(p=>p.id===item.catalog.id?{...p,archivedAt:new Date().toISOString()}:p);
-  if(action==='archive'&&!item.catalog)sourceExclusions.push({key,status:'archived'});
-  if(hard&&item.catalog)privateCatalog=privateCatalog.filter(p=>p.id!==item.catalog.id);
-  detailId='';pageIndex=0;render();
+  // Recharger les données serveur après la mutation, sans actualiser la page.
+  // Ceci synchronise la liste, les filtres et le compteur de la corbeille.
+  detailId='';pageIndex=0;
+  await load();
   window.dispatchEvent(new CustomEvent('prism-catalog-updated',{detail:{source:'lifecycle'}}));
  }catch(e){alert(e.message);}
 }
@@ -841,7 +828,7 @@ function init(){
   pendingSupplier=String(ev.detail?.supplier||'');supplierFilter=pendingSupplier;detailId='';pageIndex=0;
   if(loadedOnce)render();
  });
- window.addEventListener('prism-catalog-updated',event=>{if(event.detail?.source==='quick-edit')return;if(page.classList.contains('open'))load();});
+ window.addEventListener('prism-catalog-updated',event=>{if(['quick-edit','lifecycle'].includes(event.detail?.source))return;if(page.classList.contains('open'))load();});
  if(page.classList.contains('open'))load();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
