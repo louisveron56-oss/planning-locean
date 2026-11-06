@@ -32,7 +32,10 @@ function open(){if(overlay)return;overlay=el("div",undefined,"ph-overlay");panel
  panel.appendChild(el("h2","Historique des achats · L'Océan"));
  panel.appendChild(el("p","Courbes et lignes de factures datées. Tous les montants sont en HT ; les données incertaines restent signalées. Ce module ne modifie aucun prix du catalogue ni aucun ratio."));
  const actions=el("div",undefined,"ph-actions"),search=el("input");search.placeholder="Rechercher produit, fournisseur ou référence";search.style.flex="1";actions.appendChild(search);
- const importBtn=el("button","Importer un CSV","ph-primary");actions.appendChild(importBtn);panel.appendChild(actions);
+ const importBtn=el("button","Importer un CSV","ph-primary");actions.appendChild(importBtn);
+ const analysis=el("button","Analyse achats & négociation","ph-primary");actions.appendChild(analysis);
+ analysis.onclick=()=>window.dispatchEvent(new CustomEvent('prism-open-purchase-analysis'));
+ panel.appendChild(actions);
  status=el("p","Chargement…","ph-secondary");panel.appendChild(status);
  const grid=el("div",undefined,"ph-grid");listHost=el("div",undefined,"ph-list");detailHost=el("div");grid.append(listHost,detailHost);panel.appendChild(grid);
  search.oninput=()=>renderList(search.value);importBtn.onclick=importFlow;

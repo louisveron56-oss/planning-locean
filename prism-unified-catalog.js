@@ -475,6 +475,8 @@ function detail(item){
  const content=make(listHost,'section','pcu-detail');
  const head=make(content,'div','pcu-detail-head');
  const back=make(head,'button','pcu-back','← Produits');back.type='button';back.onclick=()=>{detailId='';detailRequest++;drawList();};
+ const analysis=make(head,'button','pcu-link','Volumes & négociation');analysis.type='button';
+ analysis.onclick=()=>window.dispatchEvent(new CustomEvent('prism-open-purchase-analysis',{detail:{name:item.name,supplier:item.supplier,reference:item.supplierReference}}));
  const info=make(head,'button','pcu-info-button','i');info.type='button';info.title='Informations complètes';info.setAttribute('aria-label','Informations complètes sur le produit');info.onclick=()=>infoModal(item);
  const removeBtn=make(head,'button','pcu-link','Retirer ce produit');removeBtn.type='button';removeBtn.onclick=()=>productAction('archive',item);
  make(content,'h3','pcu-product-name',item.name);
@@ -730,6 +732,10 @@ function render(){
  root.replaceChildren();
  const header=make(root,'div','pcu-header');
  make(header,'h3','','Produits');
+ const analysisButton=make(header,'button','pcu-link','Analyse des achats');analysisButton.type='button';
+ analysisButton.title='Quantités mensuelles, dépenses HT et simulation de négociation';
+ analysisButton.onclick=()=>window.dispatchEvent(new CustomEvent('prism-open-purchase-analysis'));
+
  const trash=make(header,'button','pcu-link',showRemoved?'← Produits actifs':'Produits retirés ('+removedItems.length+')');trash.type='button';trash.onclick=()=>{showRemoved=!showRemoved;detailId='';pageIndex=0;render();};
  const defaultBtn=make(header,'button','pcu-link','Appliquer « pièce » aux unités manquantes');defaultBtn.type='button';
  defaultBtn.onclick=async()=>{
