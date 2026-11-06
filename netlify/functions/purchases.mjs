@@ -293,7 +293,7 @@ export default async function(req){
    const key=normalize(prior.name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
    if(!importedNames.has(key)){products.push(prior);importedNames.add(key);}
   }
-  const record={reference:"Inventaire L’Océan · septembre 2026",savedAt:now,importedAt:now,products};
+  const record={reference:"Inventaire L’Océan · septembre 2026",savedAt:now,importedAt:now,products,sourceExclusions:saved?.sourceExclusions||[]};
   await db.setJSON("ocean/latest",record);
   return send({ok:true,count:products.length,savedAt:now,products});
  }catch(error){console.error("Catalogue achats",error);return send({error:"Stockage du catalogue indisponible"},503);}
