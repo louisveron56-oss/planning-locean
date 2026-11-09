@@ -235,7 +235,7 @@
     var n = sheet.ownerNode;
     if (!n) return true;
     if (n === mapped || n === brand) return true;
-    if (n.href && /prism-premium-dark|prism-refonte|fonts\.googleapis|identity\.netlify/.test(n.href)) return true;
+    if (n.href && /prism-premium-dark|prism-refonte|prism-topbar|fonts\.googleapis|identity\.netlify/.test(n.href)) return true;
     return false;
   }
   function walk(rules, acc) {
