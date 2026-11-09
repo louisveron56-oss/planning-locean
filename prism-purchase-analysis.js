@@ -189,7 +189,7 @@ function negotiation(p){
  const gain=valid?totalHT-volume*newPrice:null;
  const negative=valid&&newPrice<0;
  const flagged=records.reduce((n,x)=>n+x.flagged,0),missing=records.reduce((n,x)=>n+x.dutyMissing,0);
- return {records,q,monthsKnown,direct,liters,validUnit,volume,totalHT,avgPrice,validTarget,valid,newPrice,gain,negative,flagged,missing,unitLabel:mode==='litre'?'L':'unité'};
+ return {records,q,monthsKnown,direct,liters,validUnit,volume,totalHT,avgPrice,validTarget,valid,newPrice,gain,negative,flagged,missing,unitLabel:mode==='litre'?'litre':p.unit};
 }
 function glassMargin(p,n){
  const directPack=directLitres(p);
@@ -272,14 +272,14 @@ function drawNegotiation(body,p){
  const yrs=yearList().filter(y=>(index.get(selection)||[]).some(x=>x.year===y));if(!yrs.includes(basisYear))basisYear=yrs.includes(year-1)?year-1:year;
  seg(form,'Volumes de référence',yrs.slice(0,4).map(y=>[y,String(y)]),basisYear,v=>{basisYear=v;drawDetail(p);});
  seg(form,'Je simule',[['target','Un nouveau prix'],['discount','Une baisse']],scenarioType,v=>{scenarioType=v;drawDetail(p);});
- seg(form,'Prix exprimé en',[['litre','€ / litre'],['unite','€ / '+p.unit]],mode,v=>{mode=v;drawDetail(p);});
- const unitTxt=mode==='litre'?'€ HT / L':'€ HT / '+p.unit;
+ if(p.unit!=='L')seg(form,'Négocier le prix',[['litre','au litre'],['unite','par '+p.unit]],mode,v=>{mode=v;drawDetail(p);});
+ const unitTxt='€ HT '+(mode==='litre'?'le litre':'par '+p.unit);
  if(scenarioType==='discount')numberInput(field(form,'Baisse obtenue'),discount,'0.01','0,05',unitTxt,v=>{discount=v!==null&&v>=0?v:0;update();});
  else numberInput(field(form,'Prix proposé par le fournisseur'),targetPrice,'0.0001','Prix négocié',unitTxt,v=>{targetPrice=v;update();});
  const direct=directLitres(p);
  if(mode==='litre'){
   const box=field(form,'Litres par '+p.unit,direct!==null?'Conversion automatique':'Ex. : 20 pour un fût de 20 L, 0,75 pour une bouteille');
-  const i=numberInput(box,direct!==null?direct:litresPerUnit,'0.01','—','L',v=>{litresPerUnit=v;update();});
+  const i=numberInput(box,direct!==null?direct:litresPerUnit,'0.01','—','litres',v=>{litresPerUnit=v;update();});
   if(direct!==null){i.readOnly=true;box.classList.add('is-readonly');}
  }
  const result=el(body,'div',undefined,'ng-hero ng-result');
@@ -291,15 +291,15 @@ function drawNegotiation(body,p){
   const n=negotiation(p);
   rLabel.textContent='Économie sur les achats '+basisYear;
   compare.replaceChildren();note.hidden=true;result.dataset.tone='';
-  if(!n.validUnit){rValue.textContent='—';rSub.textContent='Indique le nombre de litres par '+p.unit+' pour comparer des tarifs en € / L.';}
+  if(!n.validUnit){rValue.textContent='—';rSub.textContent='Indique le nombre de litres par '+p.unit+' pour négocier au litre.';}
   else if(!n.volume){rValue.textContent='—';rSub.textContent='Aucune quantité exploitable sur '+basisYear+'.';}
-  else if(!n.validTarget){rValue.textContent='—';rSub.textContent='Prix moyen payé : '+money(n.avgPrice)+' HT / '+n.unitLabel+'. Saisis le prix proposé pour voir le gain.';}
+  else if(!n.validTarget){rValue.textContent='—';rSub.textContent='Prix moyen payé : '+money(n.avgPrice)+' HT '+(mode==='litre'?'le litre':'par '+p.unit)+'. Saisis le prix proposé pour voir le gain.';}
   else if(n.negative){rValue.textContent='—';rSub.textContent='';note.hidden=false;note.textContent='La baisse dépasse le prix moyen payé : un prix négatif est impossible.';}
   else{
    const up=n.gain>=0;result.dataset.tone=up?'up':'down';
    rValue.textContent=(up?'▲ ':'▼ ')+(up?'':'−')+money(Math.abs(n.gain))+' HT';
    rSub.textContent=(up?'d’économie':'de surcoût')+' · '+fmt.format(n.totalHT?Math.abs(n.gain)/n.totalHT*100:0)+' % du coût d’achat · à volumes '+basisYear+' identiques';
-   const col=(title,price,total,cls)=>{const c=el(compare,'div',undefined,'ng-compare-col '+cls);el(c,'span',title,'ng-muted');el(c,'strong',money(price),'ng-compare-price');el(c,'span','HT / '+n.unitLabel,'ng-muted');el(c,'span',money(total)+' HT sur '+qty(n.volume)+' '+(mode==='litre'?'L':p.unit),'ng-compare-total');};
+   const col=(title,price,total,cls)=>{const c=el(compare,'div',undefined,'ng-compare-col '+cls);el(c,'span',title,'ng-muted');el(c,'strong',money(price),'ng-compare-price');el(c,'span','HT '+(mode==='litre'?'le litre':'par '+p.unit),'ng-muted');el(c,'span',money(total)+' HT sur '+qty(n.volume)+' '+(mode==='litre'?'litres':p.unit),'ng-compare-total');};
    col('Aujourd’hui (prix moyen payé)',n.avgPrice,n.totalHT,'');
    el(compare,'span','→','ng-arrow').setAttribute('aria-hidden','true');
    col('Après négociation',n.newPrice,n.volume*n.newPrice,'is-new');
@@ -322,7 +322,7 @@ function drawGlass(body,p){
  const form=el(body,'div',undefined,'ng-form');
  const directPack=directLitres(p);
  const packBox=field(form,'Litres par '+p.unit,directPack!==null?'Conversion automatique':'Vin : 0,75 · fût : 30 · litre : 1');
- const packI=numberInput(packBox,directPack!==null?directPack:(salePackL!==null?salePackL:litresPerUnit),'0.01','—','L',v=>{salePackL=v;update();});
+ const packI=numberInput(packBox,directPack!==null?directPack:(salePackL!==null?salePackL:litresPerUnit),'0.01','—','litres',v=>{salePackL=v;update();});
  if(directPack!==null){packI.readOnly=true;packBox.classList.add('is-readonly');}
  numberInput(field(form,'Verre servi'),servingCl,'0.5','25','cl',v=>{servingCl=v;update();});
  numberInput(field(form,'Prix du verre à la carte'),salePriceTTC,'0.01','Prix carte','€ TTC',v=>{salePriceTTC=v;update();});
