@@ -1,6 +1,8 @@
 /* PRISM — Analyse des achats & simulation de négociation.
  * Zéro vente simulée, chiffres issus exclusivement des lignes d'achats importées.
  * Lecture seule, calcul local et chargement progressif des lots historiques.
+ * Visuel Sable & Or (prism-purchase-analysis.css) : 3 onglets — Achats, Négocier, Marge au verre.
+ * Les calculs sont ceux de la version précédente, à l'identique.
  */
 (function(){
 'use strict';
@@ -8,57 +10,47 @@ const API='/.netlify/functions/purchase-analysis';
 const euro=new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'});
 const fmt=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2});
 const months=['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
-const norm=x=>String(x??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+const monthsLong=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const norm=x=>String(x??'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
 const num=x=>{if(x===null||x===undefined||String(x).trim()==='')return null;const v=Number(String(x).replace(',','.'));return Number.isFinite(v)?v:null;};
 const el=(root,tag,text,cls)=>{const v=document.createElement(tag);if(text!==undefined)v.textContent=String(text);if(cls)v.className=cls;if(root)root.appendChild(v);return v;};
+const btn=(root,text,cls,fn)=>{const b=el(root,'button',text,cls);b.type='button';if(fn)b.onclick=fn;return b;};
 const money=x=>euro.format(x||0);
 const qty=x=>fmt.format(x||0);
 const key=p=>[norm(p.supplier),norm(p.reference),norm(p.unit)].join('|');
-let overlay=null,host=null,summary=null,tableHost=null,detailHost=null,loadingHost=null;
-let entries=[],index=new Map(),loaded=false,loading=null,ignored={},importedAt='',lineCount=0;
+/* Nom lisible à l'affichage (« BIERE BLONDE FUT 30L » → « Biere blonde fut 30L ») ; l'original reste en info-bulle. */
+function tidy(raw){const t=String(raw||'').trim(),l=t.replace(/[^A-Za-zÀ-ÿ]/g,'');if(l.length<3||l.replace(/[^A-ZÀ-Þ]/g,'').length/l.length<=.7)return t;return t.toLowerCase().replace(/(^|\s)([a-zà-ÿ])/,(_,a,b)=>a+b.toUpperCase()).replace(/(\d)l\b/g,'$1L');}
+function tidySupplier(raw){const t=String(raw||'').trim(),l=t.replace(/[^A-Za-zÀ-ÿ]/g,'');if(l.length<3||l.replace(/[^A-ZÀ-Þ]/g,'').length/l.length<=.7)return t;return t.toLowerCase().replace(/(^|[\s-])([a-zà-ÿ])/g,(_,a,b)=>a+b.toUpperCase());}
+
+let overlay=null,host=null,summary=null,tableHost=null,detailHost=null,loadingHost=null,lastFocus=null;
+let entries=[],index=new Map(),loaded=false,loading=null,ignored={},importedAt='',lineCount=0,progress=0;
 let year=2026,basisYear=2025,search='',supplier='',page=0,selection='',discount=0.03,mode='litre',litresPerUnit=null,scenarioType='target',targetPrice=null,salePriceTTC=null,servingCl=25,saleVat=20,servingLoss=0,salePackL=null;
-const style=el(document.head,'style',`
-.pa-overlay{position:fixed;z-index:99995;inset:0;background:rgba(12,19,28,.74);display:flex;align-items:center;justify-content:center;padding:14px}
-.pa-panel{box-sizing:border-box;position:relative;background:#fff;color:#1b2833;font:14px system-ui,sans-serif;border-radius:16px;width:min(1240px,96vw);max-height:94vh;overflow:auto;padding:22px;box-shadow:0 20px 65px #0005}
-.pa-panel *{box-sizing:border-box}
-.pa-panel h2{font-size:22px;margin:0 0 6px}.pa-panel h3{font-size:17px;margin:0 0 9px}.pa-panel p{line-height:1.45}
-.pa-top{display:flex;align-items:flex-start;justify-content:space-between;gap:15px}.pa-close,.pa-panel button,.pa-panel select,.pa-panel input{font:inherit}
-.pa-panel button,.pa-panel input,.pa-panel select{border:1px solid #c8cdd1;border-radius:7px;padding:8px 10px;background:#fff;color:inherit}
-.pa-panel button{cursor:pointer}.pa-panel button:hover{background:#f4f5f7}.pa-panel button:disabled{cursor:default;opacity:.6}
-.pa-muted{color:#6c7680;font-size:12px}.pa-warning{color:#a03a32;font-size:12px;font-weight:600}
-.pa-filters{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}.pa-filters input{flex:2;min-width:190px}.pa-filters select{min-width:120px;max-width:230px}
-.pa-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:12px 0}
-.pa-metric{border:1px solid #e4e7e9;padding:12px;border-radius:10px}.pa-metric b{display:block;margin:5px 0;font-size:18px}
-.pa-layout{display:grid;grid-template-columns:minmax(340px,1.15fr) minmax(300px,1fr);gap:15px}
-.pa-card{border:1px solid #dde2e7;border-radius:10px;padding:13px;min-width:0}.pa-scroll{overflow:auto;max-height:490px}
-.pa-table{width:100%;border-collapse:collapse;font-size:12px}.pa-table th,.pa-table td{text-align:left;padding:9px 7px;border-bottom:1px solid #e9edf0;vertical-align:middle}
-.pa-table th{position:sticky;top:0;background:#fff;z-index:1}.pa-table td.num{text-align:right;white-space:nowrap}.pa-table button.pa-select{width:100%;text-align:left;border:0;padding:3px;background:transparent;font-weight:600}
-.pa-table tr.pa-selected{background:#f2f5f7}.pa-pagination{display:flex;gap:10px;justify-content:center;align-items:center;margin:10px 0}
-.pa-chart{display:grid;grid-template-columns:repeat(12,1fr);gap:4px;align-items:end;height:165px;padding:8px 1px 0;border-bottom:1px solid #dfe3e6}
-.pa-column{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:end;gap:3px}
-.pa-bar{width:min(100%,28px);min-height:1px;background:#5b6b78;border-radius:3px 3px 0 0}
-.pa-month{font-size:10px;color:#707b84}.pa-data{font-size:9px;text-align:center;color:#505b67}
-.pa-scenario{background:#f7f8f9;border-radius:9px;padding:12px;margin-top:13px}
-.pa-scenario-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pa-field{display:flex;flex-direction:column;gap:4px;font-size:12px}
-.pa-result{font-size:24px;font-weight:700;margin:10px 0 3px}.pa-pulse{padding:10px 12px;border-radius:9px;background:#f4f5f6;margin-top:12px}
-@media(max-width:850px){.pa-layout{grid-template-columns:1fr}.pa-metrics{grid-template-columns:1fr 1fr}.pa-panel{padding:13px}.pa-scenario-grid{grid-template-columns:1fr 1fr}}
-`);
-style.setAttribute('data-prism','purchase-analysis');
+let tab='achats';
+
 function pane(){
  if(overlay)return;
- overlay=el(document.body,'div',undefined,'pa-overlay');
+ lastFocus=document.activeElement;
+ overlay=el(document.body,'div',undefined,'ng-overlay');
  overlay.addEventListener('click',e=>{if(e.target===overlay)close();});
- host=el(overlay,'section',undefined,'pa-panel');
- host.setAttribute('role','dialog');host.setAttribute('aria-modal','true');host.setAttribute('aria-label','Analyse des achats');
- const top=el(host,'div',undefined,'pa-top'),title=el(top,'div');
- el(title,'h2','Analyse des achats & négociation');
- el(title,'p','Quantités achetées, montants HT et simulation d’économies · L’Océan','pa-muted');
- const closeBtn=el(top,'button','Fermer ×','pa-close');closeBtn.onclick=close;
- loadingHost=el(host,'div',undefined,'pa-pulse');
- summary=el(host,'div');tableHost=el(host,'div');
- if(loaded)render();else fetchAll();
+ overlay.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
+ host=el(overlay,'section',undefined,'ng-panel');
+ host.setAttribute('role','dialog');host.setAttribute('aria-modal','true');host.setAttribute('aria-label','Analyse des achats et négociation');
+ const top=el(host,'header',undefined,'ng-top');
+ el(top,'h2','Achats & négociation','ng-title');
+ const closeBtn=btn(top,'Fermer','ng-close',close);closeBtn.setAttribute('aria-label','Fermer l’analyse des achats');
+ loadingHost=el(host,'div',undefined,'ng-status');
+ summary=el(host,'div',undefined,'ng-summary');tableHost=el(host,'div',undefined,'ng-body');
+ document.documentElement.classList.add('ng-open');
+ closeBtn.focus();
+ if(loaded)render();else{drawLoading();fetchAll();}
 }
-function close(){overlay?.remove();overlay=null;host=null;summary=null;tableHost=null;detailHost=null;loadingHost=null;}
+function close(){overlay?.remove();overlay=null;host=null;summary=null;tableHost=null;detailHost=null;loadingHost=null;document.documentElement.classList.remove('ng-open');try{lastFocus?.focus?.();}catch(_){}}
+function drawLoading(){
+ if(!loadingHost)return;loadingHost.replaceChildren();
+ const box=el(loadingHost,'div',undefined,'ng-loading');
+ el(box,'span',progress?'Lecture des factures : '+progress+' %':'Lecture des historiques d’achats…');
+ const bar=el(box,'div',undefined,'ng-progress');const fill=el(bar,'div');fill.style.width=Math.max(4,progress)+'%';
+}
 async function api(query){
  const user=window.netlifyIdentity?.currentUser?.();
  if(!user)throw Error('Connecte-toi à PRISM pour consulter les factures.');
@@ -69,7 +61,7 @@ async function api(query){
 async function fetchAll(){
  if(loading)return loading;
  loading=(async()=>{
-  loadingHost.textContent='Lecture des historiques privés en cours…';
+  progress=0;drawLoading();
   const manifest=await api('mode=manifest');
   if(!manifest.ready){lineCount=0;entries=[];loaded=true;render();return;}
   lineCount=manifest.rowCount||0;importedAt=manifest.importedAt||'';
@@ -88,7 +80,7 @@ async function fetchAll(){
    }
    for(const k of Object.keys(loss))loss[k]+=result.ignored?.[k]||0;
    }
-   if(loadingHost)loadingHost.textContent='Analyse des factures : '+Math.min(offset+36,pages)+' / '+pages+' lots lus…';
+   progress=pages?Math.round(Math.min(offset+36,pages)/pages*100):100;drawLoading();
   }
   entries=[...data.values()];ignored=loss;index=new Map();
   for(const a of entries){
@@ -99,7 +91,7 @@ async function fetchAll(){
   if(years.length&&!years.includes(year))year=years[0];
   if(years.length)basisYear=years.includes(year-1)?year-1:year;
   loaded=true;render();
- })().catch(err=>{if(loadingHost)loadingHost.textContent='Erreur : '+err.message;});
+ })().catch(err=>{if(loadingHost){loadingHost.replaceChildren();el(loadingHost,'p','Analyse indisponible : '+err.message,'ng-alert');}});
  await loading;loading=null;
 }
 const yearList=()=>[...new Set(entries.map(a=>a.year))].sort((a,b)=>b-a);
@@ -117,186 +109,250 @@ function productsFor(yr){
 }
 function render(){
  if(!overlay||!loaded)return;
- if(loadingHost)loadingHost.textContent=!entries.length?'Aucune ligne exploitable : importe d’abord un historique de factures datées avec quantités et prix HT.':'Historique importé : '+lineCount.toLocaleString('fr-FR')+' lignes · '+index.size.toLocaleString('fr-FR')+' références / conditionnements · analyse en lecture seule.';
+ loadingHost.replaceChildren();
+ if(!entries.length){el(loadingHost,'p','Aucune ligne exploitable : importe d’abord un historique de factures datées avec quantités et prix HT.','ng-empty');summary.replaceChildren();tableHost.replaceChildren();return;}
  summary.replaceChildren();tableHost.replaceChildren();
- const filters=el(summary,'div',undefined,'pa-filters');
- const q=el(filters,'input');q.type='search';q.placeholder='Cacahuètes, bière, code, fournisseur…';q.value=search;q.oninput=()=>{search=q.value;page=0;drawContent();};
- const years=yearList(),yearSelect=el(filters,'select');yearSelect.setAttribute('aria-label','Année des achats');
- years.forEach(y=>{const o=el(yearSelect,'option',String(y));o.value=String(y);});yearSelect.value=String(year);yearSelect.onchange=()=>{year=Number(yearSelect.value);basisYear=years.includes(year-1)?year-1:year;page=0;selection='';drawContent();};
+ const filters=el(summary,'div',undefined,'ng-filters');
+ const searchBox=el(filters,'label',undefined,'ng-search');
+ const q=el(searchBox,'input');q.type='search';q.placeholder='Produit, code ou fournisseur…';q.value=search;q.setAttribute('aria-label','Rechercher un produit acheté');
+ q.oninput=()=>{search=q.value;page=0;drawContent();};
+ const years=yearList(),yearGroup=el(filters,'div',undefined,'ng-seg');yearGroup.setAttribute('role','group');yearGroup.setAttribute('aria-label','Année des achats');
+ years.slice(0,4).forEach(y=>{const b=btn(yearGroup,String(y),'ng-seg-btn',()=>{year=y;basisYear=years.includes(year-1)?year-1:year;page=0;selection='';render();});b.setAttribute('aria-pressed',String(y===year));});
  const suppliers=[...new Set(entries.map(e=>e.supplier))].sort((a,b)=>a.localeCompare(b,'fr'));
- const select=el(filters,'select');select.setAttribute('aria-label','Fournisseur');
+ const select=el(filters,'select',undefined,'ng-select');select.setAttribute('aria-label','Fournisseur');
  let all=el(select,'option','Tous les fournisseurs');all.value='';
- suppliers.forEach(s=>{const o=el(select,'option',s);o.value=s;});select.value=supplier;select.onchange=()=>{supplier=select.value;page=0;drawContent();};
- const help=el(summary,'p','Achats positifs uniquement. Montants estimés = quantité facturée × prix unitaire HT importé. Les avoirs, remises de pied de facture, conditionnements inconnus et factures manquantes peuvent modifier le total réel.','pa-muted');
- el(summary,'p','Ventes KSD : non connectées. Les volumes affichés ici sont des volumes achetés, jamais des ventes.','pa-warning');
- const metrics=el(summary,'div',undefined,'pa-metrics');metrics.id='paMetrics';
- const layout=el(tableHost,'div',undefined,'pa-layout');
- const left=el(layout,'section',undefined,'pa-card');el(left,'h3','Produits achetés');
- const results=el(left,'div',undefined,'pa-scroll');results.id='paResults';
- const pager=el(left,'div',undefined,'pa-pagination');pager.id='paPager';
- detailHost=el(layout,'section',undefined,'pa-card');
+ suppliers.forEach(s=>{const o=el(select,'option',tidySupplier(s));o.value=s;});select.value=supplier;select.onchange=()=>{supplier=select.value;page=0;drawContent();};
+ const metrics=el(summary,'div',undefined,'ng-kpis');metrics.id='paMetrics';
+ const layout=el(tableHost,'div',undefined,'ng-layout');
+ const left=el(layout,'section',undefined,'ng-list-card');left.setAttribute('aria-label','Produits achetés');
+ const head=el(left,'div',undefined,'ng-list-head');el(head,'span','Produit');el(head,'span','Achats HT');
+ const results=el(left,'div',undefined,'ng-list');results.id='paResults';
+ const pager=el(left,'div',undefined,'ng-pagination');pager.id='paPager';
+ detailHost=el(layout,'section',undefined,'ng-detail');
+ const foot=el(tableHost,'details',undefined,'ng-method');
+ el(foot,'summary','Comment ces chiffres sont calculés');
+ el(foot,'p','Achats positifs uniquement. Montant = quantité facturée × prix unitaire HT importé. Les avoirs, remises de pied de facture, conditionnements inconnus et factures manquantes peuvent modifier le total réel.');
+ el(foot,'p','Ventes KSD non connectées : les volumes affichés sont des volumes achetés, jamais des ventes.');
+ el(foot,'p','Historique importé : '+lineCount.toLocaleString('fr-FR')+' lignes · '+index.size.toLocaleString('fr-FR')+' références / conditionnements'+(importedAt?' · import du '+new Date(importedAt).toLocaleDateString('fr-FR'):'')+'.');
  drawContent();
 }
 function drawContent(){
  if(!overlay||!loaded)return;
  const f=productsFor(year).filter(p=>(!supplier||p.supplier===supplier)&&(!search||norm([p.description,p.supplier,p.reference,p.unit,...(p.sourceNames||[])].join(' ')).includes(norm(search))));
- const amount=f.reduce((n,p)=>n+p.amountHT,0),lines=f.reduce((n,p)=>n+p.lines,0);
+ const amount=f.reduce((n,p)=>n+p.amountHT,0),lines=f.reduce((n,p)=>n+p.lines,0),flaggedRefs=f.filter(p=>p.flagged).length;
  const met=document.getElementById('paMetrics');if(met){met.replaceChildren();
-  [[String(f.length),'Références / conditionnements'],[money(amount),'Montant HT reconstitué'],[qty(lines),'Lignes d’achats retenues']].forEach(([v,t])=>{const c=el(met,'div',undefined,'pa-metric');el(c,'span',t,'pa-muted');el(c,'b',v);});
+  const hero=el(met,'div',undefined,'ng-kpi ng-kpi-hero');el(hero,'span','Achats HT '+year+(supplier?' · '+tidySupplier(supplier):''),'ng-kpi-label');el(hero,'strong',money(amount),'ng-kpi-value');
+  const a=el(met,'div',undefined,'ng-kpi');el(a,'span','Références achetées','ng-kpi-label');el(a,'strong',qty(f.length),'ng-kpi-value');
+  const b=el(met,'div',undefined,'ng-kpi');el(b,'span','Lignes de factures','ng-kpi-label');el(b,'strong',qty(lines),'ng-kpi-value');
+  const c=el(met,'div',undefined,'ng-kpi');el(c,'span','Références à vérifier','ng-kpi-label');el(c,'strong',qty(flaggedRefs),'ng-kpi-value'+(flaggedRefs?' ng-down':''));
  }
  const list=document.getElementById('paResults'),pager=document.getElementById('paPager');
  if(!list||!pager)return;list.replaceChildren();pager.replaceChildren();
- if(!f.length){el(list,'p','Aucun produit pour ces filtres.','pa-muted');detailHost.replaceChildren();return;}
+ if(!f.length){el(list,'p','Aucun produit pour ces filtres.','ng-empty');detailHost.replaceChildren();return;}
  if(!selection||!f.some(p=>key(p)===selection))selection=key(f[0]);
- const table=el(list,'table',undefined,'pa-table'),thead=el(table,'thead'),tr=el(thead,'tr');
- ['Produit / fournisseur','Quantité','Montant HT','Alertes'].forEach(t=>el(tr,'th',t));
- const body=el(table,'tbody');
+ const max=f[0]?.amountHT||1;
  f.slice(page*50,(page+1)*50).forEach(p=>{
-  const row=el(body,'tr');if(key(p)===selection)row.className='pa-selected';
-  const c=el(row,'td');const button=el(c,'button',p.description,'pa-select');
-  el(c,'div',p.supplier+' · réf. '+p.reference+' · '+p.unit,'pa-muted');
-  button.onclick=()=>{selection=key(p);litresPerUnit=null;targetPrice=null;salePriceTTC=null;salePackL=null;servingCl=/vin|bouteille/i.test(p.description+' '+p.unit)?12.5:25;drawContent();};
-  el(row,'td',qty(p.quantity),'num');el(row,'td',money(p.amountHT),'num');
-  el(row,'td',p.flagged?'⚠ '+p.flagged:'—');
+  const active=key(p)===selection;
+  const row=btn(list,undefined,'ng-row'+(active?' is-active':''),()=>{selection=key(p);litresPerUnit=null;targetPrice=null;salePriceTTC=null;salePackL=null;servingCl=/vin|bouteille/i.test(p.description+' '+p.unit)?12.5:25;drawContent();detailHost.scrollTop=0;});
+  if(active)row.setAttribute('aria-current','true');
+  row.title=p.description;
+  const t=el(row,'span',undefined,'ng-row-text');
+  const name=el(t,'span',tidy(p.description),'ng-row-name');
+  if(p.flagged)el(name,'span',p.flagged+' à vérifier','ng-pill ng-pill-warn');
+  el(t,'span',tidySupplier(p.supplier)+' · '+qty(p.quantity)+' '+p.unit,'ng-row-sub');
+  const v=el(row,'span',undefined,'ng-row-value');el(v,'span',money(p.amountHT),'ng-row-amount');
+  const bar=el(v,'span',undefined,'ng-row-bar');el(bar,'span').style.width=Math.max(2,p.amountHT/max*100)+'%';
  });
  if(f.length>50){
-  const prev=el(pager,'button','←');prev.disabled=page===0;prev.onclick=()=>{page--;drawContent();};
-  el(pager,'span',(page+1)+' / '+Math.ceil(f.length/50),'pa-muted');
-  const next=el(pager,'button','→');next.disabled=(page+1)*50>=f.length;next.onclick=()=>{page++;drawContent();};
+  const prev=btn(pager,'←','ng-icon-btn',()=>{page--;drawContent();list.scrollTop=0;});prev.disabled=page===0;prev.setAttribute('aria-label','Page précédente');
+  el(pager,'span',(page+1)+' / '+Math.ceil(f.length/50),'ng-muted');
+  const next=btn(pager,'→','ng-icon-btn',()=>{page++;drawContent();list.scrollTop=0;});next.disabled=(page+1)*50>=f.length;next.setAttribute('aria-label','Page suivante');
  }
  const p=f.find(x=>key(x)===selection)||f[0];drawDetail(p);
 }
+
+/* ---------- Calculs (identiques à la version précédente) ---------- */
+function directLitres(p){return p.unit==='L'?1:p.unit==='cl'?0.01:p.unit==='ml'?0.001:null;}
+function negotiation(p){
+ const records=(index.get(selection)||[]).filter(x=>x.year===basisYear);
+ const q=records.reduce((n,x)=>n+x.quantity,0);
+ const monthsKnown=new Set(records.map(x=>x.month)).size;
+ const direct=directLitres(p);
+ const liters=mode==='litre'?(direct===null?litresPerUnit:direct):null;
+ const validUnit=mode==='unite'||(liters!==null&&liters>0);
+ const volume=mode==='unite'?q:validUnit?q*liters:0;
+ const totalHT=records.reduce((n,x)=>n+x.amountHT,0);
+ const avgPrice=volume>0?totalHT/volume:null;
+ const validTarget=scenarioType==='discount'||(targetPrice!==null&&targetPrice>=0);
+ const valid=validUnit&&volume>0&&avgPrice!==null&&validTarget;
+ const newPrice=scenarioType==='target'?targetPrice:avgPrice-discount;
+ const gain=valid?totalHT-volume*newPrice:null;
+ const negative=valid&&newPrice<0;
+ const flagged=records.reduce((n,x)=>n+x.flagged,0),missing=records.reduce((n,x)=>n+x.dutyMissing,0);
+ return {records,q,monthsKnown,direct,liters,validUnit,volume,totalHT,avgPrice,validTarget,valid,newPrice,gain,negative,flagged,missing,unitLabel:mode==='litre'?'L':'unité'};
+}
+function glassMargin(p,n){
+ const directPack=directLitres(p);
+ const pack=directPack!==null?directPack:(salePackL!==null?salePackL:litresPerUnit),sz=servingCl,saleTTC=salePriceTTC,loss=servingLoss;
+ const ok=n.valid&&!n.negative&&pack!==null&&pack>0&&sz!==null&&sz>0&&saleTTC!==null&&saleTTC>=0&&loss!==null&&loss>=0&&loss<100;
+ if(!ok)return {ok:false,pack};
+ const oldPerLiter=mode==='litre'?n.avgPrice:n.avgPrice/pack;
+ const newPerLiter=mode==='litre'?n.newPrice:n.newPrice/pack;
+ const consumedLiters=(sz/100)/(1-loss/100),oldCost=oldPerLiter*consumedLiters,newCost=newPerLiter*consumedLiters;
+ const saleHT=saleTTC/(1+saleVat/100),oldMargin=saleHT-oldCost,newMargin=saleHT-newCost,delta=oldCost-newCost;
+ const yieldGlasses=pack*(1-loss/100)/(sz/100);
+ return {ok:true,pack,saleHT,oldCost,newCost,oldMargin,newMargin,delta,yieldGlasses,rate:saleHT>0?newMargin/saleHT*100:null,oldRate:saleHT>0?oldMargin/saleHT*100:null};
+}
+
+/* ---------- Fiche produit ---------- */
 function drawDetail(p){
  detailHost.replaceChildren();
- el(detailHost,'h3',p.description);
- el(detailHost,'p',p.supplier+' · réf. '+p.reference+' · prix par '+p.unit,'pa-muted');
- const total=el(detailHost,'div',undefined,'pa-metric');
- el(total,'span','Achats '+year,'pa-muted');
- el(total,'b',qty(p.quantity)+' '+p.unit+' · '+money(p.amountHT)+' HT');
- el(total,'span',p.lines+' ligne(s) facturées · prix moyen pondéré '+money(p.amountHT/p.quantity)+' HT / '+p.unit,'pa-muted');
- if(p.flagged||p.dutyMissing||p.unitAssumed)el(detailHost,'p','⚠ Chiffres indicatifs : '+p.flagged+' ligne(s) avec alerte, '+p.dutyMissing+' ligne(s) sans PU avec droits. Vérifier les conditionnements et les factures avant de conclure une négociation.','pa-warning');
+ const head=el(detailHost,'div',undefined,'ng-detail-head');
+ el(head,'h3',tidy(p.description),'ng-detail-title').title=p.description;
+ el(head,'p',tidySupplier(p.supplier)+' · réf. '+p.reference+' · prix par '+p.unit,'ng-muted');
+ const tabs=el(detailHost,'div',undefined,'ng-tabs');tabs.setAttribute('role','tablist');
+ [['achats','Achats'],['negocier','Négocier'],['marge','Marge au verre']].forEach(([id,label],i)=>{
+  const b=btn(tabs,undefined,'ng-tab',()=>{tab=id;drawDetail(p);});
+  el(b,'span',String(i+1),'ng-tab-num');el(b,'span',label);
+  b.setAttribute('role','tab');b.setAttribute('aria-selected',String(tab===id));
+ });
+ const body=el(detailHost,'div',undefined,'ng-tab-body');
+ if(tab==='achats')drawPurchases(body,p);
+ else if(tab==='negocier')drawNegotiation(body,p);
+ else drawGlass(body,p);
+}
+function drawPurchases(body,p){
+ const hero=el(body,'div',undefined,'ng-hero');
+ el(hero,'span','Achats '+year,'ng-hero-label');
+ el(hero,'strong',money(p.amountHT)+' HT','ng-hero-value');
+ const facts=el(hero,'div',undefined,'ng-hero-facts');
+ [[qty(p.quantity)+' '+p.unit,'achetés'],[money(p.amountHT/p.quantity),'prix moyen / '+p.unit],[String(p.lines),'lignes de factures']].forEach(([v,l])=>{const f=el(facts,'span');el(f,'b',v);el(f,'span',' '+l);});
  const prior=(index.get(selection)||[]).filter(x=>x.year===year-1);
  if(prior.length){
   const pq=prior.reduce((n,x)=>n+x.quantity,0),pa=prior.reduce((n,x)=>n+x.amountHT,0);
-  el(detailHost,'p','N-1 ('+(year-1)+') : '+qty(pq)+' '+p.unit+' · '+money(pa)+' HT. Comparaison brute : les périodes et la complétude des factures peuvent différer.','pa-muted');
+  const n1=el(body,'div',undefined,'ng-n1');
+  el(n1,'span',(year-1)+' (N-1)','ng-muted');
+  el(n1,'strong',qty(pq)+' '+p.unit+' · '+money(pa)+' HT');
+  el(n1,'span','Comparaison brute : périodes et factures pas forcément complètes.','ng-muted');
  }
- el(detailHost,'p','Répartition mensuelle des achats · '+year,'pa-muted');
- const bars=el(detailHost,'div',undefined,'pa-chart'),max=Math.max(...p.months.map(x=>x.qty),1);
+ if(p.flagged||p.dutyMissing||p.unitAssumed)el(body,'p','Chiffres indicatifs : '+p.flagged+' ligne(s) avec alerte'+(p.dutyMissing?', '+p.dutyMissing+' sans prix avec droits':'')+(p.unitAssumed?', unité supposée':'')+'. Vérifier conditionnements et factures avant de négocier.','ng-alert');
+ const chartCard=el(body,'div',undefined,'ng-card');
+ el(chartCard,'p','Quantités achetées par mois · '+year,'ng-card-title');
+ const bars=el(chartCard,'div',undefined,'ng-chart'),max=Math.max(...p.months.map(x=>x.qty),1);
+ bars.setAttribute('role','img');bars.setAttribute('aria-label','Quantités achetées par mois en '+year);
  p.months.forEach((m,i)=>{
-  const c=el(bars,'div',undefined,'pa-column');
-  el(c,'div',m.qty?qty(m.qty):'','pa-data');
-  const bar=el(c,'div',undefined,'pa-bar');bar.style.height=(m.qty?(Math.max(3,m.qty/max*105)):1)+'px';
-  bar.title=months[i]+' : '+qty(m.qty)+' '+p.unit+' · '+money(m.amount)+' HT';
-  el(c,'div',months[i],'pa-month');
+  const c=el(bars,'div',undefined,'ng-column');
+  el(c,'span',m.qty?qty(m.qty):'','ng-data');
+  const bar=el(c,'div',undefined,'ng-bar'+(m.qty?'':' is-empty'));bar.style.height=(m.qty?Math.max(4,m.qty/max*100):2)+'%';
+  bar.title=monthsLong[i]+' : '+qty(m.qty)+' '+p.unit+' · '+money(m.amount)+' HT';
+  el(c,'span',months[i],'ng-month');
  });
- const monthBox=el(detailHost,'div',undefined,'pa-scroll'),mt=el(monthBox,'table',undefined,'pa-table');
- const mtHead=el(mt,'thead'),mh=el(mtHead,'tr');['Mois','Quantité achetée','Montant HT'].forEach(t=>el(mh,'th',t));
+ const more=el(chartCard,'details',undefined,'ng-months');el(more,'summary','Voir le détail par mois');
+ const mt=el(more,'table',undefined,'ng-table'),mh=el(el(mt,'thead'),'tr');['Mois','Quantité','Montant HT'].forEach(t=>el(mh,'th',t));
  const mtBody=el(mt,'tbody');
- p.months.forEach((m,i)=>{const row=el(mtBody,'tr');el(row,'td',months[i]);el(row,'td',qty(m.qty)+' '+p.unit,'num');el(row,'td',money(m.amount),'num');});
-
- const scenario=el(detailHost,'div',undefined,'pa-scenario');el(scenario,'h3','Simulateur de négociation');
- el(scenario,'p','Simule un nouveau prix d’achat HT ou une baisse unitaire sur les volumes réellement achetés. Aucun prix fournisseur n’est modifié.','pa-muted');
- const wrap=el(scenario,'div',undefined,'pa-scenario-grid');
+ p.months.forEach((m,i)=>{if(!m.qty&&!m.amount)return;const row=el(mtBody,'tr');el(row,'td',monthsLong[i]);el(row,'td',qty(m.qty)+' '+p.unit,'num');el(row,'td',money(m.amount),'num');});
+ const go=btn(body,'Simuler une négociation sur ce produit →','ng-primary',()=>{tab='negocier';drawDetail(p);});
+ go.setAttribute('aria-label','Passer à l’onglet Négocier');
+}
+function field(root,label,hint){const f=el(root,'label',undefined,'ng-field');el(f,'span',label,'ng-field-label');const box=el(f,'span',undefined,'ng-input');if(hint)el(f,'span',hint,'ng-field-hint');return box;}
+function numberInput(box,value,step,placeholder,suffix,onInput){
+ const i=el(box,'input');i.type='text';i.inputMode='decimal';i.value=value===null||value===undefined?'':String(value).replace('.',',');if(placeholder)i.placeholder=placeholder;i.dataset.step=step;
+ i.oninput=()=>onInput(num(i.value));
+ if(suffix)el(box,'span',suffix,'ng-suffix');
+ return i;
+}
+function seg(root,label,options,value,onPick){
+ const f=el(root,'div',undefined,'ng-field');el(f,'span',label,'ng-field-label');
+ const g=el(f,'div',undefined,'ng-seg');g.setAttribute('role','group');g.setAttribute('aria-label',label);
+ options.forEach(([v,t])=>{const b=btn(g,t,'ng-seg-btn',()=>onPick(v));b.setAttribute('aria-pressed',String(v===value));});
+ return f;
+}
+function drawNegotiation(body,p){
+ const form=el(body,'div',undefined,'ng-form');
  const yrs=yearList().filter(y=>(index.get(selection)||[]).some(x=>x.year===y));if(!yrs.includes(basisYear))basisYear=yrs.includes(year-1)?year-1:year;
- const yearField=el(wrap,'label','Année de référence','pa-field'),yearSel=el(yearField,'select');
- yrs.forEach(y=>{const o=el(yearSel,'option',String(y));o.value=String(y);});yearSel.value=String(basisYear);
- yearSel.onchange=()=>{basisYear=Number(yearSel.value);drawDetail(p);};
- const typeField=el(wrap,'label','Type de simulation','pa-field'),type=el(typeField,'select');
- [['target','Nouveau prix d’achat HT'],['discount','Baisse négociée HT']].forEach(([v,t])=>{const o=el(type,'option',t);o.value=v;});
- type.value=scenarioType;type.onchange=()=>{scenarioType=type.value;drawDetail(p);};
- let price=null,target=null;
- if(scenarioType==='discount'){
-  const discountField=el(wrap,'label','Baisse négociée (€ HT)','pa-field');price=el(discountField,'input');price.type='number';price.min='0';price.step='0.01';price.value=String(discount);
-  price.oninput=()=>{const v=num(price.value);discount=v!==null&&v>=0?v:0;update();};
- }else{
-  const targetField=el(wrap,'label','Prix d’achat proposé (€ HT)','pa-field');target=el(targetField,'input');target.type='number';target.min='0';target.step='0.0001';target.placeholder='Saisir le prix négocié';
-  if(targetPrice!==null)target.value=String(targetPrice);
-  target.oninput=()=>{targetPrice=num(target.value);update();};
- }
- const modeField=el(wrap,'label','Base de la négociation','pa-field'),unit=el(modeField,'select');
- [['litre','€ / litre'],['unite','€ / unité facturée']].forEach(([v,t])=>{const o=el(unit,'option',t);o.value=v;});
- unit.value=mode;unit.onchange=()=>{mode=unit.value;drawDetail(p);};
- let volumeInput=null;
+ seg(form,'Volumes de référence',yrs.slice(0,4).map(y=>[y,String(y)]),basisYear,v=>{basisYear=v;drawDetail(p);});
+ seg(form,'Je simule',[['target','Un nouveau prix'],['discount','Une baisse']],scenarioType,v=>{scenarioType=v;drawDetail(p);});
+ seg(form,'Prix exprimé en',[['litre','€ / litre'],['unite','€ / '+p.unit]],mode,v=>{mode=v;drawDetail(p);});
+ const unitTxt=mode==='litre'?'€ HT / L':'€ HT / '+p.unit;
+ if(scenarioType==='discount')numberInput(field(form,'Baisse obtenue'),discount,'0.01','0,05',unitTxt,v=>{discount=v!==null&&v>=0?v:0;update();});
+ else numberInput(field(form,'Prix proposé par le fournisseur'),targetPrice,'0.0001','Prix négocié',unitTxt,v=>{targetPrice=v;update();});
+ const direct=directLitres(p);
  if(mode==='litre'){
-  const litreField=el(wrap,'label','Litres par unité facturée','pa-field');volumeInput=el(litreField,'input');volumeInput.type='number';volumeInput.min='0.001';volumeInput.step='0.01';
-  const direct=p.unit==='L'?1:p.unit==='cl'?0.01:p.unit==='ml'?0.001:null;
-  volumeInput.value=litresPerUnit!==null?String(litresPerUnit):direct===null?'':String(direct);
-  volumeInput.placeholder='Ex. : 20 pour un fût 20 L';
-  if(direct!==null){volumeInput.value=String(direct);volumeInput.readOnly=true;volumeInput.title='Conversion directe de l’unité connue';}
-  volumeInput.oninput=()=>{litresPerUnit=num(volumeInput.value);update();};
+  const box=field(form,'Litres par '+p.unit,direct!==null?'Conversion automatique':'Ex. : 20 pour un fût de 20 L, 0,75 pour une bouteille');
+  const i=numberInput(box,direct!==null?direct:litresPerUnit,'0.01','—','L',v=>{litresPerUnit=v;update();});
+  if(direct!==null){i.readOnly=true;box.classList.add('is-readonly');}
  }
- const result=el(scenario,'div',undefined,'pa-result'),note=el(scenario,'p',undefined,'pa-muted'),caveat=el(scenario,'p',undefined,'pa-warning');
- const sales=el(scenario,'div',undefined,'pa-scenario');el(sales,'h3','Rentabilité à la vente · bière et vin');
- el(sales,'p','Une bouteille de vin 75 cl représente 6 verres de 12,5 cl (sans pertes). Un litre de bière représente 4 demis de 25 cl.','pa-muted');
- const sg=el(sales,'div',undefined,'pa-scenario-grid');
- const packField=el(sg,'label','Litres par unité facturée','pa-field'),packInput=el(packField,'input');packInput.type='number';packInput.min='0.001';packInput.step='0.01';packInput.placeholder='Vin : 0,75 · fût : 30 · litre : 1';
- const directPack=p.unit==='L'?1:p.unit==='cl'?0.01:p.unit==='ml'?0.001:null;
- packInput.value=String(salePackL!==null?salePackL:directPack!==null?directPack:'');
- if(directPack!==null){packInput.value=String(directPack);packInput.readOnly=true;}
- packInput.oninput=()=>{salePackL=num(packInput.value);update();};
- const sizeField=el(sg,'label','Contenance du verre (cl)','pa-field'),sizeInput=el(sizeField,'input');sizeInput.type='number';sizeInput.min='0.1';sizeInput.step='0.5';sizeInput.value=String(servingCl);sizeInput.oninput=()=>{servingCl=num(sizeInput.value);update();};
- const saleField=el(sg,'label','Prix de vente du verre (€ TTC)','pa-field'),saleInput=el(saleField,'input');saleInput.type='number';saleInput.min='0';saleInput.step='0.01';saleInput.placeholder='Prix sur la carte';if(salePriceTTC!==null)saleInput.value=String(salePriceTTC);saleInput.oninput=()=>{salePriceTTC=num(saleInput.value);update();};
- const taxField=el(sg,'label','TVA de vente','pa-field'),taxInput=el(taxField,'select');[['20','20 % · boissons alcoolisées'],['10','10 %'],['5.5','5,5 %']].forEach(([v,t])=>{const o=el(taxInput,'option',t);o.value=v;});taxInput.value=String(saleVat);taxInput.onchange=()=>{saleVat=Number(taxInput.value);update();};
- const lossField=el(sg,'label','Pertes / mousse / fonds (%)','pa-field'),lossInput=el(lossField,'input');lossInput.type='number';lossInput.min='0';lossInput.max='99';lossInput.step='1';lossInput.value=String(servingLoss);lossInput.oninput=()=>{servingLoss=num(lossInput.value);update();};
- const saleMetrics=el(sales,'div',undefined,'pa-metrics'),saleNote=el(sales,'p',undefined,'pa-warning');
+ const result=el(body,'div',undefined,'ng-hero ng-result');
+ const rLabel=el(result,'span','','ng-hero-label'),rValue=el(result,'strong','—','ng-hero-value'),rSub=el(result,'span','','ng-hero-sub');
+ const compare=el(body,'div',undefined,'ng-compare');
+ const note=el(body,'p','','ng-alert');
+ const method=el(body,'details',undefined,'ng-method');el(method,'summary','Hypothèses de la simulation');const caveat=el(method,'p');
  function update(){
-  const records=(index.get(selection)||[]).filter(x=>x.year===basisYear);
-  const q=records.reduce((n,x)=>n+x.quantity,0);
-  const monthsKnown=new Set(records.map(x=>x.month)).size;
-  const direct=p.unit==='L'?1:p.unit==='cl'?0.01:p.unit==='ml'?0.001:null;
-  const liters=mode==='litre'?(direct===null?num(volumeInput?.value):direct):null;
-  const validUnit=mode==='unite'||(liters!==null&&liters>0);
-  const volume=mode==='unite'?q:validUnit?q*liters:0;
-  const totalHT=records.reduce((n,x)=>n+x.amountHT,0);
-  const avgPrice=volume>0?totalHT/volume:null;
-  const validTarget=scenarioType==='discount'||(targetPrice!==null&&targetPrice>=0);
-  const valid=validUnit&&volume>0&&avgPrice!==null&&validTarget;
-  const newPrice=scenarioType==='target'?targetPrice:avgPrice-discount;
-  const gain=valid?totalHT-volume*newPrice:null;
-  result.textContent=valid?(gain>=0?'+':'−')+money(Math.abs(gain))+' HT':'—';
-  result.style.color=valid?(gain>=0?'#176b47':'#a03a32'):'';
-  const unitLabel=mode==='litre'?'L':'unité facturée';
-  if(!validUnit)note.textContent='Indique le nombre de litres par unité facturée pour comparer des tarifs en €/L.';
-  else if(!volume)note.textContent='Aucune quantité exploitable sur cette année de référence.';
-  else if(!validTarget)note.textContent='Prix moyen actuel : '+money(avgPrice)+' HT / '+unitLabel+'. Saisis ton prix négocié pour calculer le gain.';
-  else note.textContent='Prix moyen actuel : '+money(avgPrice)+' HT / '+unitLabel+' → prix simulé : '+money(newPrice)+' HT / '+unitLabel+'. Sur '+qty(volume)+' '+(mode==='litre'?'L':'unités')+', achats simulés : '+money(volume*newPrice)+' HT contre '+money(totalHT)+' HT actuellement ('+(gain>=0?'+':'')+fmt.format(totalHT?gain/totalHT*100:0)+' % d’économie sur le coût). Impact théorique sur marge brute à prix de vente constant : '+(gain>=0?'+':'−')+money(Math.abs(gain))+'.';
-  const negative=valid&&newPrice<0;
-  if(negative){result.textContent='—';note.textContent='La baisse dépasse le prix moyen actuel : prix négocié négatif impossible.';}
-  const flagged=records.reduce((n,x)=>n+x.flagged,0),missing=records.reduce((n,x)=>n+x.dutyMissing,0);
-  caveat.textContent='Simulation non enregistrée, sans changement du tarif réel. Période : '+monthsKnown+' mois avec achats en '+basisYear+'. '+(flagged?'⚠ '+flagged+' ligne(s) incertaines. ':'')+(missing?'⚠ Prix avec droits manquant sur '+missing+' ligne(s). ':'')+'Gain théorique à quantités achetées et prix de vente constants ; il ne constitue ni un gain de chiffre d’affaires, ni une prévision des ventes KSD. Factures manquantes, avoirs et conditionnements non rapprochés exclus.';
-  saleMetrics.replaceChildren();
-  saleNote.className='pa-warning';
-  const pack=directPack!==null?directPack:num(packInput.value),sz=num(sizeInput.value),saleTTC=num(saleInput.value),loss=num(lossInput.value);
-  const ok=valid&&!negative&&pack!==null&&pack>0&&sz!==null&&sz>0&&saleTTC!==null&&saleTTC>=0&&loss!==null&&loss>=0&&loss<100;
-  if(!ok){
-   saleNote.textContent=!pack?'Renseigne la contenance du conditionnement acheté : 0,75 pour une bouteille de vin de 75 cl, 30 pour un fût de 30 L.':'Complète le prix négocié, le prix de vente TTC, la taille du verre et les pertes (moins de 100 %) pour visualiser la marge.';
-  }else{
-   const oldPerLiter=mode==='litre'?avgPrice:avgPrice/pack;
-   const newPerLiter=mode==='litre'?newPrice:newPrice/pack;
-   const consumedLiters=(sz/100)/(1-loss/100),oldCost=oldPerLiter*consumedLiters,newCost=newPerLiter*consumedLiters;
-   const saleHT=saleTTC/(1+saleVat/100),oldMargin=saleHT-oldCost,newMargin=saleHT-newCost,delta=oldCost-newCost;
-   const cards=[
-    ['Prix de vente du verre HT',money(saleHT)],
-    ['Coût matière actuel / verre HT',money(oldCost)],
-    ['Coût matière négocié / verre HT',money(newCost)],
-    ['Marge brute actuelle / verre',money(oldMargin)],
-    ['Marge brute négociée / verre',money(newMargin)],
-    ['Gain de négociation / verre',(delta>=0?'+':'−')+money(Math.abs(delta))]
-   ];
-   cards.forEach(([label,value])=>{const card=el(saleMetrics,'div',undefined,'pa-metric');el(card,'span',label,'pa-muted');el(card,'b',value);});
-   const yieldGlasses=pack*(1-loss/100)/(sz/100);
-   const rate=saleHT>0?fmt.format(newMargin/saleHT*100)+' %':'non calculable';
-   saleNote.className='pa-muted';
-   saleNote.textContent='Rendement théorique : '+qty(yieldGlasses)+' verres / unité achetée. Taux de marge brute négocié : '+rate+'. Calcul à prix de vente TTC saisi, TVA '+saleVat+' %, coûts HT et pertes '+loss+' %. Hors personnel, frais fixes et autres consommables. Volumes vendus non connus : ne pas assimiler les achats à des ventes.';
+  const n=negotiation(p);
+  rLabel.textContent='Économie sur les achats '+basisYear;
+  compare.replaceChildren();note.hidden=true;result.dataset.tone='';
+  if(!n.validUnit){rValue.textContent='—';rSub.textContent='Indique le nombre de litres par '+p.unit+' pour comparer des tarifs en € / L.';}
+  else if(!n.volume){rValue.textContent='—';rSub.textContent='Aucune quantité exploitable sur '+basisYear+'.';}
+  else if(!n.validTarget){rValue.textContent='—';rSub.textContent='Prix moyen payé : '+money(n.avgPrice)+' HT / '+n.unitLabel+'. Saisis le prix proposé pour voir le gain.';}
+  else if(n.negative){rValue.textContent='—';rSub.textContent='';note.hidden=false;note.textContent='La baisse dépasse le prix moyen payé : un prix négatif est impossible.';}
+  else{
+   const up=n.gain>=0;result.dataset.tone=up?'up':'down';
+   rValue.textContent=(up?'▲ ':'▼ ')+(up?'':'−')+money(Math.abs(n.gain))+' HT';
+   rSub.textContent=(up?'d’économie':'de surcoût')+' · '+fmt.format(n.totalHT?Math.abs(n.gain)/n.totalHT*100:0)+' % du coût d’achat · à volumes '+basisYear+' identiques';
+   const col=(title,price,total,cls)=>{const c=el(compare,'div',undefined,'ng-compare-col '+cls);el(c,'span',title,'ng-muted');el(c,'strong',money(price),'ng-compare-price');el(c,'span','HT / '+n.unitLabel,'ng-muted');el(c,'span',money(total)+' HT sur '+qty(n.volume)+' '+(mode==='litre'?'L':p.unit),'ng-compare-total');};
+   col('Aujourd’hui (prix moyen payé)',n.avgPrice,n.totalHT,'');
+   el(compare,'span','→','ng-arrow').setAttribute('aria-hidden','true');
+   col('Après négociation',n.newPrice,n.volume*n.newPrice,'is-new');
   }
-
+  caveat.textContent='Simulation non enregistrée, le tarif réel ne change pas. '+n.monthsKnown+' mois avec achats en '+basisYear+'. '+(n.flagged?n.flagged+' ligne(s) incertaine(s). ':'')+(n.missing?'Prix avec droits manquant sur '+n.missing+' ligne(s). ':'')+'Gain théorique à quantités achetées et prix de vente constants : ce n’est ni un gain de chiffre d’affaires, ni une prévision de ventes. Factures manquantes, avoirs et conditionnements non rapprochés exclus.';
+ }
+ update();
+ btn(body,'Voir l’effet sur la marge au verre →','ng-ghost',()=>{tab='marge';drawDetail(p);});
+}
+function drawGlass(body,p){
+ const n=negotiation(p);
+ if(!(n.valid&&!n.negative)){
+  const box=el(body,'div',undefined,'ng-card ng-empty-card');
+  el(box,'p','Renseigne d’abord le prix négocié dans l’onglet « Négocier ».','ng-card-title');
+  el(box,'p','La marge au verre compare le coût matière actuel et le coût négocié pour un verre servi.','ng-muted');
+  btn(box,'Aller à Négocier','ng-primary',()=>{tab='negocier';drawDetail(p);});
+  return;
+ }
+ el(body,'p','Repères : une bouteille de 75 cl = 6 verres de 12,5 cl ; un litre de bière = 4 demis de 25 cl.','ng-muted');
+ const form=el(body,'div',undefined,'ng-form');
+ const directPack=directLitres(p);
+ const packBox=field(form,'Litres par '+p.unit,directPack!==null?'Conversion automatique':'Vin : 0,75 · fût : 30 · litre : 1');
+ const packI=numberInput(packBox,directPack!==null?directPack:(salePackL!==null?salePackL:litresPerUnit),'0.01','—','L',v=>{salePackL=v;update();});
+ if(directPack!==null){packI.readOnly=true;packBox.classList.add('is-readonly');}
+ numberInput(field(form,'Verre servi'),servingCl,'0.5','25','cl',v=>{servingCl=v;update();});
+ numberInput(field(form,'Prix du verre à la carte'),salePriceTTC,'0.01','Prix carte','€ TTC',v=>{salePriceTTC=v;update();});
+ const vat=el(form,'label',undefined,'ng-field');el(vat,'span','TVA de vente','ng-field-label');
+ const vs=el(el(vat,'span',undefined,'ng-input'),'select');[['20','20 % · alcool'],['10','10 %'],['5.5','5,5 %']].forEach(([v,t])=>{const o=el(vs,'option',t);o.value=v;});vs.value=String(saleVat);vs.onchange=()=>{saleVat=Number(vs.value);update();};
+ numberInput(field(form,'Pertes (mousse, fonds)'),servingLoss,'1','0','%',v=>{servingLoss=v;update();});
+ const result=el(body,'div',undefined,'ng-hero ng-result');
+ const rLabel=el(result,'span','Gain par verre servi','ng-hero-label'),rValue=el(result,'strong','—','ng-hero-value'),rSub=el(result,'span','','ng-hero-sub');
+ const table=el(body,'div',undefined,'ng-glass');
+ const hint=el(body,'p','','ng-muted');
+ function update(){
+  const g=glassMargin(p,negotiation(p));
+  table.replaceChildren();result.dataset.tone='';
+  if(!g.ok){rValue.textContent='—';rSub.textContent=!g.pack?'Renseigne les litres par '+p.unit+'.':'Complète le prix du verre, sa taille et les pertes (moins de 100 %).';hint.textContent='';return;}
+  const up=g.delta>=0;result.dataset.tone=up?'up':'down';
+  rValue.textContent=(up?'▲ ':'▼ ')+(up?'+':'−')+money(Math.abs(g.delta));
+  rSub.textContent='Prix du verre : '+money(g.saleHT)+' HT · '+qty(g.yieldGlasses)+' verres par '+p.unit;
+  const head=el(table,'div',undefined,'ng-glass-row ng-glass-head');el(head,'span','');el(head,'span','Aujourd’hui');el(head,'span','Après négociation');
+  const row=(label,a,b,strong)=>{const r=el(table,'div',undefined,'ng-glass-row'+(strong?' is-strong':''));el(r,'span',label);el(r,'span',a);el(r,'span',b,'is-new');};
+  row('Coût matière du verre',money(g.oldCost),money(g.newCost));
+  row('Marge brute du verre',money(g.oldMargin),money(g.newMargin),true);
+  row('Taux de marge brute',g.oldRate===null?'—':fmt.format(g.oldRate)+' %',g.rate===null?'—':fmt.format(g.rate)+' %');
+  hint.textContent='Prix TTC saisi, TVA '+saleVat+' %, pertes '+servingLoss+' %. Hors personnel, frais fixes et autres consommables. Volumes vendus non connus : les achats ne sont pas des ventes.';
  }
  update();
 }
 function open(event){
  const d=event?.detail||{};
  if(d.reference)search=d.reference;else if(d.name)search=d.name;else if(d.supplier)search=d.supplier;
- page=0;selection='';pane();if(loaded)render();
+ page=0;selection='';tab='achats';pane();if(loaded)render();
 }
 window.addEventListener('prism-open-purchase-analysis',open);
 window.PrismPurchaseAnalysis={open:()=>open()};
