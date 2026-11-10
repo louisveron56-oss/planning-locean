@@ -1,0 +1,86 @@
+/* Prism — navigation en barre haute (prism-topbar.js). Ordinateur uniquement, couleurs via --so-*. */
+#prism-topbar{display:none}
+
+@media screen and (min-width:901px){
+  /* Le menu latéral cède la place à la barre */
+  html[data-theme] body.prism-topnav #appSidebar,
+  html[data-theme] body.prism-topnav .app-sidebar-backdrop{display:none!important}
+  html[data-theme] body.prism-topnav.app-nav-ready>.header,
+  html[data-theme] body.prism-topnav.app-nav-ready>#planningPage,
+  html[data-theme] body.prism-topnav.app-nav-ready>#teamPage,
+  html[data-theme] body.prism-topnav.app-nav-ready>.module-page{margin-left:0!important;width:100%!important}
+  html[data-theme] body.prism-topnav{padding-top:var(--ptb-h,0px)}
+  html[data-theme] body.prism-topnav>.header{top:var(--ptb-offset,0px)!important;transition:top .25s cubic-bezier(.2,.7,.2,1)}
+  html[data-theme] body.prism-topnav .team-topbar{top:var(--ptb-offset,0px)!important;transition:top .25s cubic-bezier(.2,.7,.2,1)}
+
+  body.prism-topnav #prism-topbar{display:flex;flex-direction:column;gap:12px;position:fixed;top:0;left:0;right:0;z-index:150;
+    padding:18px max(32px,calc((100% - 1360px) / 2)) 12px;background:var(--so-bg);color:var(--so-ink);
+    font-family:Inter,system-ui,sans-serif;transition:transform .25s cubic-bezier(.2,.7,.2,1)}
+  body.prism-topnav #prism-topbar.is-tucked{transform:translateY(-100%)}
+
+  #prism-topbar .ptb-row{display:flex;align-items:center;gap:20px;min-width:0}
+  #prism-topbar .ptb-row[hidden]{display:none}
+  #prism-topbar .ptb-logo{flex:0 0 auto;border:0;background:transparent;padding:0 4px;cursor:pointer;
+    font:600 32px/1 Fraunces,Georgia,serif;letter-spacing:-.025em;color:var(--so-ink)}
+
+  #prism-topbar .ptb-pills{flex:0 1 auto;min-width:0;margin:0 auto;display:flex;gap:2px;padding:5px;border-radius:999px;
+    background:var(--so-panel);border:1px solid var(--so-line);overflow-x:auto;scrollbar-width:none}
+  #prism-topbar .ptb-pills::-webkit-scrollbar{display:none}
+  #prism-topbar .ptb-pill{flex:0 0 auto;min-height:42px;padding:0 18px;border:0;border-radius:999px;background:transparent;cursor:pointer;
+    font:500 15px/1 Inter,system-ui,sans-serif;color:var(--so-ink2);white-space:nowrap;transition:background .15s,color .15s,transform .1s}
+  #prism-topbar .ptb-pill:hover{color:var(--so-ink)}
+  #prism-topbar .ptb-pill.is-active{background:var(--so-btn);color:var(--so-on-btn)}
+
+  #prism-topbar .ptb-right{flex:0 0 auto;display:flex;align-items:center;gap:10px}
+  #prism-topbar .ptb-icon,
+  #prism-topbar .ptb-account{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:999px;cursor:pointer;transition:transform .1s,opacity .15s}
+  #prism-topbar .ptb-icon{border:1px solid var(--so-line);background:var(--so-panel);color:var(--so-ink)}
+  #prism-topbar .ptb-icon:hover{border-color:var(--so-line2)}
+  #prism-topbar .ptb-account{border:0;background:var(--so-btn);color:var(--so-on-btn);font:600 15px/1 Inter,system-ui,sans-serif}
+  #prism-topbar .ptb-account:hover{opacity:.85}
+  #prism-topbar :is(.ptb-pill,.ptb-sub,.ptb-icon,.ptb-account,.ptb-logo):active{transform:scale(.96)}
+  #prism-topbar :is(button):focus-visible{outline:2px solid var(--so-gold);outline-offset:2px}
+
+  #prism-topbar .ptb-account-wrap{position:relative}
+  #prism-topbar .ptb-account-menu{position:absolute;right:0;top:calc(100% + 8px);min-width:240px;display:flex;flex-direction:column;gap:10px;
+    padding:14px;border-radius:18px;background:var(--so-panel);border:1px solid var(--so-line);box-shadow:var(--so-shadow)}
+  #prism-topbar .ptb-account-menu[hidden]{display:none}
+  #prism-topbar .ptb-account-email{font-size:13px;color:var(--so-ink2);word-break:break-all}
+  #prism-topbar .ptb-account-out{min-height:40px;border-radius:999px;border:1px solid var(--so-line);background:transparent;color:var(--so-ink);
+    font:500 14px Inter,system-ui,sans-serif;cursor:pointer}
+  #prism-topbar .ptb-account-out:hover{background:var(--so-panel2)}
+
+  /* Sélecteur d'établissement, version barre */
+  #prism-topbar .ptb-site .prism-site-switch{margin:0}
+  #prism-topbar .ptb-site .prism-site-current{display:flex;align-items:center;gap:8px;width:auto;min-height:44px;padding:0 14px 0 18px;border-radius:999px;
+    border:1px solid var(--so-line);background:var(--so-panel);color:var(--so-ink);cursor:pointer}
+  #prism-topbar .ptb-site .prism-site-current:hover{border-color:var(--so-line2)}
+  #prism-topbar .ptb-site .prism-site-kicker{display:none}
+  #prism-topbar .ptb-site .prism-site-name{font-size:14px;font-weight:600;white-space:nowrap}
+  #prism-topbar .ptb-site .prism-site-current svg{color:var(--so-ink3)}
+  #prism-topbar .ptb-site .prism-site-list{left:auto;right:0;min-width:230px;background:var(--so-panel);border:1px solid var(--so-line);box-shadow:var(--so-shadow)}
+  #prism-topbar .ptb-site .prism-site-option{color:var(--so-ink)}
+  #prism-topbar .ptb-site .prism-site-option:hover:not(:disabled){background:var(--so-panel2)}
+  #prism-topbar .ptb-site .prism-site-option[aria-pressed="true"]{color:var(--so-gold-text)}
+  #prism-topbar .ptb-site .prism-site-option:disabled{color:var(--so-ink3)}
+
+  /* Pages de la rubrique */
+  #prism-topbar .ptb-subrow{padding-left:4px}
+  #prism-topbar .ptb-subs{display:flex;flex-wrap:wrap;gap:8px}
+  #prism-topbar .ptb-sub{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 16px;border-radius:999px;cursor:pointer;
+    border:1px solid var(--so-line);background:var(--so-panel);color:var(--so-ink2);font:500 14px/1 Inter,system-ui,sans-serif;white-space:nowrap;
+    transition:border-color .15s,color .15s,transform .1s}
+  #prism-topbar .ptb-sub:hover{color:var(--so-ink);border-color:var(--so-line2)}
+  #prism-topbar .ptb-sub.is-active{background:var(--so-gold-soft);border-color:var(--so-gold);color:var(--so-gold-text);font-weight:600}
+  #prism-topbar .ptb-badge{font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;background:var(--so-panel2);color:var(--so-ink3)}
+}
+
+@media screen and (min-width:901px) and (max-width:1120px){
+  #prism-topbar .ptb-pill{padding:0 13px;font-size:14px}
+  #prism-topbar .ptb-site .prism-site-name{max-width:90px;overflow:hidden;text-overflow:ellipsis}
+}
+
+@media print{
+  #prism-topbar{display:none!important}
+  body.prism-topnav{padding-top:0!important}
+}
