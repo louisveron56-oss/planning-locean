@@ -141,7 +141,7 @@ window.loadSalesDashboard=load;
 var insightsScript=document.createElement('script');insightsScript.src='./sales-insights.js';insightsScript.defer=true;document.head.appendChild(insightsScript);
 var performanceScript=document.createElement('script');performanceScript.src='./sales-performance.js';performanceScript.defer=true;document.head.appendChild(performanceScript);
 var goalsScript=document.createElement('script');goalsScript.src='./sales-weather-goals.js';goalsScript.defer=true;document.head.appendChild(goalsScript);
-var navigationScript=document.createElement('script');navigationScript.src='./sales-navigation.js';navigationScript.defer=true;document.head.appendChild(navigationScript);
+var navigationScript=document.createElement('script');navigationScript.src='./sales-navigation.js?v=2';navigationScript.defer=true;document.head.appendChild(navigationScript);
 var calendarScript=document.createElement('script');calendarScript.src='./sales-calendar.js';calendarScript.defer=true;document.head.appendChild(calendarScript);
 var eventsScript=document.createElement('script');eventsScript.src='./sales-events.js';eventsScript.defer=true;document.head.appendChild(eventsScript);
 var catalogNavScript=document.createElement('script');catalogNavScript.src='./products-suppliers-navigation.js';catalogNavScript.defer=true;document.head.appendChild(catalogNavScript);
