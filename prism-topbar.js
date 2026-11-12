@@ -24,7 +24,7 @@
   };
   /* Pages retirées du menu (doublons, en préparation) : le code reste, elles sont juste cachées.
      Validé par Louis le 12/11/2026. Pour en réafficher une, la retirer de cette liste. */
-  var MASQUEES = ['costs', 'foodcost', 'posimport', 'purchase-home', 'purchase-history', 'purchase-audit', 'stocks', 'delivery-notes'];
+  var MASQUEES = ['costs', 'foodcost', 'posimport', 'purchase-home', 'purchase-history', 'purchase-audit', 'stocks'];
   function masquer() {
     [].forEach.call(document.querySelectorAll('#appSidebar .app-nav-item[data-page]'), function (b) {
       if (MASQUEES.indexOf(b.getAttribute('data-page')) >= 0) b.classList.add('prism-masque');
