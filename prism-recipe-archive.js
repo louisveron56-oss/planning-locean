@@ -13,7 +13,7 @@ const PAGE = 'recipe-archive';
 const RUB = ['Rendement', 'Portion servie', 'Ingrédients', 'Quantités', 'Préparation', 'Cuisson', 'Dressage', 'Conservation', 'Allergènes', 'Coût portion', 'Prix de vente', 'Photo'];
 const CATS = ['Toutes', 'Entrées et planches', 'À partager', 'Côté mer', 'La popote', 'Sur le pouce', 'Desserts', 'Sauces et préparations'];
 const S = { fiches: [], compl: {}, ventes: null, annee: null, venteErr: '', loaded: false, loading: false, err: '',
-  q: '', cat: 'Toutes', carte: true, tri: 'ca', open: null, edit: false, busy: false, msg: '' };
+  costs: {}, q: '', cat: 'Toutes', carte: true, tri: 'ca', open: null, edit: false, busy: false, msg: '' };
 const eur = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
 const eur0 = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 const int = new Intl.NumberFormat('fr-FR');
@@ -41,9 +41,16 @@ async function load() {
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'Fiches indisponibles');
     S.fiches = j.fiches || []; S.compl = j.complements || {}; S.loaded = true;
+    loadCosts();
     try { buildSales(await salesSheet('Ventes_Articles', tk)); } catch (e) { S.venteErr = e.message || String(e); }
   } catch (e) { S.err = e.message || String(e); }
   S.loading = false; render();
+}
+/* Coûts calculés dans le simulateur (Recettes & fiches techniques) pour les fiches reliées. */
+async function loadCosts() {
+  if (!window.PrismRecipeSimulator) return;
+  try { S.costs = await window.PrismRecipeSimulator.costs(); } catch (_) { S.costs = {}; }
+  render();
 }
 /* Ventes de l'année la plus récente, regroupées par article de caisse. */
 function buildSales(rows) {
@@ -83,7 +90,7 @@ function ok(f) {
     'Quantités': ing.length > 0 && ing.filter(i => /\d/.test(i.quantite)).length / ing.length >= 0.6,
     'Préparation': (f.preparation || []).length > 0, 'Cuisson': !!val(f, 'cuisson'), 'Dressage': !!val(f, 'dressage'),
     'Conservation': !!val(f, 'conservation'), 'Allergènes': !!(c.allergenes && c.allergenesValides),
-    'Coût portion': false, 'Prix de vente': !!(a && a.prix), 'Photo': !!f.photo
+    'Coût portion': !!(S.costs[f.id] && Number.isFinite(S.costs[f.id].cost)), 'Prix de vente': !!(a && a.prix), 'Photo': !!f.photo
   };
 }
 const score = f => Object.values(ok(f)).filter(Boolean).length;
@@ -220,7 +227,12 @@ function drawFiche(f) {
     const lb = el(al, 'label', 'pfl-check'); const v = el(lb, 'input'); v.type = 'checkbox'; v.checked = !!c.allergenesValides; v.dataset.field = 'allergenesValides'; el(lb, 'span', '', 'Validés par le chef');
   } else if (c.allergenes) { el(al, 'p', 'pfl-text', c.allergenes); el(al, 'p', c.allergenesValides ? 'pfl-ok' : 'pfl-warn', c.allergenesValides ? 'Validés par le chef' : 'Non validés'); }
   else el(al, 'p', 'pfl-todo', 'À compléter');
-  const co = section(grid2, 'Coût portion', false); el(co, 'p', 'pfl-todo', 'À brancher : relier les ingrédients au catalogue des achats et saisir les grammages.');
+  const sim = S.costs[f.id], co = section(grid2, 'Coût portion', st['Coût portion']);
+  if (sim && Number.isFinite(sim.cost)) {
+    el(co, 'p', 'pfl-text', eur.format(sim.cost) + ' HT');
+    if (Number.isFinite(sim.ratio)) el(co, 'p', sim.ratio <= sim.objective ? 'pfl-ok' : 'pfl-warn', (sim.ratio <= sim.objective ? '▼ ' : '▲ ') + 'ratio matière ' + sim.ratio.toFixed(1).replace('.', ',') + ' % (objectif ' + sim.objective + ' %)');
+  } else el(co, 'p', 'pfl-todo', sim ? 'Un ingrédient n\'a pas encore de prix ou d\'unité dans le simulateur.' : 'À brancher.');
+  if (window.PrismRecipeSimulator) btn(co, 'pfl-pill no-print', sim ? 'Ouvrir dans le simulateur' : 'Calculer le coût', () => window.PrismRecipeSimulator.openFromLivret({ livretId: f.id, name: f.nom, priceTtc: a && a.prix ? a.prix : 0 }));
   const ph = section(grid2, 'Photo', st['Photo']); if (f.photo) el(ph, 'p', 'pfl-text', 'Page ' + f.photo.page + ' du livret ' + f.photo.livret); else el(ph, 'p', 'pfl-todo', 'À compléter');
 
   if (S.edit) {
@@ -260,6 +272,11 @@ function printFiche(blanks) {
   window.addEventListener('afterprint', done); window.print(); setTimeout(done, 1500);
 }
 
+/* Accès aux ingrédients d'une fiche pour le simulateur. */
+window.PrismFichesLivrets = {
+  async ingredients(id) { await load(); while (S.loading) await new Promise(r => setTimeout(r, 200)); const f = S.fiches.find(x => x.id === id); return f ? f.ingredients : []; }
+};
+
 /* ---------- Montage ---------- */
 function boot() {
   const target = document.querySelector('.prism-native-nav [data-page="menu"]');
@@ -272,7 +289,7 @@ function boot() {
   root = el(page, 'div', 'module-shell prism-fiches-livrets');
   const existing = document.getElementById('module-menu');
   if (existing) existing.insertAdjacentElement('afterend', page); else document.body.appendChild(page);
-  new MutationObserver(() => { if (page.classList.contains('open')) load(); }).observe(page, { attributes: true, attributeFilter: ['class'] });
+  new MutationObserver(() => { if (page.classList.contains('open')) { if (S.loaded) loadCosts(); else load(); } }).observe(page, { attributes: true, attributeFilter: ['class'] });
   render();
 }
 /* Montage immédiat (le script est en fin de page) : la barre du haut, chargée en « defer »,

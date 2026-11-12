@@ -260,6 +260,7 @@ function drawEditor(c) {
   btn(actions, 'ft-ghost', 'Imprimer', () => window.print());
   if (current.id) btn(actions, 'ft-ghost', 'Archiver', archive).disabled = busy;
 
+  if (current.livretId) drawLivret(c);
   const card = el(c, 'div', 'ft-card');
   const th = el(card, 'div', 'ft-row ft-row-head');
   el(th, 'span', '', 'Ingrédient · 1 portion'); el(th, 'span', 'ft-c', 'Quantité'); el(th, 'span', 'ft-r', 'Coût'); el(th, 'span', '', '');
@@ -295,6 +296,25 @@ function drawLine(card, l, idx) {
   btn(qty, 'ft-step', '+', () => { l.qty = Math.round((n(l.qty) + STEP[l.unit]) * 1000) / 1000; qi.value = fmtQty(l.qty); touch(); }).setAttribute('aria-label', 'Plus de ' + l.name);
   const cost = el(row, 'span', 'ft-cost ft-r'); cost.dataset.line = idx;
   btn(row, 'ft-remove', '×', () => { current.lines.splice(idx, 1); dirty = true; render(); }).setAttribute('aria-label', 'Retirer ' + l.name);
+}
+/* Rappel des ingrédients du livret : un clic lance la recherche du produit correspondant. */
+function drawLivret(c) {
+  const box = el(c, 'div', 'ft-card ft-livret');
+  el(box, 'p', 'ft-muted', 'Ingrédients du livret (quantités pour la recette entière, à ramener à 1 portion) :');
+  const chips = el(box, 'div', 'ft-livret-chips');
+  const api_ = window.PrismFichesLivrets;
+  if (!api_) { el(chips, 'span', 'ft-muted', 'Fiche du livret indisponible.'); return; }
+  api_.ingredients(current.livretId).then(list => {
+    if (!list || !list.length) { el(chips, 'span', 'ft-muted', 'Aucun ingrédient listé dans le livret.'); return; }
+    list.forEach(i => {
+      const q = [i.quantite, i.unite].filter(Boolean).join(' ');
+      btn(chips, 'ft-ghost ft-livret-chip', i.nom + (q ? ' · ' + q : ''), () => {
+        addSearch = i.nom.split(/[ (]/)[0];
+        const inp = document.querySelector('#' + ROOT_ID + ' .ft-add-search input');
+        if (inp) { inp.value = addSearch; inp.dispatchEvent(new Event('input')); inp.focus(); }
+      });
+    });
+  }).catch(() => el(chips, 'span', 'ft-muted', 'Fiche du livret indisponible.'));
 }
 function fmtQty(v) { return Number.isFinite(n(v)) ? String(Math.round(n(v) * 1000) / 1000).replace('.', ',') : ''; }
 function drawAdd(card) {
@@ -429,14 +449,41 @@ async function loadCocoRecipes(host) {
 }
 
 /* ---------- Démarrage ---------- */
-async function load() {
-  if (loaded || busy) return;
+let loading = null;
+function load() {
+  if (loaded) return Promise.resolve();
+  if (loading) return loading;
   busy = true;
-  try { await Promise.all([loadCatalog(), loadSheets()]); msg = ''; }
-  catch (e) { msg = 'Fiches techniques indisponibles : ' + e.message; }
-  localDrafts = readLocalDrafts();
-  busy = false; loaded = true; render();
+  loading = (async () => {
+    try { await Promise.all([loadCatalog(), loadSheets()]); msg = ''; }
+    catch (e) { msg = 'Fiches techniques indisponibles : ' + e.message; }
+    localDrafts = readLocalDrafts();
+    busy = false; loaded = true; loading = null; render();
+  })();
+  return loading;
 }
+/* Pont avec les fiches des livrets (prism-recipe-archive.js) : une fiche du simulateur garde
+   l'identifiant de la fiche du livret (livretId) ; son coût s'affiche ensuite dans la fiche. */
+window.PrismRecipeSimulator = {
+  async openFromLivret(o) {
+    if (typeof window.navigateApp === 'function') window.navigateApp('menu');
+    tab = 'fiches';
+    await load();
+    const s = sheets.find(x => x.livretId === o.livretId);
+    if (s) { open(s); return; }
+    if (dirty && !confirm('Les modifications de la fiche en cours ne sont pas enregistrées. Continuer ?')) return;
+    current = Object.assign(blank(), { name: o.name, livretId: o.livretId, price: n(o.priceTtc) > 0 ? toHt(o.priceTtc, 10) : 0 });
+    dirty = true; addSearch = '';
+    msg = 'Ajoute chaque ingrédient depuis Produits et dose-le pour 1 portion, puis enregistre.';
+    render(); window.scrollTo(0, 0);
+  },
+  async costs() {
+    await load();
+    const out = {};
+    sheets.filter(s => s.livretId).forEach(s => { out[s.livretId] = { cost: sheetCost(s), ratio: sheetRatio(s), lines: s.lines.length, objective: settings.objective }; });
+    return out;
+  }
+};
 function init() {
   const page = document.getElementById('module-menu'); if (!page) return;
   const shell = page.querySelector('.module-shell'); if (!shell || document.getElementById(ROOT_ID)) return;
