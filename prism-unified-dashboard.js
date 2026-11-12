@@ -56,7 +56,39 @@ function summarize(){
   ratioRH:availableRH&&s.ca>0&&!s.invalid?costRH/s.ca*100:NaN,
   ratioMat:availableMat&&s.ca>0&&!s.invalid?costMat/s.ca*100:NaN};
 }
-function card(container,name,value,sub){const el=create(container,"div","prism-overview-card");create(el,"div","prism-overview-card-label",name);create(el,"strong","prism-overview-card-value",value);if(sub)create(el,"p","prism-overview-card-note",sub);}
+function card(container,name,value,sub,action){
+ const el=create(container,action?"button":"div","prism-overview-card"+(action?" prism-overview-card-link":""));
+ if(action){el.type="button";el.title="Ouvrir le détail : "+name;el.addEventListener("click",action);}
+ create(el,"div","prism-overview-card-label",name);
+ create(el,"strong","prism-overview-card-value",value);
+ if(sub)create(el,"p","prism-overview-card-note",sub);
+ if(action)create(el,"span","prism-overview-card-open","Voir l'analyse →");
+ return el;
+}
+function openDetails(page,selector){
+ if(typeof window.navigateApp!=="function")return;
+ window.navigateApp(page);
+ if(selector)window.setTimeout(function(){
+  const node=document.querySelector(selector);if(node)node.scrollIntoView({behavior:"smooth",block:"start"});
+ },180);
+}
+let breakEvenOpen=false;
+function breakEvenDetail(root){
+ const panel=create(root,"section","prism-overview-break-even");
+ create(panel,"h3","","Seuil de rentabilité — données nécessaires");
+ create(panel,"p","","Objectif : calculer le chiffre d'affaires HT minimum nécessaire pour couvrir les charges fixes, en fonction du taux de marge sur coûts variables.");
+ const ul=create(panel,"ul","");
+ [
+ "Charges fixes mensuelles validées : loyers, charges structurelles, amortissements et autres frais fixes à définir.",
+ "Répartition fiable des charges mixtes et variables (matières consommées, commissions et autres charges dépendant de l'activité).",
+ "Coûts matières consommées : stocks initial et final, achats nets et rapprochements des factures.",
+ "Périmètre du personnel : distinguer les coûts fixes des coûts réellement variables, sans double comptage.",
+ "Période et saisonnalité : définir la base mensuelle et la méthode de projection annuelle."
+ ].forEach(function(t){create(ul,"li","",t)});
+ create(panel,"p","prism-overview-break-even-formula","Formule future : seuil de rentabilité HT = charges fixes / taux de marge sur coûts variables. Aucun seuil n'est publié avant validation des deux composantes.");
+ const btn=create(panel,"button","prism-overview-btn","Voir les données matières et RH dans Rapports →");
+ btn.type="button";btn.onclick=function(){openDetails("reports")};
+}
 function button(container,name,fn,selected){const b=create(container,"button","prism-overview-btn"+(selected?" selected":""),name);b.type="button";b.onclick=fn;return b;}
 function render(){
  const host=document.querySelector("#module-dashboard .module-shell");if(!host)return;
@@ -71,12 +103,14 @@ function render(){
  if(!sources){create(root,"p","prism-overview-info",loading?"Chargement des ventes, des RH et des achats matières…":error||"Pas encore de données pour cette période.");return;}
  const d=summarize(),grid=create(root,"div","prism-overview-grid");
  const valid=d.s.hasSales&&!d.s.invalid;
- card(grid,"Chiffre d'affaires TTC",valid?money(d.s.ttc):"—","");
- card(grid,"Chiffre d'affaires HT",valid?money(d.s.ca):"—","");
- card(grid,"Couverts",d.s.hasSales?integer.format(d.s.covers):"—","");
- card(grid,"Ticket moyen",d.s.hasSales&&Number.isFinite(d.s.ticket)?money(d.s.ticket):"—","");
- card(grid,"Ratio RH",percent(d.ratioRH),mode==="day"?"Non disponible au jour · coûts mensuels":d.availableRH?money(d.costRH)+" · "+d.rhCostBasis:"Période RH incomplète");
- card(grid,"Ratio achats matières",percent(d.ratioMat),mode==="day"?"Non disponible au jour · achats mensuels":d.availableMat?money(d.costMat)+" · hors variation de stocks":"Période achats incomplète");
+ card(grid,"Chiffre d'affaires TTC",valid?money(d.s.ttc):"—","Détail par période",function(){openDetails("sales")});
+ card(grid,"Chiffre d'affaires HT",valid?money(d.s.ca):"—","Détail par période",function(){openDetails("sales")});
+ card(grid,"Couverts",d.s.hasSales?integer.format(d.s.covers):"—","Analyse des ventes",function(){openDetails("sales")});
+ card(grid,"Ticket moyen",d.s.hasSales&&Number.isFinite(d.s.ticket)?money(d.s.ticket):"—","Analyse des ventes",function(){openDetails("sales")});
+ card(grid,"Ratio RH",percent(d.ratioRH),mode==="day"?"Non disponible au jour · coûts mensuels":d.availableRH?money(d.costRH)+" · "+d.rhCostBasis:"Période RH incomplète",function(){openDetails("reports",".rh-monthly-panel")});
+ card(grid,"Ratio achats matières",percent(d.ratioMat),mode==="day"?"Non disponible au jour · achats mensuels":d.availableMat?money(d.costMat)+" · hors variation de stocks":"Période achats incomplète",function(){openDetails("reports",".mat-ratio-panel")});
+ card(grid,"Seuil de rentabilité","—","À fiabiliser · charges fixes et marge sur coûts variables",function(){breakEvenOpen=!breakEvenOpen;render()});
+ if(breakEvenOpen)breakEvenDetail(root);
 
  if(d.warnings.length){const notes=create(root,"div","prism-overview-warnings");notes.setAttribute("role","status");d.warnings.forEach(w=>create(notes,"p","",w));}
 
@@ -92,7 +126,10 @@ function init(){
  ".prism-overview-nav{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.prism-overview-nav strong{font-size:12px;min-width:110px;text-align:center}",
  ".prism-overview-date{padding:8px;border:1px solid #d6dee2;border-radius:7px;font-size:11px}",
  ".prism-overview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}",
- ".prism-overview-card{background:#fff;border:1px solid #e3e9ec;border-radius:10px;padding:15px;min-width:0}",
+ ".prism-overview-card{background:#fff;border:1px solid #e3e9ec;border-radius:10px;padding:15px;min-width:0;text-align:left;font:inherit;color:inherit;width:100%}",
+ ".prism-overview-card-link{cursor:pointer;transition:border-color .15s,box-shadow .15s}.prism-overview-card-link:hover,.prism-overview-card-link:focus-visible{border-color:#678da4;box-shadow:0 0 0 2px #dfeaf0;outline:none}",
+ ".prism-overview-card-open{display:block;font-size:10px;margin-top:10px;color:#1b607f;font-weight:600}",
+ ".prism-overview-break-even{padding:17px;margin-top:13px;border:1px solid #e1d3c2;border-radius:11px;background:#fffaf4;color:#604a35;font-size:12px;line-height:1.6}.prism-overview-break-even h3{font-size:15px;margin:0 0 7px}.prism-overview-break-even ul{padding-left:20px}.prism-overview-break-even-formula{font-weight:600}",
  ".prism-overview-card-label{font-size:11px;color:#74808a}.prism-overview-card-value{display:block;color:#194c67;font-size:25px;font-variant-numeric:tabular-nums;margin:8px 0}",
  ".prism-overview-card-note{font-size:10px;color:#78848b;margin:0;line-height:1.5}",
  ".prism-overview-next{border:1px dashed #d5e1e6;padding:13px;margin-top:14px;border-radius:9px;display:flex;gap:15px;flex-wrap:wrap;font-size:11px;color:#74808a}",
