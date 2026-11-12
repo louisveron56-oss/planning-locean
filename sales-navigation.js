@@ -5,10 +5,10 @@ var selected='overview';
 function isDaily(){return !!document.querySelector('#module-sales .sales-tabs button.selected')&&[...document.querySelectorAll('#module-sales .sales-tabs button')].indexOf(document.querySelector('#module-sales .sales-tabs button.selected'))===0;}
 var tabs=[
  ['overview','Synthèse'],
- ['products','Produits & activités'],
- ['payments','Encaissements'],
- ['annual','Ventes annuelles détaillées']
+ ['payments','Encaissements']
 ];
+// « Produits & activités » et « Ventes annuelles détaillées » retirés : la page
+// Analyse › Ventes par article les remplace (demande de Louis, 12/11/2026).
 var rootSelector='#module-sales .module-placeholder';
 function hidden(element,hide){if(element)element.classList.toggle('sales-tab-hidden',!!hide);}
 function setup(){
@@ -27,7 +27,7 @@ function setup(){
   controls.insertAdjacentElement('afterend',nav);
  }
  var future=root.querySelector('.sales-annual-panel');
- if(!future){
+ if(false&&!future){
   future=document.createElement('section');future.className='sales-annual-panel';
   var title=document.createElement('h3');title.textContent='Ventes annuelles par produit';future.appendChild(title);
   var intro=document.createElement('p');intro.textContent='Espace réservé à tes futurs rapports détaillés de caisse : quantités et chiffre d’affaires par référence (vins rouges, cafés, bières, plats, etc.).';future.appendChild(intro);

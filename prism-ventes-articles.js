@@ -207,11 +207,21 @@
     var fam = {};
     liste.forEach(function (a) { var k = a.famille || '—'; fam[k] = (fam[k] || 0) + a.ca; });
     var famItems = Object.keys(fam).map(function (k) { return { name: k, value: fam[k] }; }).filter(function (i) { return i.value > 0; }).sort(function (a, b) { return b.value - a.value; });
+    if (famItems.length > 8) {
+      var reste = famItems.slice(8).reduce(function (s2, i) { return s2 + i.value; }, 0);
+      famItems = famItems.slice(0, 8).concat([{ name: 'Autres familles', value: reste }]);
+    }
+    var plus = el('details', 'pva-plus');
+    if (state.plus) plus.open = true;
+    plus.addEventListener('toggle', function () { state.plus = plus.open; });
+    plus.appendChild(el('summary', 'pva-pill pva-plus-btn', 'Plus d\'analyses : familles et articles jamais vendus'));
+    var grid2 = el('div', 'pva-grid');
+    plus.appendChild(grid2);
     var cFam = el('section', 'pva-card pva-span2');
     cFam.appendChild(el('h2', 'pva-card-title', 'CA par famille'));
     if (famItems.length) cFam.appendChild(barList(famItems, function (i) { return ca ? pct1.format(i.value / ca * 100) + ' %' : '—'; }));
     else cFam.appendChild(el('p', 'pva-muted', '—'));
-    grid.appendChild(cFam);
+    grid2.appendChild(cFam);
 
     /* À la carte mais pas vendus (catalogue actif, année la plus récente seulement) */
     var avecDormants = Y === annees[annees.length - 1] && data.catalogue.length > 0;
@@ -239,7 +249,7 @@
         if (dormants.length > 60) chips.appendChild(el('span', 'pva-chip is-more', '+ ' + (dormants.length - 60)));
         cDor.appendChild(chips);
       }
-      grid.appendChild(cDor);
+      grid2.appendChild(cDor);
     }
     root.appendChild(grid);
 
@@ -298,6 +308,7 @@
       ' puis Z détaillés de chaque nuit. Montants TTC tels qu\'encaissés.');
     card.appendChild(src);
     root.appendChild(card);
+    root.appendChild(plus);
   }
 
   /* ---------- Montage ---------- */

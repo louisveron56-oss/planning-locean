@@ -73,3 +73,9 @@
   #module-articles .pva-search{flex:1 1 100%}
   #module-articles .pva-bar{grid-template-columns:minmax(80px,40%) 1fr auto}
 }
+
+/* Analyses secondaires repliées sous le tableau */
+#module-articles .pva-plus{display:flex;flex-direction:column;gap:16px}
+#module-articles .pva-plus>summary{list-style:none;align-self:flex-start;display:inline-flex;align-items:center}
+#module-articles .pva-plus>summary::-webkit-details-marker{display:none}
+#module-articles .pva-plus[open]>summary{margin-bottom:16px}
