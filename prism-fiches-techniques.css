@@ -147,3 +147,7 @@
 .ft-result-text{display:flex;flex-direction:column;gap:1px;padding:6px 0}
 .ft-result-name{font-weight:500}
 .ft-find{align-self:flex-start;margin:4px 0 0 4px}
+/* Rappel des ingrédients du livret dans le simulateur. */
+.ft-livret{margin-bottom:12px}
+.ft-livret-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ft-livret-chip{border-radius:999px!important;font-size:12px!important;padding:6px 12px!important}

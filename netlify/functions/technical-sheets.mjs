@@ -49,6 +49,7 @@ function cleanSheet(s, actor, now, previous) {
     price,
     vat,
     portions: num(s?.portions, 1, 500) || 1,
+    livretId: /^[a-z0-9-]{2,80}$/.test(String(s?.livretId || "")) ? s.livretId : (previous?.livretId || null),
     lines: s.lines.map(cleanLine),
     createdAt: previous?.createdAt || now,
     createdBy: previous?.createdBy || actor,
