@@ -11,7 +11,7 @@ export default async function(req){
  const url=process.env.LOCEAN_SHEETS_API_URL,secret=process.env.LOCEAN_SHEETS_API_SECRET;
  if(!url||!secret)return response({error:"Configuration Sheets manquante"},503);
  const args=new URL(req.url).searchParams,sheet=args.get("sheet"),start=Number(args.get("start")||1);
- if(!["Services","Familles","Paiements","Contexte"].includes(sheet)||!Number.isInteger(start)||start<1||start>20001||start!==1&&(start-1)%1000!==0)return response({error:"Paramètres invalides"},400);
+ if(!["Services","Familles","Paiements","Contexte","Ventes_Articles","Catalogue","Serveurs"].includes(sheet)||!Number.isInteger(start)||start<1||start>20001||start!==1&&(start-1)%1000!==0)return response({error:"Paramètres invalides"},400);
  try{
   const cached=await readSheetCached({url,secret,sheet,maxRows:21000,refresh:wantsRefresh(req)});
   const rows=cached.rows.slice(start-1,start-1+1000);

@@ -20,7 +20,7 @@
   syncDarkLink();
 
   var brand = document.createElement('link');
-  brand.rel = 'stylesheet'; brand.href = './prism-refonte.css?v=9'; brand.id = 'prism-refonte-css';
+  brand.rel = 'stylesheet'; brand.href = './prism-refonte.css?v=10'; brand.id = 'prism-refonte-css';
   var mapped = document.createElement('style');
   mapped.id = 'prism-refonte-map';
 
@@ -235,7 +235,7 @@
     var n = sheet.ownerNode;
     if (!n) return true;
     if (n === mapped || n === brand) return true;
-    if (n.href && /prism-premium-dark|prism-refonte|prism-topbar|fonts\.googleapis|identity\.netlify/.test(n.href)) return true;
+    if (n.href && /prism-premium-dark|prism-refonte|prism-topbar|prism-ventes-articles|fonts\.googleapis|identity\.netlify/.test(n.href)) return true;
     return false;
   }
   function walk(rules, acc) {

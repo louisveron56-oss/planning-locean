@@ -239,8 +239,8 @@ html[data-theme] body #module-dashboard .module-shell>.module-title{display:none
 /* ============ Jetons partagés avec les modules de ChatGPT ============ */
 html[data-theme]{--bg:var(--so-bg);--card:var(--so-panel);--card-hover:var(--so-panel2);--sidebar:var(--so-side);--border:var(--so-line);--border-strong:var(--so-line2);
   --text:var(--so-ink);--text-2:var(--so-ink2);--text-3:var(--so-ink3);--accent:var(--so-gold)}
-html[data-theme="light"]{--up:#1F7A4D;--down:#B4441C;--n1:#D4CDBF}
-html[data-theme="dark"]{--up:#7FD6A3;--down:#FF9C8A;--n1:#4A3E39}
+html[data-theme="light"]{--up:#1F7A4D;--down:#B4441C;--n1:#D4CDBF;--so-hero-up:#7FD6A3;--so-hero-down:#FF9C8A}
+html[data-theme="dark"]{--up:#7FD6A3;--down:#FF9C8A;--n1:#4A3E39;--so-hero-up:#7FD6A3;--so-hero-down:#FF9C8A}
 
 /* ============ Produits (prism-unified-catalog) ============ */
 html[data-theme] body .pcu-root{background:transparent!important;border:0!important;padding:0!important;margin:6px 0 22px!important;color:var(--so-ink)!important}

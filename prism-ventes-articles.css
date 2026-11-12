@@ -1,0 +1,75 @@
+/* Prism — Ventes par article (prism-ventes-articles.js). DA Sable & Or : couleurs via --so-* uniquement. */
+#module-articles .pva{max-width:1360px;margin:0 auto;display:flex;flex-direction:column;gap:20px;font-family:Inter,system-ui,sans-serif;color:var(--so-ink)}
+#module-articles .pva-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px}
+#module-articles .pva-title{margin:0;font:500 clamp(36px,4.5vw,52px)/1.05 Fraunces,Georgia,serif;letter-spacing:-.03em;color:var(--so-ink)}
+#module-articles .pva-muted{margin:0;color:var(--so-ink2);font-size:14px;line-height:1.5}
+#module-articles .pva-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+#module-articles .pva-filters{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+#module-articles .pva-pills{display:flex;flex-wrap:wrap;gap:8px}
+#module-articles .pva-pill{min-height:40px;padding:0 16px;border-radius:999px;border:1px solid var(--so-line);background:var(--so-panel);color:var(--so-ink2);
+  font:500 14px/1 Inter,system-ui,sans-serif;cursor:pointer;transition:border-color .15s,color .15s,transform .1s}
+#module-articles .pva-pill:hover{color:var(--so-ink);border-color:var(--so-line2)}
+#module-articles .pva-pill:active{transform:scale(.96)}
+#module-articles .pva-pill.is-active{background:var(--so-btn);border-color:var(--so-btn);color:var(--so-on-btn)}
+#module-articles .pva-pill:focus-visible,#module-articles .pva-sort:focus-visible,#module-articles .pva-search input:focus-visible{outline:2px solid var(--so-gold);outline-offset:2px}
+#module-articles .pva-search{flex:0 1 320px;min-width:200px}
+#module-articles .pva-search input{width:100%;box-sizing:border-box;min-height:44px;padding:0 18px;border-radius:999px;border:1px solid var(--so-line);
+  background:var(--so-panel);color:var(--so-ink);font:400 15px Inter,system-ui,sans-serif}
+#module-articles .pva-search input::placeholder{color:var(--so-ink3)}
+
+#module-articles .pva-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+#module-articles .pva-span2{grid-column:span 2}
+#module-articles .pva-span4{grid-column:span 4}
+#module-articles .pva-card{min-width:0;box-sizing:border-box;padding:24px;border-radius:24px;background:var(--so-panel);border:1px solid var(--so-line)}
+#module-articles .pva-card-title{margin:0 0 16px;font:600 16px/1.3 Inter,system-ui,sans-serif;color:var(--so-ink)}
+#module-articles .pva-empty{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+
+#module-articles .pva-hero{grid-column:span 2;min-width:0;box-sizing:border-box;padding:28px;border-radius:24px;background:var(--so-hero);color:var(--so-on-hero);
+  display:flex;flex-direction:column;gap:12px;justify-content:center;min-height:220px}
+#module-articles .pva-hero-label{font-size:14px;color:var(--so-on-hero2)}
+#module-articles .pva-hero-value{font:500 clamp(44px,6vw,72px)/1 Fraunces,Georgia,serif;letter-spacing:-.03em}
+#module-articles .pva-hero-sub{font-size:15px;color:var(--so-on-hero2)}
+#module-articles .pva-hero-cmp{font-size:14px;color:var(--so-on-hero2)}
+#module-articles .pva-hero-cmp.is-up{color:var(--so-hero-up);font-weight:600}
+#module-articles .pva-hero-cmp.is-down{color:var(--so-hero-down);font-weight:600}
+
+#module-articles .pva-bars{display:flex;flex-direction:column;gap:10px}
+#module-articles .pva-bar{display:grid;grid-template-columns:minmax(90px,38%) 1fr auto;align-items:center;gap:12px;font-size:14px}
+#module-articles .pva-bar-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--so-ink)}
+#module-articles .pva-bar-track{height:10px;border-radius:999px;background:var(--so-panel2);overflow:hidden}
+#module-articles .pva-bar-fill{height:100%;border-radius:999px;background:var(--so-gold)}
+#module-articles .pva-bar-value{font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+
+#module-articles .pva-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;max-height:220px;overflow:auto}
+#module-articles .pva-chip{padding:6px 12px;border-radius:999px;background:var(--so-panel2);border:1px solid var(--so-line);font-size:13px;color:var(--so-ink2)}
+#module-articles .pva-chip.is-more{font-weight:600;color:var(--so-ink)}
+
+#module-articles .pva-table-wrap{overflow-x:auto;margin:0 -8px}
+#module-articles .pva-table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+#module-articles .pva-table th{position:sticky;top:0;background:var(--so-panel);text-align:left;border-bottom:1px solid var(--so-line);padding:0}
+#module-articles .pva-table th.is-num{text-align:right}
+#module-articles .pva-sort{width:100%;min-height:40px;padding:0 8px;border:0;background:transparent;color:var(--so-ink3);font:600 12px Inter,system-ui,sans-serif;
+  text-transform:uppercase;letter-spacing:.04em;cursor:pointer;text-align:inherit;white-space:nowrap}
+#module-articles .pva-sort:hover{color:var(--so-ink)}
+#module-articles .pva-table td{padding:10px 8px;border-bottom:1px solid var(--so-line);white-space:nowrap}
+#module-articles .pva-table td:first-child{white-space:normal;min-width:180px;font-weight:500}
+#module-articles .pva-table td:nth-child(2){color:var(--so-ink2)}
+#module-articles .pva-table td.is-num{text-align:right}
+#module-articles .pva-table td.is-up{color:var(--up);font-weight:600}
+#module-articles .pva-table td.is-down{color:var(--down);font-weight:600}
+#module-articles .pva-table tbody tr:hover td{background:var(--so-panel2)}
+#module-articles .pva-more{margin-top:16px}
+#module-articles .pva-source{margin:16px 0 0;font-size:12px;color:var(--so-ink3)}
+
+@media (max-width:1000px){
+  #module-articles .pva-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #module-articles .pva-span4{grid-column:span 2}
+}
+@media (max-width:640px){
+  #module-articles .pva-grid{grid-template-columns:minmax(0,1fr)}
+  #module-articles .pva-hero,#module-articles .pva-span2,#module-articles .pva-span4{grid-column:auto}
+  #module-articles .pva-card,#module-articles .pva-hero{padding:20px}
+  #module-articles .pva-search{flex:1 1 100%}
+  #module-articles .pva-bar{grid-template-columns:minmax(80px,40%) 1fr auto}
+}

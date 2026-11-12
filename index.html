@@ -1088,9 +1088,11 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
 <link rel="stylesheet" href="./prism-premium-dark.css?v=3">
 <link rel="stylesheet" href="./prism-unified-catalog.css?v=1">
 <link rel="stylesheet" href="./prism-fiches-techniques.css?v=3">
-<script src="./prism-refonte.js?v=10"></script>
+<script src="./prism-refonte.js?v=11"></script>
 <link rel="stylesheet" href="./prism-topbar.css?v=1">
+<link rel="stylesheet" href="./prism-ventes-articles.css?v=1">
 <script src="./prism-topbar.js?v=1" defer></script>
+<script src="./prism-ventes-articles.js?v=2" defer></script>
 </head>
 <body class="app-nav-ready auth-locked">
 <div class="auth-gate" id="authGate">
@@ -1123,6 +1125,7 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
         <div class="app-nav-group">
           <div class="app-nav-label">Analyse & Performance</div>
           <button class="app-nav-item" data-page="sales" onclick="navigateApp('sales')"><span class="app-nav-icon">↗</span>Ventes</button>
+          <button class="app-nav-item" data-page="articles" onclick="navigateApp('articles')"><span class="app-nav-icon">≡</span>Ventes par article</button>
           <button class="app-nav-item" data-page="teamperf" onclick="navigateApp('teamperf')"><span class="app-nav-icon">◎</span>Performance équipe</button>
           <div class="prism-nav-subheading">RENTABILITÉ</div>
           <button class="app-nav-item" data-page="costs" onclick="navigateApp('costs')"><span class="app-nav-icon">≋</span>Coûts matière</button>
@@ -1695,6 +1698,8 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
   </div>
 </section>
 
+
+<section class="module-page no-print" id="module-articles" data-module="articles" aria-label="Ventes par article"></section>
 
 <section class="module-page no-print" id="module-sales" data-module="sales">
   <div class="module-shell">
@@ -3092,6 +3097,7 @@ function setHeaderMode(page){
     teamperf:'— Performance équipe',
     dashboard:'— Tableau de bord',
     reports:'— Rapports & exports',
+    articles:'— Ventes par article',
     alltools:'— Tous les outils',
     improvements:'— Améliorations',
     settings:'— Paramètres'
