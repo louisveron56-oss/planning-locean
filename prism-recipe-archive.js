@@ -11,15 +11,20 @@ if (window.__prismFichesLivrets) return; window.__prismFichesLivrets = true;
 
 const PAGE = 'recipe-archive';
 const RUB = ['Rendement', 'Portion servie', 'Ingrédients', 'Quantités', 'Préparation', 'Cuisson', 'Dressage', 'Conservation', 'Allergènes', 'Coût portion', 'Prix de vente', 'Photo'];
+/* Cartes de saison : la carte change en mai (été) et en novembre (hiver). */
+const SAISONS = (() => { const out = []; for (let y = 2024; y <= 2027; y++) { out.push({ id: 'Été ' + y, debut: y + '-05-01', fin: y + '-10-31' }); out.push({ id: 'Hiver ' + y + '-' + (y + 1), debut: y + '-11-01', fin: (y + 1) + '-04-30' }); } return out; })();
+const today = new Date().toLocaleDateString('fr-CA', { timeZone: 'Europe/Paris' });
+const ACTUELLE = (SAISONS.find(x => x.debut <= today && today <= x.fin) || SAISONS[SAISONS.length - 1]).id;
 const CATS = ['Toutes', 'Entrées et planches', 'À partager', 'Côté mer', 'La popote', 'Sur le pouce', 'Desserts', 'Sauces et préparations'];
 const S = { fiches: [], compl: {}, ventes: null, annee: null, venteErr: '', loaded: false, loading: false, err: '',
-  costs: {}, q: '', cat: 'Toutes', carte: true, tri: 'ca', open: null, edit: false, busy: false, msg: '' };
+  costs: {}, q: '', cat: 'Toutes', saison: ACTUELLE, tri: 'ca', open: null, edit: false, busy: false, msg: '' };
 const eur = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
 const eur0 = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 const int = new Intl.NumberFormat('fr-FR');
 const norm = x => String(x ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 const num = v => { const n = Number(String(v ?? '').replace(/[\s €]/g, '').replace(',', '.')); return Number.isFinite(n) ? n : 0; };
 const has = v => v !== '' && v != null && Number.isFinite(Number(String(v).replace(',', '.')));
+const dateFr = iso => new Date(iso + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 function el(parent, tag, cls, txt) { const x = document.createElement(tag); if (cls) x.className = cls; if (txt !== undefined) x.textContent = String(txt); if (parent) parent.appendChild(x); return x; }
 function btn(parent, cls, txt, fn) { const b = el(parent, 'button', cls, txt); b.type = 'button'; if (fn) b.onclick = fn; return b; }
 
@@ -94,7 +99,10 @@ function ok(f) {
   };
 }
 const score = f => Object.values(ok(f)).filter(Boolean).length;
-const onCarte = f => { const c = C(f); if (c.horsCarte) return false; const a = article(f); return a ? a.qte > 0 : f.saison === 'Hiver 2026-2027'; };
+/* Un plat est dans une carte si un livret de cette saison le contient, sauf réglage contraire dans Prism. */
+const fromLivret = (f, saison) => f.saison === saison || (f.historique || []).some(h => h.saison === saison);
+const inCarte = (f, saison) => { const k = (C(f).cartes || {})[saison]; return k === undefined ? fromLivret(f, saison) : k; };
+const onCarte = f => inCarte(f, ACTUELLE);
 
 /* ---------- Enregistrement ---------- */
 async function save(f, fields) {
@@ -127,30 +135,41 @@ function pill(parent, label, active, fn) { const b = btn(parent, 'pfl-pill' + (a
 
 function drawList() {
   el(root, 'h1', 'pfl-title', 'Fiches techniques');
-  const all = S.fiches, carte = all.filter(onCarte), full = all.filter(x => score(x) >= 10).length;
+  const all = S.fiches, carte = S.saison ? all.filter(x => inCarte(x, S.saison)) : all, full = carte.filter(x => score(x) >= 10).length;
   const hero = el(root, 'div', 'pfl-hero');
-  const h1 = el(hero, 'div'); el(h1, 'div', 'pfl-hero-label', 'Fiches complètes (10/12 et plus)'); el(h1, 'div', 'pfl-hero-value', full + ' / ' + all.length);
-  const h2 = el(hero, 'div'); el(h2, 'div', 'pfl-hero-label', 'Plats à la carte'); el(h2, 'div', 'pfl-hero-value', String(carte.length));
-  const h3 = el(hero, 'div'); el(h3, 'div', 'pfl-hero-label', 'Reliées à la caisse'); el(h3, 'div', 'pfl-hero-value', String(all.filter(x => C(x).ksd).length));
+  const h1 = el(hero, 'div'); el(h1, 'div', 'pfl-hero-label', 'Fiches complètes (10/12 et plus)'); el(h1, 'div', 'pfl-hero-value', full + ' / ' + carte.length);
+  const h2 = el(hero, 'div'); el(h2, 'div', 'pfl-hero-label', S.saison ? 'Plats de la carte ' + S.saison : 'Toutes les fiches'); el(h2, 'div', 'pfl-hero-value', String(carte.length));
+  const h3 = el(hero, 'div'); el(h3, 'div', 'pfl-hero-label', 'Reliées à la caisse'); el(h3, 'div', 'pfl-hero-value', String(carte.filter(x => C(x).ksd).length));
   if (S.venteErr) el(root, 'p', 'pfl-warn', 'Ventes KSD indisponibles : ' + S.venteErr + '. Prix et ventes affichés « — ».');
 
   const bar = el(root, 'div', 'pfl-bar');
   const q = el(bar, 'input', 'pfl-search'); q.type = 'search'; q.placeholder = 'Rechercher un plat ou un ingrédient'; q.value = S.q;
   q.oninput = () => { S.q = q.value; drawRows(); };
-  pill(bar, 'À la carte', S.carte, () => { S.carte = true; render(); });
-  pill(bar, 'Toutes', !S.carte, () => { S.carte = false; render(); });
+  btn(bar, 'pfl-pill', 'Imprimer tout', () => printAll(rowsOf()));
+  const sb = el(root, 'div', 'pfl-bar');
+  const years = [...new Set(SAISONS.map(x => x.debut.slice(0, 4)))];
+  const cur = SAISONS.find(x => x.id === S.saison);
+  const yr = cur ? cur.debut.slice(0, 4) : null;
+  years.forEach(y => pill(sb, y, yr === y, () => { const k = cur && cur.id.startsWith('Hiver') ? 'Hiver' : 'Été'; S.saison = SAISONS.find(x => x.id.startsWith(k) && x.debut.startsWith(y)).id; render(); }));
+  if (yr) ['Été', 'Hiver'].forEach(k => pill(sb, k, cur.id.startsWith(k), () => { S.saison = SAISONS.find(x => x.id.startsWith(k) && x.debut.startsWith(yr)).id; render(); }));
+  pill(sb, 'Carte actuelle', S.saison === ACTUELLE, () => { S.saison = ACTUELLE; render(); });
+  pill(sb, 'Toutes les fiches', !S.saison, () => { S.saison = null; render(); });
+  if (S.saison) el(root, 'p', 'pfl-muted', S.saison + (S.saison === ACTUELLE ? ' (carte actuelle)' : '') + ' · ' + dateFr(cur.debut) + ' au ' + dateFr(cur.fin) + (S.annee ? ' · ventes : total de l\'année ' + S.annee + ' (la caisse ne détaille pas encore par saison)' : ''));
   pill(bar, 'Tri : ventes', S.tri === 'ca', () => { S.tri = 'ca'; render(); });
   pill(bar, 'Tri : à compléter', S.tri === 'score', () => { S.tri = 'score'; render(); });
   const cats = el(root, 'div', 'pfl-bar');
   CATS.forEach(c => pill(cats, c, S.cat === c, () => { S.cat = c; render(); }));
   const list = el(root, 'div', 'pfl-list');
+  function rowsOf() {
+    const qq = norm(S.q);
+    const rows = carte.filter(x => (S.cat === 'Toutes' || x.categorie === S.cat) &&
+      (!qq || norm(x.nom + ' ' + x.carte + ' ' + (x.ingredients || []).map(i => i.nom).join(' ')).includes(qq)));
+    return rows.sort((a, b) => S.tri === 'score' ? score(a) - score(b) || a.nom.localeCompare(b.nom, 'fr') : ((article(b) || {}).ca || 0) - ((article(a) || {}).ca || 0) || score(b) - score(a));
+  }
   function drawRows() {
     list.replaceChildren();
-    const qq = norm(S.q);
-    const rows = all.filter(x => (!S.carte || onCarte(x)) && (S.cat === 'Toutes' || x.categorie === S.cat) &&
-      (!qq || norm(x.nom + ' ' + x.carte + ' ' + (x.ingredients || []).map(i => i.nom).join(' ')).includes(qq)));
-    rows.sort((a, b) => S.tri === 'score' ? score(a) - score(b) || a.nom.localeCompare(b.nom, 'fr') : ((article(b) || {}).ca || 0) - ((article(a) || {}).ca || 0) || score(b) - score(a));
-    if (!rows.length) el(list, 'p', 'pfl-muted', S.carte ? 'Aucun plat à la carte pour ce filtre. Affichez « Toutes ».' : 'Aucune fiche pour ce filtre.');
+    const rows = rowsOf();
+    if (!rows.length) el(list, 'p', 'pfl-muted', S.saison ? 'Aucun plat dans la carte ' + S.saison + ' pour ce filtre. Ajoute des plats depuis leur fiche, ou affiche « Toutes les fiches ».' : 'Aucune fiche pour ce filtre.');
     rows.forEach(x => {
       const s = score(x), a = article(x), row = btn(list, 'pfl-row', undefined, () => { S.open = x.id; S.edit = false; S.msg = ''; render(); window.scrollTo(0, 0); });
       const name = el(row, 'div', 'pfl-row-name'); el(name, 'strong', '', x.nom); el(name, 'span', 'pfl-muted', x.categorie + ' · ' + x.saison);
@@ -180,7 +199,7 @@ function drawFiche(f) {
   const head = el(page, 'header', 'pfl-head');
   el(head, 'h1', 'pfl-title', f.nom);
   const tags = el(head, 'div', 'pfl-tags');
-  [f.categorie, f.saison + ' · page ' + f.source.page, onCarte(f) ? 'À la carte' : 'Hors carte'].forEach(t => el(tags, 'span', 'pfl-tag', t));
+  [f.categorie, 'Livret ' + f.saison + ' · page ' + f.source.page, onCarte(f) ? 'Carte actuelle' : 'Hors carte actuelle'].forEach(t => el(tags, 'span', 'pfl-tag', t));
   if (f.carte) el(head, 'p', 'pfl-carte', f.carte);
 
   const hero = el(page, 'div', 'pfl-hero');
@@ -199,8 +218,10 @@ function drawFiche(f) {
     btn(link, 'pfl-pill is-active', 'Confirmer ce lien', () => save(f, { ksd: { id: sug.id, article: sug.article } }));
     pickArticle(link, f);
   } else { el(link, 'p', 'pfl-todo', S.ventes ? 'Aucun article proposé.' : 'Ventes KSD indisponibles.'); if (S.ventes) pickArticle(link, f); }
-  const hc = el(link, 'label', 'pfl-check'); const cb = el(hc, 'input'); cb.type = 'checkbox'; cb.checked = !!c.horsCarte; el(hc, 'span', '', 'Ce plat n\'est plus à la carte');
-  cb.onchange = () => save(f, { horsCarte: cb.checked });
+  const cartes = el(page, 'section', 'pfl-card no-print'); el(cartes, 'h3', 'pfl-card-title', 'Cartes de saison');
+  const cw = el(cartes, 'div', 'pfl-bar');
+  SAISONS.forEach(x => pill(cw, x.id + (x.id === ACTUELLE ? ' (actuelle)' : ''), inCarte(f, x.id), () => save(f, { cartes: { [x.id]: !inCarte(f, x.id) } })));
+  el(cartes, 'p', 'pfl-muted', 'Cliquer sur une saison ajoute ou retire le plat de cette carte.');
 
   const grid = el(page, 'div', 'pfl-grid');
   editable(grid, f, 'rendement', 'Rendement', st['Rendement']);
@@ -266,9 +287,20 @@ function pickArticle(parent, f) {
       .forEach(a => btn(res, 'pfl-pill', a.article + (a.prix ? ' · ' + eur.format(a.prix) : ''), () => save(f, { ksd: { id: a.id, article: a.article } })));
   };
 }
-function printFiche(blanks) {
+/* Tout le dossier : chaque fiche affichée sur sa page, puis retour à la liste. */
+function printAll(list) {
+  if (!list.length) return;
+  const keep = root;
+  const box = document.createElement('div'); box.className = 'pfl-print-all';
+  const wasEdit = S.edit; S.edit = false;
+  list.forEach(f => { root = el(box, 'div', 'pfl-print-page'); drawFiche(f); });
+  root = keep; S.edit = wasEdit;
+  root.replaceChildren(box);
+  printFiche(false, () => render());
+}
+function printFiche(blanks, after) {
   document.body.classList.add('pfl-printing'); if (blanks) document.body.classList.add('pfl-print-blanks');
-  const done = () => { document.body.classList.remove('pfl-printing', 'pfl-print-blanks'); window.removeEventListener('afterprint', done); };
+  let fired = false; const done = () => { if (fired) return; fired = true; document.body.classList.remove('pfl-printing', 'pfl-print-blanks'); window.removeEventListener('afterprint', done); if (after) after(); };
   window.addEventListener('afterprint', done); window.print(); setTimeout(done, 1500);
 }
 
