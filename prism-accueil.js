@@ -107,10 +107,8 @@
       return;
     }
     var f = figures(), d = f.prev ? (f.cur / f.prev - 1) * 100 : null;
-    var mat = state.mode === 'month' ? matFor(state.sel) : null;
     sum.textContent = cap(f.label) + (f.partial ? ' (au ' + f.partial + ')' : '') + ' : ' + money(f.cur) + ' HT' +
-      (d == null ? '.' : ', ' + (d >= 0 ? '+' : '−') + pct(d) + ' sur ' + f.prevLabel.replace(/ \(au \d+\)/, '') + '.') +
-      (mat ? (mat.validated ? ' Ratio matière à ' + pct(mat.ratio) + '.' : ' Ratio matière provisoire : factures pas encore toutes dans Pennylane.') : '');
+      (d == null ? '.' : ', ' + (d >= 0 ? '+' : '−') + pct(d) + ' sur ' + f.prevLabel.replace(/ \(au \d+\)/, '') + '.');
 
     var ctrl = el('div', 'pa-controls', null, head);
     /* Navigation dans le temps : mois précédent / suivant et années disponibles */
@@ -145,29 +143,10 @@
     el('span', 'pa-hero-prev', 'vs ' + money(f.prev) + ' en ' + f.prevLabel, meta);
     hero.appendChild(sparkline());
 
-    /* Ratio matière */
-    var mc = el('div', 'pa-card pa-ratio-bas');
-    var mh = el('div', 'pa-card-head', null, mc);
-    el('p', 'pa-card-label', 'Ratio matière', mh);
-    var mm2 = matFor(state.sel);
-    if (mm2 && !mm2.validated) el('span', 'pa-chip is-warn', 'à confirmer', mh);
-    el('p', 'pa-card-value', mm2 ? pct(mm2.ratio) : '—', mc);
-    var bar = el('div', 'pa-ratio', null, mc); bar.setAttribute('aria-hidden', 'true');
-    if (mm2) {
-      el('span', 'pa-ratio-food', null, bar).style.width = Math.max(0, Math.min(100, mm2.ratioFood / 40 * 100)) + '%';
-      var dr = el('span', 'pa-ratio-drink', null, bar); dr.style.left = Math.max(0, Math.min(100, mm2.ratioFood / 40 * 100)) + '%'; dr.style.width = Math.max(0, Math.min(100, mm2.ratioDrinks / 40 * 100)) + '%';
-    }
-    el('span', 'pa-ratio-mark', null, bar);
-    var lg = el('p', 'pa-legend', null, mc);
-    el('span', 'pa-dot is-food', null, lg); lg.appendChild(document.createTextNode('Alimentation ' + (mm2 ? pct(mm2.ratioFood) : '—') + '  '));
-    el('span', 'pa-dot is-drink', null, lg); lg.appendChild(document.createTextNode('Boissons ' + (mm2 ? pct(mm2.ratioDrinks) : '—') + '  · repère 25 %'));
-
     /* Graphique mensuel + À surveiller */
     var row = el('div', 'pa-row', null, host);
     row.appendChild(monthChart());
     row.appendChild(watchList());
-    /* Ratio matière : en bas de page, en complément (demande de Louis). */
-    host.appendChild(mc);
   }
 
   function yearMonths(y) { var a = []; for (var i = 1; i <= 12; i++) a.push(y + '-' + String(i).padStart(2, '0')); return a; }
