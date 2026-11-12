@@ -72,8 +72,10 @@
     bar.setAttribute('aria-label', 'Navigation principale');
 
     mainRow = el('div', 'ptb-row');
-    var logo = el('button', 'ptb-logo', 'prism');
-    logo.type = 'button'; logo.setAttribute('aria-label', 'Prism — accueil');
+    var logo = el('button', 'ptb-logo');
+    logo.type = 'button'; logo.setAttribute('aria-label', 'Prism — tableau de bord');
+    var mark = el('img', 'ptb-mark'); mark.src = './prism-mark.svg'; mark.alt = ''; mark.width = 30; mark.height = 30;
+    logo.appendChild(mark); logo.appendChild(el('span', 'ptb-word', 'Prism'));
     logo.addEventListener('click', function () { if (sections[0]) go(sections[0].pages[0].page); });
 
     pills = el('nav', 'ptb-pills');

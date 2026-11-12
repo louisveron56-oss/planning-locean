@@ -1089,9 +1089,9 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
 <link rel="stylesheet" href="./prism-unified-catalog.css?v=1">
 <link rel="stylesheet" href="./prism-fiches-techniques.css?v=4">
 <script src="./prism-refonte.js?v=12"></script>
-<link rel="stylesheet" href="./prism-topbar.css?v=1">
+<link rel="stylesheet" href="./prism-topbar.css?v=2">
 <link rel="stylesheet" href="./prism-ventes-articles.css?v=1">
-<script src="./prism-topbar.js?v=2" defer></script>
+<script src="./prism-topbar.js?v=3" defer></script>
 <script src="./prism-ventes-articles.js?v=2" defer></script>
 </head>
 <body class="app-nav-ready auth-locked">
@@ -3153,8 +3153,8 @@ function navigateApp(page){
 document.addEventListener('DOMContentLoaded',function(){
   initLoceanIdentity();
   loadImprovements();
-  // Accueil temporaire : ouvrir directement les ventes journalières.
-  navigateApp('sales');
+  // Prism s'ouvre sur le tableau de bord.
+  navigateApp('dashboard');
   updateDeptTabs('planningDeptTabs',CURRENT_PLANNING_DEPT);
   updateDeptTabs('teamDeptTabs',CURRENT_TEAM_DEPT);
   updateDeptTabs('pointageDeptTabs',CURRENT_POINTAGE_DEPT);
