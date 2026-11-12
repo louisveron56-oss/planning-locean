@@ -473,3 +473,24 @@ html[data-theme] body.prism-rail #appSidebar:not(:hover):not(:focus-within) .app
 
 /* Pages masquées du menu (toujours dans le code, réactivables en retirant la classe prism-masque dans index.html) */
 html body #appSidebar .app-nav-item.prism-masque{display:none!important}
+
+/* ============ Accueil : objectif mensuel dans la carte héros ============ */
+.pa-goal{display:flex;flex-direction:column;gap:8px;margin-top:16px;max-width:420px}
+.pa-goal-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.pa-goal-label{font-size:13px;color:var(--so-on-hero2)}
+.pa-goal-pct{font:600 15px Inter,system-ui,sans-serif;color:var(--so-on-hero)}
+.pa-goal-track{height:8px;border-radius:999px;background:rgba(255,255,255,.14);overflow:hidden}
+.pa-goal-fill{display:block;height:100%;border-radius:999px;background:var(--so-gold)}
+.pa-goal-meta{margin:0;font-size:13px;color:var(--so-on-hero2)}
+.pa-goal-edit{align-self:flex-start;min-height:36px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:transparent;color:var(--so-on-hero);font:500 13px Inter,system-ui,sans-serif;cursor:pointer}
+.pa-goal-edit:hover{background:rgba(255,255,255,.08)}
+.pa-goal-form{display:flex;gap:8px}
+.pa-goal-form[hidden]{display:none}
+.pa-goal-form input{flex:1;min-width:0;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:transparent;color:var(--so-on-hero);font:500 14px Inter,system-ui,sans-serif}
+.pa-goal-save{min-height:40px;padding:0 16px;border-radius:999px;border:0;background:var(--so-gold);color:var(--so-hero);font:600 13px Inter,system-ui,sans-serif;cursor:pointer}
+.pa-goal-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.pa-goal :focus-visible{outline:2px solid var(--so-gold);outline-offset:2px}
+
+/* ============ Page Ventes : l'objectif vit sur l'accueil, encart « Conditions avant validation » retiré ============ */
+html body #module-sales .sales-weather-goals,
+html body #module-sales .dq-inline{display:none!important}

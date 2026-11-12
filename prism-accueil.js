@@ -54,7 +54,8 @@
         if (!String(r.etablissement || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().includes('ocean')) return;
         var ht = amount(r.ca_ht); if (!Number.isFinite(ht)) return;
         var m = d.slice(0, 7);
-        (months[m] = months[m] || { ht: 0, days: {} }).ht += ht;
+        (months[m] = months[m] || { ht: 0, ttc: 0, days: {} }).ht += ht;
+        var ttc = amount(r.ca_ttc); if (Number.isFinite(ttc)) months[m].ttc += ttc;
         months[m].days[d] = (months[m].days[d] || 0) + ht;
         if (d > last) last = d;
       });
@@ -141,12 +142,45 @@
     var meta = el('p', 'pa-hero-meta', null, ht);
     if (d != null) { var chip = el('span', 'pa-chip ' + (d >= 0 ? 'is-up' : 'is-down'), (d >= 0 ? '▲ +' : '▼ −') + pct(d), meta); }
     el('span', 'pa-hero-prev', 'vs ' + money(f.prev) + ' en ' + f.prevLabel, meta);
+    if (state.mode === 'month') ht.appendChild(goalBlock(state.sel));
     hero.appendChild(sparkline());
 
     /* Graphique mensuel + À surveiller */
     var row = el('div', 'pa-row', null, host);
     row.appendChild(monthChart());
     row.appendChild(watchList());
+  }
+
+  /* Objectif mensuel (CA TTC) : le même que sur la page Ventes, enregistré sur cet appareil. */
+  var GOAL_KEY = 'locean-ca-target-month';
+  function goals() { try { return JSON.parse(localStorage.getItem(GOAL_KEY) || '{}'); } catch (_) { return {}; } }
+  function goalBlock(month) {
+    var box = el('div', 'pa-goal');
+    var target = Number(goals()[month]) || 0, done = state.months[month] ? state.months[month].ttc : 0;
+    var head = el('div', 'pa-goal-head', null, box);
+    el('span', 'pa-goal-label', 'Objectif ' + MONTHS[+month.slice(5, 7) - 1] + ' (TTC)', head);
+    if (target) {
+      var p = done / target * 100;
+      el('strong', 'pa-goal-pct', pctFmt.format(p) + ' %', head);
+      var track = el('div', 'pa-goal-track', null, box); track.setAttribute('aria-hidden', 'true');
+      el('span', 'pa-goal-fill', null, track).style.width = Math.max(0, Math.min(100, p)) + '%';
+      el('p', 'pa-goal-meta', money(done) + ' sur ' + money(target) + ' · ' + (done >= target ? 'objectif atteint' : money(target - done) + ' restants'), box);
+    }
+    var edit = el('button', 'pa-goal-edit', target ? 'Modifier l’objectif' : 'Définir un objectif', box); edit.type = 'button';
+    var form = el('div', 'pa-goal-form', null, box); form.hidden = true;
+    var lab = el('label', 'pa-goal-sr', 'Objectif TTC en euros', form);
+    var input = el('input', null, null, form); input.type = 'number'; input.min = '0'; input.step = '100'; input.inputMode = 'numeric';
+    input.placeholder = 'Objectif TTC (€)'; input.value = target || ''; input.id = 'pa-goal-input'; lab.htmlFor = 'pa-goal-input';
+    var ok = el('button', 'pa-goal-save', 'Valider', form); ok.type = 'button';
+    edit.onclick = function () { form.hidden = !form.hidden; if (!form.hidden) input.focus(); };
+    function save() {
+      var n = Number(input.value); if (!Number.isFinite(n) || n < 0) return;
+      var g = goals(); if (n > 0) g[month] = n; else delete g[month];
+      try { localStorage.setItem(GOAL_KEY, JSON.stringify(g)); } catch (_) {}
+      render();
+    }
+    ok.onclick = save; input.onkeydown = function (e) { if (e.key === 'Enter') save(); };
+    return box;
   }
 
   function yearMonths(y) { var a = []; for (var i = 1; i <= 12; i++) a.push(y + '-' + String(i).padStart(2, '0')); return a; }
