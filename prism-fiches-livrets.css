@@ -47,6 +47,8 @@
 .prism-fiches-livrets .pfl-pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--text-2);margin:0}
 @media (max-width:720px){.prism-fiches-livrets .pfl-row{grid-template-columns:minmax(0,1fr) 90px}.prism-fiches-livrets .pfl-gauge,.prism-fiches-livrets .pfl-row-num:last-child{display:none}.prism-fiches-livrets .pfl-title{font-size:28px}}
 @media print{
+ body.pfl-printing .pfl-print-page{break-after:page}
+ body.pfl-printing .pfl-print-page:last-child{break-after:auto}
  body.pfl-printing>*:not(#module-recipe-archive){display:none!important}
  body.pfl-printing #module-recipe-archive{display:block!important;margin:0!important;padding:0!important}
  body.pfl-printing .no-print{display:none!important}

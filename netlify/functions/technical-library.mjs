@@ -23,6 +23,11 @@ function clean(fields) {
     out.ksd = k && k.id ? { id: text(k.id, 60), article: text(k.article, 160) } : null;
   }
   if ("horsCarte" in fields) out.horsCarte = fields.horsCarte === true;
+  // Présence du plat dans une carte de saison : { "Hiver 2026-2027": true, "Été 2025": false }.
+  if (fields.cartes && typeof fields.cartes === "object") {
+    out.cartes = {};
+    for (const [k, v] of Object.entries(fields.cartes).slice(0, 20)) if (/^(Été \d{4}|Hiver \d{4}-\d{4})$/.test(k)) out.cartes[k] = v === true;
+  }
   return out;
 }
 
@@ -48,7 +53,9 @@ export default async function (req) {
     const fields = clean(body.fields || {});
     if (!Object.keys(fields).length) return send({ error: "Rien à enregistrer" }, 400);
     const now = new Date().toISOString(), actor = user.email.toLowerCase();
-    saved.complements[body.id] = { ...(saved.complements[body.id] || {}), ...fields, updatedAt: now, updatedBy: actor };
+    const prev = saved.complements[body.id] || {};
+    if (fields.cartes) fields.cartes = { ...(prev.cartes || {}), ...fields.cartes };
+    saved.complements[body.id] = { ...prev, ...fields, updatedAt: now, updatedBy: actor };
     saved.savedAt = now;
     await db.setJSON(KEY, saved);
     return send({ ok: true, id: body.id, complement: saved.complements[body.id] });
