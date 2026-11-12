@@ -22,6 +22,14 @@
     'CARTE & RECETTES': 'Carte',
     'ADMINISTRATION': 'Admin'
   };
+  /* Pages retirées du menu (doublons, en préparation) : le code reste, elles sont juste cachées.
+     Validé par Louis le 12/11/2026. Pour en réafficher une, la retirer de cette liste. */
+  var MASQUEES = ['costs', 'foodcost', 'posimport', 'purchase-home', 'purchase-history', 'purchase-audit', 'stocks', 'delivery-notes'];
+  function masquer() {
+    [].forEach.call(document.querySelectorAll('#appSidebar .app-nav-item[data-page]'), function (b) {
+      if (MASQUEES.indexOf(b.getAttribute('data-page')) >= 0) b.classList.add('prism-masque');
+    });
+  }
   var bar, mainRow, subRow, pills, subs, siteSlot, account, accountMenu;
   var sections = [];   // [{ label, pages:[{page,label,badge}] }]
   var activePage = null;
@@ -40,6 +48,7 @@
   function readSections() {
     var nav = document.querySelector('#appSidebar .prism-native-nav');
     if (!nav) return false;
+    masquer();
     sections = [];
     var home = nav.querySelector(':scope > .app-nav-item[data-page]');
     if (home) sections.push({ label: 'Accueil', pages: [{ page: home.getAttribute('data-page'), label: 'Accueil' }], single: true });
@@ -80,16 +89,7 @@
 
     pills = el('nav', 'ptb-pills');
     pills.setAttribute('aria-label', 'Rubriques');
-    sections.forEach(function (s, i) {
-      var b = el('button', 'ptb-pill');
-      b.type = 'button'; b.textContent = s.label; b.setAttribute('data-section', String(i));
-      b.addEventListener('click', function () {
-        var target = last()[i];
-        if (!s.pages.some(function (p) { return p.page === target; })) target = s.pages[0].page;
-        go(target);
-      });
-      pills.appendChild(b);
-    });
+    rebuildPills();
 
     var right = el('div', 'ptb-right');
     siteSlot = el('div', 'ptb-site');
@@ -133,6 +133,21 @@
     bar.appendChild(mainRow); bar.appendChild(subRow);
     body.insertBefore(bar, body.firstChild);
     syncTheme(); syncAccount();
+  }
+
+ function rebuildPills() {
+    if (!pills) return;
+    pills.textContent = '';
+    sections.forEach(function (s, i) {
+      var b = el('button', 'ptb-pill');
+      b.type = 'button'; b.textContent = s.label; b.setAttribute('data-section', String(i));
+      b.addEventListener('click', function () {
+        var target = last()[i];
+        if (!s.pages.some(function (p) { return p.page === target; })) target = s.pages[0].page;
+        go(target);
+      });
+      pills.appendChild(b);
+    });
   }
 
   var SUN = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
@@ -236,6 +251,12 @@
     build();
     var nav = document.querySelector('#appSidebar .prism-native-nav');
     new MutationObserver(readActive).observe(nav, { attributes: true, subtree: true, attributeFilter: ['class'] });
+    /* D'autres scripts ajoutent des pages au menu après coup (Achats…) : on relit la structure. */
+    var relire = null;
+    new MutationObserver(function () {
+      clearTimeout(relire);
+      relire = setTimeout(function () { if (readSections()) { rebuildPills(); render(); } }, 120);
+    }).observe(nav, { childList: true, subtree: true });
     var email = document.getElementById('authUserEmail');
     if (email) new MutationObserver(syncAccount).observe(email, { childList: true, characterData: true, subtree: true });
     new MutationObserver(syncTheme).observe(root, { attributes: true, attributeFilter: ['data-theme'] });

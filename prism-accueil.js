@@ -103,8 +103,8 @@
     el('h1', 'pa-hello', greeting(), hl);
     var sum = el('p', 'pa-summary', null, hl);
 
-    if (!state.loaded) {
-      sum.textContent = state.error ? 'Les chiffres ne sont pas disponibles pour le moment.' : 'Récupération des derniers chiffres…';
+    if (!state.loaded || !state.sel) {
+      sum.textContent = state.error ? 'Les chiffres ne sont pas disponibles pour le moment.' : state.loaded ? 'Pas encore de chiffre de caisse importé.' : 'Récupération des derniers chiffres…';
       return;
     }
     var f = figures(), d = f.prev ? (f.cur / f.prev - 1) * 100 : null;

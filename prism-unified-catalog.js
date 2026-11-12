@@ -798,6 +798,16 @@ function render(){
  };
  const importBtn=make(header,'button','pcu-primary','Importer des factures');importBtn.type='button';
  importBtn.onclick=()=>{const b=document.querySelector('.app-nav-item[data-page="purchase-invoices"]');if(b)b.click();else if(typeof window.navigateApp==='function')window.navigateApp('purchase-invoices');};
+ // Présentation (demande de Louis) : vrais boutons pour les rubriques, réglages d'unités rangés derrière 🔩.
+ analysisButton.className='pcu-btn';trash.className='pcu-btn';
+ const gearBox=make(header,'div','pcu-gear-box');
+ const gear=make(gearBox,'button','pcu-gear','🔩');gear.type='button';gear.title='Réglages des unités';gear.setAttribute('aria-label','Réglages des unités');gear.setAttribute('aria-haspopup','true');gear.setAttribute('aria-expanded','false');
+ const gearMenu=make(gearBox,'div','pcu-gear-menu');gearMenu.hidden=true;
+ make(gearMenu,'p','pcu-gear-title','Réglages des unités');
+ defaultBtn.className='pcu-gear-item';batch.className='pcu-gear-item';
+ gearMenu.appendChild(defaultBtn);gearMenu.appendChild(batch);
+ gear.onclick=e=>{e.stopPropagation();gearMenu.hidden=!gearMenu.hidden;gear.setAttribute('aria-expanded',String(!gearMenu.hidden));};
+ document.addEventListener('click',e=>{if(!gearBox.contains(e.target)){gearMenu.hidden=true;gear.setAttribute('aria-expanded','false');}});
  const tools=make(root,'div','pcu-tools');
  const q=make(tools,'input','pcu-search');q.type='search';q.placeholder='Rechercher un produit, un fournisseur…';q.value=search;q.setAttribute('aria-label','Rechercher un produit ou un fournisseur');
  q.oninput=()=>{search=q.value;pageIndex=0;detailId='';drawList();};
