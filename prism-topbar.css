@@ -20,8 +20,9 @@
 
   #prism-topbar .ptb-row{display:flex;align-items:center;gap:20px;min-width:0}
   #prism-topbar .ptb-row[hidden]{display:none}
-  #prism-topbar .ptb-logo{flex:0 0 auto;border:0;background:transparent;padding:0 4px;cursor:pointer;
-    font:600 32px/1 Fraunces,Georgia,serif;letter-spacing:-.025em;color:var(--so-ink)}
+  #prism-topbar .ptb-logo{flex:0 0 auto;display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:0 4px;cursor:pointer;
+    font:600 30px/1 Fraunces,Georgia,serif;letter-spacing:-.025em;color:var(--so-ink)}
+  #prism-topbar .ptb-mark{display:block;width:34px;height:34px;padding:5px;box-sizing:border-box;border-radius:10px;background:var(--so-side)}
 
   #prism-topbar .ptb-pills{flex:0 1 auto;min-width:0;margin:0 auto;display:flex;gap:2px;padding:5px;border-radius:999px;
     background:var(--so-panel);border:1px solid var(--so-line);overflow-x:auto;scrollbar-width:none}
