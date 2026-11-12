@@ -96,11 +96,8 @@ html[data-theme] body .module-page .module-placeholder:not(.purchases-root){back
 html[data-theme] body .prism-overview{background:transparent!important;border:0!important;padding:0!important}
 html[data-theme] body :is(.sales-card-value,.prism-overview-card-value,.me-kpi-value,.fp-value,.purchases-stat strong,.rc-stat strong){font-family:Fraunces,Georgia,serif!important;font-weight:600!important;letter-spacing:-.02em!important;font-variant-numeric:tabular-nums}
 /* Première carte du tableau de bord et des ventes : carte « héros » foncée */
-html[data-theme] body #module-dashboard .prism-overview-card:first-child,
 html[data-theme] body #module-sales .sales-stats>.sales-card:first-child{background:var(--so-hero)!important;border-color:var(--so-hero)!important;color:var(--so-on-hero)!important}
-html[data-theme] body #module-dashboard .prism-overview-card:first-child :is(.prism-overview-card-value,strong),
 html[data-theme] body #module-sales .sales-stats>.sales-card:first-child .sales-card-value{color:var(--so-on-hero)!important}
-html[data-theme] body #module-dashboard .prism-overview-card:first-child :is(.prism-overview-card-label,.prism-overview-card-note,span),
 html[data-theme] body #module-sales .sales-stats>.sales-card:first-child :is(.sales-card-label,.sales-card-sub,span){color:var(--so-on-hero2)!important}
 
 /* ============ Boutons, onglets, puces ============ */
@@ -494,3 +491,13 @@ html body #appSidebar .app-nav-item.prism-masque{display:none!important}
 /* ============ Page Ventes : l'objectif vit sur l'accueil, encart « Conditions avant validation » retiré ============ */
 html body #module-sales .sales-weather-goals,
 html body #module-sales .dq-inline{display:none!important}
+
+/* ============ Tableau de bord : indicateurs sous la carte noire, compacts ============ */
+html[data-theme] body #module-dashboard .prism-overview{margin:0!important}
+html[data-theme] body #module-dashboard .prism-overview-controls[hidden]{display:none!important}
+html[data-theme] body #module-dashboard .prism-overview-grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))!important;gap:14px!important}
+html[data-theme] body #module-dashboard .prism-overview-card{padding:18px 20px!important}
+html[data-theme] body #module-dashboard .prism-overview-card-value{font-size:28px!important;margin:6px 0!important}
+html[data-theme] body #module-dashboard .prism-overview-warnings{margin-top:12px!important;padding:10px 14px!important}
+html[data-theme] body #module-dashboard .prism-overview-warnings p{margin:3px 0!important}
+html[data-theme] body #module-dashboard .pa-root{margin-bottom:14px!important}
