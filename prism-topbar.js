@@ -46,7 +46,7 @@
     [].forEach.call(nav.querySelectorAll(':scope > details.prism-nav-section'), function (d) {
       var sum = d.querySelector('summary span:not(.prism-nav-symbol):not(.prism-nav-chevron)');
       var raw = sum ? sum.textContent.trim().toUpperCase() : '';
-      var pages = [].map.call(d.querySelectorAll('.app-nav-item[data-page]'), function (b) {
+      var pages = [].filter.call(d.querySelectorAll('.app-nav-item[data-page]'), function (b) { return !b.classList.contains('prism-masque'); }).map(function (b) {
         var badge = b.querySelector('.app-nav-badge');
         return { page: b.getAttribute('data-page'), label: textOf(b), badge: badge ? badge.textContent.trim() : '' };
       });

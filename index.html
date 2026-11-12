@@ -1088,10 +1088,10 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
 <link rel="stylesheet" href="./prism-premium-dark.css?v=3">
 <link rel="stylesheet" href="./prism-unified-catalog.css?v=1">
 <link rel="stylesheet" href="./prism-fiches-techniques.css?v=4">
-<script src="./prism-refonte.js?v=11"></script>
+<script src="./prism-refonte.js?v=12"></script>
 <link rel="stylesheet" href="./prism-topbar.css?v=1">
 <link rel="stylesheet" href="./prism-ventes-articles.css?v=1">
-<script src="./prism-topbar.js?v=1" defer></script>
+<script src="./prism-topbar.js?v=2" defer></script>
 <script src="./prism-ventes-articles.js?v=2" defer></script>
 </head>
 <body class="app-nav-ready auth-locked">
@@ -1128,8 +1128,8 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
           <button class="app-nav-item" data-page="articles" onclick="navigateApp('articles')"><span class="app-nav-icon">≡</span>Ventes par article</button>
           <button class="app-nav-item" data-page="teamperf" onclick="navigateApp('teamperf')"><span class="app-nav-icon">◎</span>Performance équipe</button>
           <div class="prism-nav-subheading">RENTABILITÉ</div>
-          <button class="app-nav-item" data-page="costs" onclick="navigateApp('costs')"><span class="app-nav-icon">≋</span>Coûts matière</button>
-          <button class="app-nav-item" data-page="foodcost" onclick="navigateApp('foodcost')"><span class="app-nav-icon">⌁</span>Analyse food cost</button>
+          <button class="app-nav-item prism-masque" data-page="costs" onclick="navigateApp('costs')"><span class="app-nav-icon">≋</span>Coûts matière</button>
+          <button class="app-nav-item prism-masque" data-page="foodcost" onclick="navigateApp('foodcost')"><span class="app-nav-icon">⌁</span>Analyse food cost</button>
           
         </div>
       </details>
@@ -1167,7 +1167,7 @@ body.auth-locked.auth-widget-open #authGate{display:none!important}
         <summary><span class="prism-nav-symbol">⚙</span><span>ADMINISTRATION</span><span class="prism-nav-chevron">⌄</span></summary>
         <div class="app-nav-group">
           <div class="app-nav-label">Administration</div>
-          <button class="app-nav-item" data-page="posimport" onclick="navigateApp('posimport')"><span class="app-nav-icon">⇩</span>Import caisse</button>
+          <button class="app-nav-item prism-masque" data-page="posimport" onclick="navigateApp('posimport')"><span class="app-nav-icon">⇩</span>Import caisse</button>
           <button class="app-nav-item" data-page="settings" onclick="navigateApp('settings')"><span class="app-nav-icon">⚙</span>Paramètres</button>
           <button class="app-nav-item" data-page="improvements" onclick="navigateApp('improvements')"><span class="app-nav-icon">✦</span>Améliorations</button>
           
