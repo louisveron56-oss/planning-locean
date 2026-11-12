@@ -1,0 +1,58 @@
+/* Prism — Fiches techniques des livrets (prism-recipe-archive.js). Couleurs : variables du thème uniquement. */
+.prism-fiches-livrets{max-width:1180px!important;color:var(--text)}
+.prism-fiches-livrets .pfl-title{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:34px;letter-spacing:-.02em;margin:4px 0 18px;color:var(--text)}
+.prism-fiches-livrets .pfl-muted{color:var(--text-2);font-size:13px}
+.prism-fiches-livrets .pfl-warn{color:var(--down);font-size:13px}
+.prism-fiches-livrets .pfl-ok{color:var(--up);font-size:13px}
+.prism-fiches-livrets .pfl-hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px;background:var(--so-hero);color:var(--so-on-hero);border-radius:24px;padding:22px 26px;margin:0 0 18px}
+.prism-fiches-livrets .pfl-hero-label{font-size:12px;color:var(--so-on-hero2)}
+.prism-fiches-livrets .pfl-hero-value{font-family:Fraunces,Georgia,serif;font-size:32px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:4px}
+.prism-fiches-livrets .pfl-hero-sub{font-size:12px;color:var(--so-on-hero2);margin-top:4px}
+.prism-fiches-livrets .pfl-bar,.prism-fiches-livrets .pfl-actions,.prism-fiches-livrets .pfl-tags{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+.prism-fiches-livrets .pfl-pill{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:999px;padding:8px 14px;font:inherit;font-size:13px;cursor:pointer}
+.prism-fiches-livrets .pfl-pill.is-active{background:var(--so-btn);color:var(--so-on-btn);border-color:var(--so-btn)}
+.prism-fiches-livrets .pfl-search{flex:1;min-width:220px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:999px;padding:9px 16px;font:inherit;font-size:13px}
+.prism-fiches-livrets .pfl-list{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.prism-fiches-livrets .pfl-row{display:grid;grid-template-columns:minmax(0,2.4fr) minmax(120px,1fr) 90px 110px;gap:14px;align-items:center;text-align:left;width:100%;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:18px;padding:12px 16px;font:inherit;cursor:pointer}
+.prism-fiches-livrets .pfl-row:hover{border-color:var(--border-strong)}
+.prism-fiches-livrets .pfl-row-name{display:flex;flex-direction:column;gap:2px;min-width:0}
+.prism-fiches-livrets .pfl-row-name strong{font-size:14px}
+.prism-fiches-livrets .pfl-row-num{font-size:13px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text-2)}
+.prism-fiches-livrets .pfl-gauge{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-2)}
+.prism-fiches-livrets .pfl-gauge-track{flex:1;height:6px;border-radius:999px;background:var(--border);overflow:hidden}
+.prism-fiches-livrets .pfl-gauge-fill{height:100%;border-radius:999px;background:var(--accent)}
+.prism-fiches-livrets .pfl-gauge-fill[data-level=low]{background:var(--down)}
+.prism-fiches-livrets .pfl-gauge-fill[data-level=ok]{background:var(--up)}
+.prism-fiches-livrets .pfl-head{margin-bottom:14px}
+.prism-fiches-livrets .pfl-tag{font-size:12px;padding:4px 12px;border-radius:999px;border:1px solid var(--border);color:var(--text-2);background:var(--card)}
+.prism-fiches-livrets .pfl-carte{color:var(--text-2);font-size:14px;margin:10px 0 0}
+.prism-fiches-livrets .pfl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:14px}
+.prism-fiches-livrets .pfl-card{background:var(--card);border:1px solid var(--border);border-radius:24px;padding:16px 20px;margin-bottom:14px}
+.prism-fiches-livrets .pfl-grid .pfl-card{margin-bottom:0}
+.prism-fiches-livrets .pfl-card.is-empty{border-style:dashed}
+.prism-fiches-livrets .pfl-card-title{font-size:12px;font-weight:600;color:var(--text-2);margin:0 0 8px;cursor:default}
+.prism-fiches-livrets details summary.pfl-card-title{cursor:pointer}
+.prism-fiches-livrets .pfl-sub{font-size:13px;font-weight:600;margin:12px 0 6px}
+.prism-fiches-livrets .pfl-text{font-size:14px;line-height:1.55;margin:0 0 8px;white-space:pre-line}
+.prism-fiches-livrets .pfl-todo{font-size:13px;color:var(--text-3,var(--text-2));font-style:italic;margin:0}
+.prism-fiches-livrets .pfl-table{width:100%;border-collapse:collapse;font-size:14px}
+.prism-fiches-livrets .pfl-table td{padding:5px 0;border-bottom:1px solid var(--border)}
+.prism-fiches-livrets .pfl-qty{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.prism-fiches-livrets .pfl-qty.is-warn{color:var(--down)}
+.prism-fiches-livrets .pfl-steps{margin:0;padding-left:20px;font-size:14px;line-height:1.55}
+.prism-fiches-livrets .pfl-input{width:100%;min-height:64px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:14px;padding:10px 12px;font:inherit;font-size:14px;box-sizing:border-box}
+.prism-fiches-livrets .pfl-check{display:flex;gap:8px;align-items:center;font-size:13px;margin-top:10px;color:var(--text-2)}
+.prism-fiches-livrets .pfl-pick{margin-top:10px}
+.prism-fiches-livrets .pfl-pick-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.prism-fiches-livrets .pfl-pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--text-2);margin:0}
+@media (max-width:720px){.prism-fiches-livrets .pfl-row{grid-template-columns:minmax(0,1fr) 90px}.prism-fiches-livrets .pfl-gauge,.prism-fiches-livrets .pfl-row-num:last-child{display:none}.prism-fiches-livrets .pfl-title{font-size:28px}}
+@media print{
+ body.pfl-printing>*:not(#module-recipe-archive){display:none!important}
+ body.pfl-printing #module-recipe-archive{display:block!important;margin:0!important;padding:0!important}
+ body.pfl-printing .no-print{display:none!important}
+ body.pfl-printing .pfl-hero{background:none;color:var(--text);border:1px solid var(--border-strong);padding:10px 14px}
+ body.pfl-printing .pfl-hero-label,body.pfl-printing .pfl-hero-sub{color:var(--text-2)}
+ body.pfl-printing .pfl-card{break-inside:avoid;border-color:var(--border-strong)}
+ body.pfl-print-blanks .pfl-hero,body.pfl-print-blanks .pfl-card:not(.is-empty){display:none!important}
+ body.pfl-print-blanks .pfl-card.is-empty .pfl-todo{color:transparent;border-bottom:1px solid var(--border-strong);height:70px}
+}
