@@ -470,3 +470,6 @@ html[data-theme] body.prism-rail #appSidebar:not(:hover):not(:focus-within) :is(
 html[data-theme] body.prism-rail #appSidebar:not(:hover):not(:focus-within) .prism-theme-toggle span,html[data-theme] body.prism-rail.prism-rail-hold #appSidebar .prism-theme-toggle span{display:none!important}
 html[data-theme] body.prism-rail #appSidebar:not(:hover):not(:focus-within) .app-sidebar-scroll,html[data-theme] body.prism-rail.prism-rail-hold #appSidebar .app-sidebar-scroll{overflow-x:hidden!important}
 }
+
+/* Pages masquées du menu (toujours dans le code, réactivables en retirant la classe prism-masque dans index.html) */
+html body #appSidebar .app-nav-item.prism-masque{display:none!important}

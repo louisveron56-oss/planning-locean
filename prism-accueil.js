@@ -146,7 +146,7 @@
     hero.appendChild(sparkline());
 
     /* Ratio matière */
-    var mc = el('div', 'pa-card', null, grid);
+    var mc = el('div', 'pa-card pa-ratio-bas');
     var mh = el('div', 'pa-card-head', null, mc);
     el('p', 'pa-card-label', 'Ratio matière', mh);
     var mm2 = matFor(state.sel);
@@ -166,6 +166,8 @@
     var row = el('div', 'pa-row', null, host);
     row.appendChild(monthChart());
     row.appendChild(watchList());
+    /* Ratio matière : en bas de page, en complément (demande de Louis). */
+    host.appendChild(mc);
   }
 
   function yearMonths(y) { var a = []; for (var i = 1; i <= 12; i++) a.push(y + '-' + String(i).padStart(2, '0')); return a; }
