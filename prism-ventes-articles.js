@@ -21,6 +21,16 @@
   function num(v) { var n = Number(String(v == null ? '' : v).replace(/[\s  €]/g, '').replace(',', '.')); return isFinite(n) ? n : 0; }
   function has(v) { return v !== '' && v != null && isFinite(Number(String(v).replace(',', '.'))); }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  /* Une date du Sheets peut arriver en « 2024-12-31 », en « 31/12/2024 » ou en horodatage UTC : on garde le jour de Paris. */
+  function jour(v) {
+    var t = String(v == null ? '' : v).trim();
+    var m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+    var d = new Date(t);
+    if (isNaN(d)) return '';
+    return d.toLocaleDateString('fr-CA', { timeZone: 'Europe/Paris' });
+  }
   function dateFr(iso) { if (!iso) return '—'; var d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); return isNaN(d) ? '—' : d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }); }
 
   /* ---------- Chargement ---------- */
@@ -61,7 +71,7 @@
   }
   function jusquAu(annee) {
     var max = '';
-    data.ventes.forEach(function (r) { if (Number(r.annee) === annee && String(r.jusqu_au) > max) max = String(r.jusqu_au).slice(0, 10); });
+    data.ventes.forEach(function (r) { var d = jour(r.jusqu_au); if (Number(r.annee) === annee && d > max) max = d; });
     return max;
   }
   function complete(annee) { return jusquAu(annee) >= annee + '-12-31'; }
