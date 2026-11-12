@@ -275,5 +275,8 @@ function boot() {
   new MutationObserver(() => { if (page.classList.contains('open')) load(); }).observe(page, { attributes: true, attributeFilter: ['class'] });
   render();
 }
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+/* Montage immédiat (le script est en fin de page) : la barre du haut, chargée en « defer »,
+   lit le menu latéral avant DOMContentLoaded et doit y trouver l'entrée. */
+if (document.querySelector('.prism-native-nav [data-page="menu"]')) boot();
+else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
