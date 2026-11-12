@@ -111,6 +111,7 @@
     sum.textContent = cap(f.label) + (f.partial ? ' (au ' + f.partial + ')' : '') + ' : ' + money(f.cur) + ' HT' +
       (d == null ? '.' : ', ' + (d >= 0 ? '+' : '−') + pct(d) + ' sur ' + f.prevLabel.replace(/ \(au \d+\)/, '') + '.');
 
+    try { window.dispatchEvent(new CustomEvent('prism-periode', { detail: { month: state.sel, mode: state.mode } })); } catch (_) {}
     var ctrl = el('div', 'pa-controls', null, head);
     /* Navigation dans le temps : mois précédent / suivant et années disponibles */
     var nav = el('div', 'pa-nav', null, ctrl);

@@ -94,7 +94,8 @@ function render(){
  const host=document.querySelector("#module-dashboard .module-shell");if(!host)return;
  let root=host.querySelector("#prismOverview");if(!root){root=create(host,"section","prism-overview");root.id="prismOverview";const place=host.querySelector("#prismDashboardMount");if(place)place.replaceWith(root);}
  root.replaceChildren();
- const controls=create(root,"div","prism-overview-controls");["day","month","year"].forEach((x,i)=>button(controls,["Journalier","Mensuel","Annuel"][i],()=>{mode=x;render()},mode===x));
+ // La période est choisie une seule fois, en haut de l'accueil (événement prism-periode).
+ const controls=create(root,"div","prism-overview-controls");controls.hidden=!!window.__prismPeriode;["day","month","year"].forEach((x,i)=>button(controls,["Journalier","Mensuel","Annuel"][i],()=>{mode=x;render()},mode===x));
  const nav=create(controls,"div","prism-overview-nav");button(nav,"‹",()=>shift(-1));
  create(nav,"strong","",interval().title);
  button(nav,"›",()=>shift(1));
@@ -103,8 +104,7 @@ function render(){
  if(!sources){create(root,"p","prism-overview-info",loading?"Chargement des ventes, des RH et des achats matières…":error||"Pas encore de données pour cette période.");return;}
  const d=summarize(),grid=create(root,"div","prism-overview-grid");
  const valid=d.s.hasSales&&!d.s.invalid;
- card(grid,"Chiffre d'affaires TTC",valid?money(d.s.ttc):"—","Détail par période",function(){openDetails("sales")});
- card(grid,"Chiffre d'affaires HT",valid?money(d.s.ca):"—","Détail par période",function(){openDetails("sales")});
+ // Le CA HT et l'objectif TTC sont dans la carte noire de l'accueil, juste au-dessus : pas de doublon ici.
  card(grid,"Couverts",d.s.hasSales?integer.format(d.s.covers):"—","Analyse des ventes",function(){openDetails("sales")});
  card(grid,"Ticket moyen",d.s.hasSales&&Number.isFinite(d.s.ticket)?money(d.s.ticket):"—","Analyse des ventes",function(){openDetails("sales")});
  card(grid,"Ratio RH",percent(d.ratioRH),mode==="day"?"Non disponible au jour · coûts mensuels":d.availableRH?money(d.costRH)+" · "+d.rhCostBasis:"Période RH incomplète",function(){openDetails("reports",".rh-monthly-panel")});
@@ -115,6 +115,13 @@ function render(){
  if(d.warnings.length){const notes=create(root,"div","prism-overview-warnings");notes.setAttribute("role","status");d.warnings.forEach(w=>create(notes,"p","",w));}
 
 }
+window.addEventListener("prism-periode",function(e){
+ const p=e.detail||{};if(!p.month)return;
+ const newMode=p.mode==="ytd"?"year":"month",last=sources&&sources.sales.length?sources.sales.map(x=>x.day).sort().at(-1):"";
+ let newAnchor=p.month+"-15";if(last&&last.slice(0,7)===p.month)newAnchor=last;
+ if(newMode===mode&&newAnchor===anchor&&window.__prismPeriode)return;
+ window.__prismPeriode=true;mode=newMode;anchor=newAnchor;render();
+});
 function init(){
  const css=document.createElement("style");css.textContent=[
  ".prism-overview{margin:18px 0;padding:20px;background:#fff;border:1px solid #e0e6e9;border-radius:13px;color:#263f4b}",
