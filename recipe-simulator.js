@@ -19,7 +19,7 @@ const STEP = { g: 10, kg: 0.1, ml: 10, cl: 1, L: 0.1, piece: 1 };
 const UNITS_FOR = { kg: ['g', 'kg'], L: ['cl', 'ml', 'L'], piece: ['piece'] };
 
 let catalog = new Map(), catalogList = [], catalogError = '', sheets = [], settings = { objective: 25 };
-let current = null, dirty = false, tab = 'fiches', search = '', addSearch = '', msg = '', busy = false, loaded = false, localDrafts = [];
+let current = null, dirty = false, tab = 'recettes', search = '', addSearch = '', msg = '', busy = false, loaded = false, localDrafts = [];
 let custom = { name: '', packagePrice: '', packageQuantity: '', packageUnit: 'kg', category: 'Cuisine' }, creating = false;
 
 const el = (parent, tag, cls, txt) => { const x = document.createElement(tag); if (cls) x.className = cls; if (txt !== undefined) x.textContent = String(txt); if (parent) parent.appendChild(x); return x; };
@@ -194,7 +194,7 @@ function render() {
   const r = root(); if (!r) return;
   r.replaceChildren();
   const head = el(r, 'div', 'ft-head');
-  el(head, 'h3', 'ft-title', 'Carte & recettes');
+  el(head, 'h3', 'ft-title', 'Recettes');
   const tabs = el(head, 'div', 'ft-tabs'); tabs.setAttribute('role', 'tablist');
   [['recettes', 'Recettes'], ['fiches', 'Fiches techniques']].forEach(([k, label]) => {
     const b = btn(tabs, 'ft-tab', label, () => { tab = k; render(); }); b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(tab === k));
