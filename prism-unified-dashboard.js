@@ -86,6 +86,7 @@ function breakEvenDetail(root){
  "Période et saisonnalité : définir la base mensuelle et la méthode de projection annuelle."
  ].forEach(function(t){create(ul,"li","",t)});
  create(panel,"p","prism-overview-break-even-formula","Formule future : seuil de rentabilité HT = charges fixes / taux de marge sur coûts variables. Aucun seuil n'est publié avant validation des deux composantes.");
+ if(window.PrismCharges2025)window.PrismCharges2025.render(panel);
  const btn=create(panel,"button","prism-overview-btn","Voir les données matières et RH dans Rapports →");
  btn.type="button";btn.onclick=function(){openDetails("reports")};
 }
