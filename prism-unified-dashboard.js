@@ -109,6 +109,15 @@ function render(){
  button(nav,"›",()=>shift(1));
  const picker=create(nav,"input","prism-overview-date");picker.type="date";picker.value=anchor;picker.onchange=()=>{if(picker.value){anchor=picker.value;render()}};
  button(controls,"↻ Actualiser",()=>load(true));
+ const fiscalSwitch=create(root,"div","prism-overview-nav");
+ create(fiscalSwitch,"span","","Exercice comptable :");
+ const fySelect=create(fiscalSwitch,"select","prism-overview-date");
+ const fyCurrent=fiscal.fiscalYear(anchor);
+ const fiscalYears=[...new Set([2025,2026,2027,...(sources?.sales||[]).map(x=>fiscal.fiscalYear(x.day)).filter(Number.isFinite)])].sort((a,b)=>b-a);
+ fiscalYears.forEach(year=>{const o=create(fySelect,"option","",String(year)+" · 01/10/"+(year-1)+" → 30/09/"+year);o.value=String(year);});
+ fySelect.value=String(fyCurrent);
+ fySelect.setAttribute("aria-label","Choisir l'exercice comptable");
+ fySelect.onchange=()=>{const y=Number(fySelect.value);anchor=(y-1)+"-10-15";mode="year";render();};
  create(root,"p","prism-overview-info","Période financière : "+interval().title+" · clôture le 30 septembre.");
  if(!sources){create(root,"p","prism-overview-info",loading?"Chargement des ventes, des RH et des achats matières…":error||"Pas encore de données pour cette période.");return;}
  const d=summarize(),grid=create(root,"div","prism-overview-grid");
