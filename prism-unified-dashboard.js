@@ -75,7 +75,7 @@ function openDetails(page,selector){
 let breakEvenOpen=false;
 function breakEvenDetail(root){
  const panel=create(root,"section","prism-overview-break-even");
- create(panel,"h3","","Seuil de rentabilité — données nécessaires");
+ create(panel,"h3","","Seuil de rentabilité — diagnostic 2025");
  create(panel,"p","","Objectif : calculer le chiffre d'affaires HT minimum nécessaire pour couvrir les charges fixes, en fonction du taux de marge sur coûts variables.");
  const ul=create(panel,"ul","");
  [
@@ -85,7 +85,8 @@ function breakEvenDetail(root){
  "Périmètre du personnel : distinguer les coûts fixes des coûts réellement variables, sans double comptage.",
  "Période et saisonnalité : définir la base mensuelle et la méthode de projection annuelle."
  ].forEach(function(t){create(ul,"li","",t)});
- create(panel,"p","prism-overview-break-even-formula","Formule future : seuil de rentabilité HT = charges fixes / taux de marge sur coûts variables. Aucun seuil n'est publié avant validation des deux composantes.");
+ create(panel,"p","prism-overview-break-even-formula","Un modèle estimatif 2025 est disponible ci-dessous, sans validation des paramètres fixes / variables.");
+ if(window.PrismSeuil2025)window.PrismSeuil2025.render(panel);
  if(window.PrismCharges2025)window.PrismCharges2025.render(panel);
  const btn=create(panel,"button","prism-overview-btn","Voir les données matières et RH dans Rapports →");
  btn.type="button";btn.onclick=function(){openDetails("reports")};
