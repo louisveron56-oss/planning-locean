@@ -92,7 +92,7 @@ function breakEvenDetail(root){
  ].forEach(function(t){create(ul,"li","",t)});
  create(panel,"p","prism-overview-break-even-formula","Un modèle estimatif 2025 est disponible ci-dessous, sans validation des paramètres fixes / variables.");
  const fy=fiscal.fiscalYear(anchor);
- if(fy===2025){if(window.PrismSeuil2025)window.PrismSeuil2025.render(panel);if(window.PrismCharges2025)window.PrismCharges2025.render(panel)}
+ if(fy===2025){if(window.PrismSeuil2025)window.PrismSeuil2025.render(panel);if(window.PrismCharges2025)window.PrismCharges2025.render(panel);if(window.PrismAuditFY2025)window.PrismAuditFY2025.render(panel,sources?.sales||[])}
  else create(panel,"p","","Exercice "+fy+" : seuil non encore établi. Référence 2025 accessible en sélectionnant l’exercice clos au 30 septembre 2025.");
  const btn=create(panel,"button","prism-overview-btn","Voir les données matières et RH dans Rapports →");
  btn.type="button";btn.onclick=function(){openDetails("reports")};
