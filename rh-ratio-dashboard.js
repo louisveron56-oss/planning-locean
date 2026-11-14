@@ -51,7 +51,7 @@ function group(items){
   if(!map.has(label))map.set(label,{label,year:y,rh:0,ca:0,months:0,warnings:0,z:0,invalidCa:false});
   const p=map.get(label);p.rh+=x.rh;p.months++;p.z+=x.z;p.warnings+=x.warnings.length;if(!Number.isFinite(x.ca))p.invalidCa=true;else p.ca+=x.ca;
  });
- return [...map.values()].map(x=>({...x,rh:round(x.rh),ca:x.invalidCa?NaN:round(x.ca),ratio:x.invalidCa?NaN:x.rh/x.ca*100})).sort((a,b)=>a.label.localeCompare(b.label));
+ return [...map.values()].map(x=>({...x,rh:round(x.rh),ca:x.invalidCa?NaN:round(x.ca),ratio:x.invalidCa||x.ca<=0||(period==="year"&&x.months!==12)?NaN:x.rh/x.ca*100})).sort((a,b)=>a.label.localeCompare(b.label));
 }
 function comparison(all,label){
  const current=all.find(x=>x.label===label),previous=all.find(x=>x.label===String(Number(label.slice(0,4))-1)+label.slice(4));
