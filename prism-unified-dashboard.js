@@ -79,9 +79,9 @@ function breakEvenDetail(root){
  create(panel,"p","","Objectif : calculer le chiffre d'affaires HT minimum nécessaire pour couvrir les charges fixes, en fonction du taux de marge sur coûts variables.");
  const ul=create(panel,"ul","");
  [
- "Charges fixes mensuelles validées : loyers, charges structurelles, amortissements et autres frais fixes à définir.",
+ "Le seuil chiffré ci-dessous est une estimation de l’exercice comptable 2025, pas un seuil certifié pour la période du tableau de bord.",
  "Répartition fiable des charges mixtes et variables (matières consommées, commissions et autres charges dépendant de l'activité).",
- "Coûts matières consommées : stocks initial et final, achats nets et rapprochements des factures.",
+ "Marchandises consommées 2025 : achats nets et variation de stocks rapprochés avec le compte de résultat.",
  "Périmètre du personnel : distinguer les coûts fixes des coûts réellement variables, sans double comptage.",
  "Période et saisonnalité : définir la base mensuelle et la méthode de projection annuelle."
  ].forEach(function(t){create(ul,"li","",t)});
@@ -111,7 +111,7 @@ function render(){
  card(grid,"Ticket moyen",d.s.hasSales&&Number.isFinite(d.s.ticket)?money(d.s.ticket):"—","Analyse des ventes",function(){openDetails("sales")});
  card(grid,"Ratio RH",percent(d.ratioRH),mode==="day"?"Non disponible au jour · coûts mensuels":d.availableRH?money(d.costRH)+" · "+d.rhCostBasis:"Période RH incomplète",function(){openDetails("reports",".rh-monthly-panel")});
  card(grid,"Ratio achats matières",percent(d.ratioMat),mode==="day"?"Non disponible au jour · achats mensuels":d.availableMat?money(d.costMat)+" · hors variation de stocks":"Période achats incomplète",function(){openDetails("reports",".mat-ratio-panel")});
- card(grid,"Seuil de rentabilité","—","À fiabiliser · charges fixes et marge sur coûts variables",function(){breakEvenOpen=!breakEvenOpen;render()});
+ card(grid,"Seuil de rentabilité","≈ 2,91 M€","Estimation · exercice clos le 30/09/2025 · cliquer pour le détail",function(){breakEvenOpen=!breakEvenOpen;render()});
  if(breakEvenOpen)breakEvenDetail(root);
 
  if(d.warnings.length){const notes=create(root,"div","prism-overview-warnings");notes.setAttribute("role","status");d.warnings.forEach(w=>create(notes,"p","",w));}
