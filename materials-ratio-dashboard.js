@@ -43,7 +43,7 @@ function renderReport(root){
  [["Ratio achats / CA",pct(focus?.ratio)],["Achats alimentaires",fmt(focus?.food)],["Achats boissons",fmt(focus?.drinks)],["CA HT",fmt(focus?.ca)]].forEach(([name,value])=>{const c=add(cards,"div","mat-card");add(c,"small","",name);add(c,"strong","",value)});
  add(root,"h4","","Évolution des ratios d'achats");
  const bars=add(root,"div","mat-bars"),max=Math.max(1,...shown.map(x=>Number.isFinite(x.ratio)?Math.max(0,x.ratio):0))*1.12;
- shown.forEach(x=>{const l=add(bars,"div","mat-bar");add(l,"span","",x.key);const track=add(l,"div","mat-track"),fill=add(track,"div","mat-fill"+(x.bad.length?" mat-uncertain":""));fill.style.width=Math.min(100,Math.max(0,x.ratio/max*100))+"%";add(l,"strong","",pct(x.ratio))});
+ shown.forEach(x=>{const l=add(bars,"div","mat-bar");add(l,"span","",x.key);const track=add(l,"div","mat-track"),fill=add(track,"div","mat-fill"+(x.bad.length?" mat-uncertain":""));fill.style.width=(Number.isFinite(x.ratio)?Math.min(100,Math.max(0,x.ratio/max*100)):0)+"%";add(l,"strong","",pct(x.ratio))});
  add(root,"h4","","Détail des achats et contrôles");
  const scroll=add(root,"div","mat-scroll"),table=add(scroll,"table","mat-table"),thead=add(table,"thead"),tr=add(thead,"tr");
  ["Période","CA HT","Alimentation HT","Boissons HT","Achats HT","Ratio achats","Évolution N-1","Fiabilité"].forEach(t=>add(tr,"th","",t));
