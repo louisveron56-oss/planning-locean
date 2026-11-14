@@ -4,6 +4,7 @@ const eur=new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR",maximum
 const fmt=v=>Number.isFinite(v)?eur.format(v):"—",pct=v=>Number.isFinite(v)?per.format(v)+" %":"—";
 const add=(p,t,c,s)=>{const x=document.createElement(t);if(c)x.className=c;if(s!==undefined)x.textContent=s;p.appendChild(x);return x};
 let data=null,error="",loading=false,mode="month",year="2025";
+const fiscal=window.PrismFiscal;
 async function fetchData(force){
  if(loading||data&&!force)return;loading=true;error="";paint();
  try{
@@ -15,11 +16,11 @@ async function fetchData(force){
 function groups(a){
  const m=new Map();
  a.forEach(x=>{
-  const y=x.month.slice(0,4),k=mode==="year"?y:mode==="quarter"?y+"-T"+Math.ceil(Number(x.month.slice(5))/3):x.month;
+  const y=String(fiscal.fiscalYear(x.month)),k=fiscal.label(x.month,mode);
   if(!m.has(k))m.set(k,{key:k,year:y,ca:0,food:0,drinks:0,total:0,months:0,bad:[]});
   const b=m.get(k);b.ca+=x.ca;b.food+=x.food;b.drinks+=x.drinks;b.total+=x.total;b.months++;if(x.warnings.length)b.bad.push(x.month);
  });
- return [...m.values()].sort((a,b)=>a.key.localeCompare(b.key)).map(x=>({...x,ratio:100*x.total/x.ca}));
+ return [...m.values()].sort((a,b)=>a.key.localeCompare(b.key)).map(x=>({...x,ratio:x.ca>0&&!(mode==="year"&&x.months!==12)?100*x.total/x.ca:NaN}));
 }
 function btn(p,s,cb,active){const b=add(p,"button","mat-btn"+(active?" mat-selected":""),s);b.type="button";b.onclick=cb;return b}
 function container(id){
@@ -35,13 +36,13 @@ function renderReport(root){
  if(!data){add(root,"p","mat-note",loading?"Chargement…":error||"Connexion nécessaire");btn(root,"Charger",()=>fetchData(true));return}
  const controls=add(root,"div","mat-controls");
  [["month","Mensuel"],["quarter","Trimestriel"],["year","Annuel"]].forEach(([v,s])=>btn(controls,s,()=>{mode=v;paint()},mode===v));
- if(mode!=="year")["2024","2025","2026"].forEach(y=>btn(controls,y,()=>{year=y;paint()},year===y));
+ if(mode!=="year")[...new Set(data.months.map(x=>String(fiscal.fiscalYear(x.month))))].sort().forEach(y=>btn(controls,y,()=>{year=y;paint()},year===y));
  btn(controls,"↻ Actualiser",()=>fetchData(true));
  const all=groups(data.months),shown=mode==="year"?all:all.filter(x=>x.year===year),focus=shown.at(-1);
  const cards=add(root,"div","mat-cards");
  [["Ratio achats / CA",pct(focus?.ratio)],["Achats alimentaires",fmt(focus?.food)],["Achats boissons",fmt(focus?.drinks)],["CA HT",fmt(focus?.ca)]].forEach(([name,value])=>{const c=add(cards,"div","mat-card");add(c,"small","",name);add(c,"strong","",value)});
  add(root,"h4","","Évolution des ratios d'achats");
- const bars=add(root,"div","mat-bars"),max=Math.max(1,...shown.map(x=>Math.max(0,x.ratio)))*1.12;
+ const bars=add(root,"div","mat-bars"),max=Math.max(1,...shown.map(x=>Number.isFinite(x.ratio)?Math.max(0,x.ratio):0))*1.12;
  shown.forEach(x=>{const l=add(bars,"div","mat-bar");add(l,"span","",x.key);const track=add(l,"div","mat-track"),fill=add(track,"div","mat-fill"+(x.bad.length?" mat-uncertain":""));fill.style.width=Math.min(100,Math.max(0,x.ratio/max*100))+"%";add(l,"strong","",pct(x.ratio))});
  add(root,"h4","","Détail des achats et contrôles");
  const scroll=add(root,"div","mat-scroll"),table=add(scroll,"table","mat-table"),thead=add(table,"thead"),tr=add(thead,"tr");
@@ -49,9 +50,9 @@ function renderReport(root){
  const body=add(table,"tbody");
  shown.forEach(x=>{
   const prev=all.find(z=>z.key===String(Number(x.key.slice(0,4))-1)+x.key.slice(4));
-  const valid=prev&&!(mode==="year"&&(x.months<12||prev.months<12));
+  const valid=prev&&Number.isFinite(x.ratio)&&Number.isFinite(prev.ratio)&&!(mode==="year"&&(x.months<12||prev.months<12));
   const delta=valid?per.format(x.ratio-prev.ratio)+" pt":"—",r=add(body,"tr","");
-  [x.key,fmt(x.ca),fmt(x.food),fmt(x.drinks),fmt(x.total),pct(x.ratio),delta,x.bad.length?"⚠ "+x.bad.join(", "):"Source renseignée"].forEach((v,i)=>add(r,"td",i===7&&x.bad.length?"mat-warn":"",v));
+  [x.key,fmt(x.ca),fmt(x.food),fmt(x.drinks),fmt(x.total),pct(x.ratio),delta,x.months<12&&mode==="year"?"⚠ Exercice incomplet ("+x.months+"/12)":x.bad.length?"⚠ "+x.bad.join(", "):"Source renseignée"].forEach((v,i)=>add(r,"td",i===7&&x.bad.length?"mat-warn":"",v));
  });
  const note=add(root,"div","mat-note");add(note,"strong","","Point de vigilance comptable");
  add(note,"p","","2024 : achats alimentaires incomplets jusqu'en septembre. 2026 : factures récentes non exhaustives. Ne pas déduire une amélioration de ces données sans contrôle.");
