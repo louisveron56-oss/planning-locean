@@ -52,7 +52,7 @@ function render(host){
  el(tr,"td",label,"padding:7px 4px;border-bottom:1px solid #ece4da");
  el(tr,"td",fmt.format(value),"text-align:right;white-space:nowrap;padding:7px 4px;border-bottom:1px solid #ece4da;font-variant-numeric:tabular-nums");
  });
- el(audit,"p","Attention : les montants de gérance et de cotisations personnelles expliquent potentiellement l'écart de périmètre, mais leur absence du cumul MySilae n'est pas encore prouvée ligne à ligne. Il reste 11 574,78 € à rapprocher, ainsi que les écritures de primes, avantages et régularisations. Aucun ajustement automatique du ratio RH.","color:#ae4740;font-weight:600;margin-top:10px");
+ el(audit,"p","Périmètre confirmé par la direction : les rémunérations de gérance et cotisations de direction sont à intégrer aux charges fixes de la société, sans les confondre avec les salariés MySilae. Montants identifiés dans les comptes 6411500 et 6460000 : 128 936,74 €. Le solde comptable de 11 574,78 € reste à affecter précisément (autres postes de direction, primes ou régularisations éventuelles). Aucun ajustement automatique du ratio RH.","color:#ae4740;font-weight:600;margin-top:10px");
  el(root,"p","Note : charges financières (5 213,15 €), impôt et éléments exceptionnels exclus du total d'exploitation. Les lignes détaillées ci-dessus sont une sélection, le solde reste identifié et non classé.","color:#6b7981;margin-top:12px");
 }
 window.PrismCharges2025={render};
