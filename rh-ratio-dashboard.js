@@ -12,6 +12,7 @@ const round=v=>Math.round(v*100)/100;
 const sum=(a,k)=>round(a.reduce((s,x)=>s+(Number.isFinite(x[k])?x[k]:0),0));
 const ratio=x=>x.ca>0?x.rh/x.ca*100:NaN;
 const calMonth=m=>new Date(Number(m.slice(0,4)),Number(m.slice(5,7)),0).getDate();
+const fiscal=window.PrismFiscal;
 async function read(url,token){const res=await fetch(url,{headers:{Authorization:"Bearer "+token},cache:"no-store"});const p=await res.json();if(!res.ok||!p.ok)throw Error(p.error||"Source indisponible");return p;}
 async function load(force){
  if(loading||data&&!force)return;loading=true;error="";render();
@@ -40,17 +41,17 @@ async function load(force){
   const rhMonthKeys=new Set(months.map(x=>x.month));
   const pendingSalesMonths=[...salesMap.entries()].filter(([m,x])=>m>="2026-10"&&!rhMonthKeys.has(m)&&x.dates.size>0).map(([m,x])=>({month:m,ca:round(x.ca),days:x.dates.size,z:x.z,invalid:x.invalid,duplicateZ:x.duplicateZ})).sort((a,b)=>b.month.localeCompare(a.month));
   data={months,duplicates:rh.duplicates||[],invalid:rh.invalid||[],pendingSalesMonths};
-  const years=[...new Set(months.map(x=>x.month.slice(0,4)))];if(!years.includes(year))year=years.at(-1);
+  const years=[...new Set(months.map(x=>String(fiscal.fiscalYear(x.month))))];if(!years.includes(year))year=years.at(-1);
  }catch(e){error=e.message}finally{loading=false;render()}
 }
 function group(items){
  const map=new Map();
  items.forEach(x=>{
-  const y=x.month.slice(0,4),m=Number(x.month.slice(5)),label=period==="month"?x.month:period==="quarter"?y+"-T"+Math.ceil(m/3):y;
+  const y=String(fiscal.fiscalYear(x.month)),label=fiscal.label(x.month,period);
   if(!map.has(label))map.set(label,{label,year:y,rh:0,ca:0,months:0,warnings:0,z:0,invalidCa:false});
   const p=map.get(label);p.rh+=x.rh;p.months++;p.z+=x.z;p.warnings+=x.warnings.length;if(!Number.isFinite(x.ca))p.invalidCa=true;else p.ca+=x.ca;
  });
- return [...map.values()].map(x=>({...x,rh:round(x.rh),ca:x.invalidCa?NaN:round(x.ca),ratio:x.invalidCa?NaN:x.rh/x.ca*100})).sort((a,b)=>a.label.localeCompare(b.label));
+ return [...map.values()].map(x=>({...x,rh:round(x.rh),ca:x.invalidCa?NaN:round(x.ca),ratio:x.invalidCa||x.ca<=0||(period==="year"&&x.months!==12)?NaN:x.rh/x.ca*100})).sort((a,b)=>a.label.localeCompare(b.label));
 }
 function comparison(all,label){
  const current=all.find(x=>x.label===label),previous=all.find(x=>x.label===String(Number(label.slice(0,4))-1)+label.slice(4));
@@ -86,10 +87,10 @@ function table(parent,groups){
  ["Période","CA HT","Brut","Charges patronales","Coût RH chargé","Ratio RH","N-1 (points)","Contrôles"].forEach(h=>put(tr,"th","",h));
  const body=put(t,"tbody");
  groups.forEach(x=>{
-  const rows=data.months.filter(m=>m.month.startsWith(x.label.slice(0,4))&&(period==="year"||period==="quarter"?period==="year"||Math.ceil(Number(m.month.slice(5))/3)===Number(x.label.at(-1)):m.month===x.label));
+  const rows=data.months.filter(m=>fiscal.label(m.month,period)===x.label);
   const delta=period==="year"&&x.months!==12?null:comparison(groups,x.label);const tr=put(body,"tr");
   const brut=sum(rows,"brut"),pat=sum(rows,"charges_patronales");
-  [x.label,money(x.ca),money(brut),money(pat),money(x.rh),percentage(x.ratio),delta?(delta.delta>=0?"+":"")+pct.format(delta.delta)+" pt":"—",x.warnings?"⚠ "+x.warnings+" contrôle(s)":"Source(s) rapprochée(s)"].forEach((v,i)=>put(tr,"td",i===7&&x.warnings?"rh-attention":"",v));
+  [x.label,money(x.ca),money(brut),money(pat),money(x.rh),period==="year"&&x.months!==12?"—":percentage(x.ratio),delta?(delta.delta>=0?"+":"")+pct.format(delta.delta)+" pt":"—",x.warnings?"⚠ "+x.warnings+" contrôle(s)":"Source(s) rapprochée(s)"].forEach((v,i)=>put(tr,"td",i===7&&x.warnings?"rh-attention":"",v));
  });
 }
 function pendingPayrollDiagnostic(p){
@@ -123,18 +124,19 @@ function renderReport(p){
  pendingPayrollDiagnostic(p);
  const actions=put(p,"div","rh-controls");
  ["month","quarter","year"].forEach((v,i)=>button(actions,["Mensuel","Trimestriel","Annuel"][i],()=>{period=v;render()},period===v));
- if(period!=="year")for(const y of ["2024","2025","2026"])button(actions,y,()=>{year=y;render()},year===y);
+ if(period!=="year")for(const y of [...new Set(data.months.map(x=>String(fiscal.fiscalYear(x.month))))].sort())button(actions,y,()=>{year=y;render()},year===y);
  button(actions,"↻ Actualiser",()=>load(true));
  const all=group(data.months),shown=period==="year"?all:all.filter(x=>x.year===year);
- const thisYear=group(data.months.filter(x=>x.month.slice(0,4)===year));
+ const thisYear=group(data.months.filter(x=>String(fiscal.fiscalYear(x.month))===year));
  const focus=shown.at(-1),prior=focus&&!(period==="year"&&focus.months!==12)?comparison(all,focus.label):null;
  const cards=put(p,"div","rh-summary-grid");
- stat(cards,"Ratio RH · "+(focus?.label||"—"),percentage(focus?.ratio),focus&&period==="year"&&focus.months<12?focus.months+" mois disponibles · année incomplète":"Coût chargé / CA HT");
+ stat(cards,"Ratio RH · "+(focus?.label||"—"),focus&&period==="year"&&focus.months<12?"—":percentage(focus?.ratio),focus&&period==="year"&&focus.months<12?focus.months+" mois disponibles · exercice incomplet":"Coût chargé / CA HT");
  stat(cards,"Coût RH retenu",money(focus?.rh),focus&&period==="month"&&data.months.find(m=>m.month===focus.label)?.baseRH==="comptable nette"?"Coût comptable après indemnités 649":"Brut + charges patronales");
  stat(cards,"CA HT",money(focus?.ca),"KSD · ventes mensuelles");
  stat(cards,"Évolution du ratio N-1",prior?(prior.delta>=0?"+":"")+pct.format(prior.delta)+" pt":"—",prior?"Même période année précédente":"Comparer uniquement des périodes équivalentes");
  const chart=put(p,"div","rh-chart");put(chart,"h4","","Comparaison des ratios RH · "+(period==="year"?"exercices":year));drawBars(chart,shown,period);
  const caption=put(p,"p","rh-muted","Graphique : coût salarial chargé rapporté au CA HT, calculé sur les totaux de chaque période (pas de moyenne simple). Les années incomplètes ne doivent pas être comparées comme des exercices entiers.");
+ put(p,"p","rh-muted","Exercices du 1er octobre au 30 septembre · T1 = octobre à décembre.");
  put(p,"h4","","Détail de gestion et rapprochements");table(p,shown);
  const notes=put(p,"div","rh-notes");
  put(notes,"strong","","Contrôles non clos");
