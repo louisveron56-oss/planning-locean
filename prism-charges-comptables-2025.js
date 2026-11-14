@@ -31,6 +31,28 @@ function render(host){
    el(tr,"td","À vérifier","padding:8px 4px;color:#b23f3f");
   }
  }
+ const audit=el(root,"details",null,"margin-top:18px;padding:12px;border:1px solid #e6d8c7;border-radius:8px;background:#fffaf5");
+ el(audit,"summary","Rapprochement RH 2025 — écart MySilae / comptabilité","cursor:pointer;font-weight:700;font-size:13px");
+ el(audit,"p","Période identique : 01/10/2024 au 30/09/2025. Sources : onglet RH_Mensuel (MySilae) et comptes annuels signés, pages 16–17. Diagnostic figé, non synchronisé automatiquement.","font-size:11px;color:#637881");
+ const rowsRH=[
+ ["Salaires et traitements comptabilisés",1193519.95],
+ ["Brut MySilae cumulé",1093708.52],
+ ["Écart salaires",99811.43],
+ ["Dont compte 6411500 — rémunération gérante",93092.74],
+ ["Solde salaires à rapprocher",6718.69],
+ ["Charges sociales comptabilisées",355747.09],
+ ["Charges patronales MySilae cumulées",315047],
+ ["Écart charges sociales",40700.09],
+ ["Dont compte 6460000 — cotisations exploitant",35844],
+ ["Solde charges à rapprocher",4856.09],
+ ["Écart résiduel total",11574.78]
+ ];
+ const t=el(audit,"table",null,"width:100%;border-collapse:collapse;font-size:11px");
+ rowsRH.forEach(([label,value])=>{const tr=el(t,"tr",null);
+ el(tr,"td",label,"padding:7px 4px;border-bottom:1px solid #ece4da");
+ el(tr,"td",fmt.format(value),"text-align:right;white-space:nowrap;padding:7px 4px;border-bottom:1px solid #ece4da;font-variant-numeric:tabular-nums");
+ });
+ el(audit,"p","Attention : les montants de gérance et de cotisations personnelles expliquent potentiellement l'écart de périmètre, mais leur absence du cumul MySilae n'est pas encore prouvée ligne à ligne. Il reste 11 574,78 € à rapprocher, ainsi que les écritures de primes, avantages et régularisations. Aucun ajustement automatique du ratio RH.","color:#ae4740;font-weight:600;margin-top:10px");
  el(root,"p","Note : charges financières (5 213,15 €), impôt et éléments exceptionnels exclus du total d'exploitation. Les lignes détaillées ci-dessus sont une sélection, le solde reste identifié et non classé.","color:#6b7981;margin-top:12px");
 }
 window.PrismCharges2025={render};
