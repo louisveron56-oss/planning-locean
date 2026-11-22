@@ -10,7 +10,7 @@
   if (window.__prismVentesArticles) return; window.__prismVentesArticles = true;
 
   var SECTION_ID = 'module-articles';
-  var state = { annee: null, categorie: 'Tout', q: '', tri: 'ca', sens: -1, tout: false };
+  var state = { annee: null, categorie: 'Tout', famille: 'Toutes', vue: 'articles', q: '', tri: 'ca', sens: -1, tout: false };
   var data = null, loading = false, error = null;
 
   var eur0 = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
@@ -87,10 +87,36 @@
     });
     return Object.keys(map).map(function (k) { return map[k]; });
   }
+  function famille(a) { return String(a.famille || '').trim() || 'Sans famille'; }
+  function pression(a) { return /pression/i.test(famille(a)); }
+  /* Contenances explicites en priorité. Demi et sérieux sont les formats KSD
+     25 / 50 cl ; les autres libellés restent sans volume plutôt que d'inventer. */
+  function litresUnite(a) {
+    if (!pression(a)) return null;
+    var nom = String(a.article || '').toLowerCase().replace(',', '.');
+    var m = nom.match(/(?:^|[^0-9.])(\d+(?:\.\d+)?)\s*(cl|ml|litres?|l)(?=$|[^a-z])/);
+    if (m) return Number(m[1]) / (m[2] === 'cl' ? 100 : m[2] === 'ml' ? 1000 : 1);
+    if (/\b(serieux|sérieux|pinte)\b/.test(nom)) return 0.5;
+    if (/\bdemi\b/.test(nom)) return 0.25;
+    // Libellés standard de la caisse, sans indication de format = demi.
+    if (/^(bi[eè]re blonde|grim)$/.test(nom.trim())) return 0.25;
+    return null;
+  }
+  function volumes(list) {
+    var litres = 0, inconnus = 0, references = 0;
+    list.forEach(function (a) {
+      if (!pression(a)) return;
+      references++;
+      var dose = litresUnite(a);
+      if (dose == null) inconnus += Math.abs(a.qte); else litres += dose * a.qte;
+    });
+    return { litres: litres, inconnus: inconnus, references: references };
+  }
   function filtre(list) {
     var q = state.q.trim().toLocaleLowerCase('fr');
     return list.filter(function (a) {
       if (state.categorie !== 'Tout' && a.categorie !== state.categorie) return false;
+      if (state.famille !== 'Toutes' && famille(a) !== state.famille) return false;
       if (q && (a.article + ' ' + a.famille).toLocaleLowerCase('fr').indexOf(q) < 0) return false;
       return true;
     });
@@ -160,22 +186,41 @@
     /* Années */
     var yrs = el('div', 'pva-pills');
     yrs.setAttribute('role', 'group'); yrs.setAttribute('aria-label', 'Année');
-    annees.forEach(function (y) { yrs.appendChild(pill(String(y), y === Y, function () { state.annee = y; state.tout = false; render(); })); });
+    annees.forEach(function (y) { yrs.appendChild(pill(String(y), y === Y, function () { state.annee = y; state.famille = 'Toutes'; state.tout = false; render(); })); });
     head.appendChild(yrs);
 
     /* Filtres */
     var bar = el('div', 'pva-filters');
     var cats = el('div', 'pva-pills');
     ['Tout', 'Boissons', 'Nourriture', 'Hôtel'].forEach(function (c) {
-      cats.appendChild(pill(c, state.categorie === c, function () { state.categorie = c; state.tout = false; render(); }));
+      cats.appendChild(pill(c, state.categorie === c, function () { state.categorie = c; state.famille = 'Toutes'; state.tout = false; render(); }));
     });
     bar.appendChild(cats);
+    var familles = Array.from(new Set(tous.filter(function (a) {
+      return state.categorie === 'Tout' || a.categorie === state.categorie;
+    }).map(famille))).sort(function (a, b) { return a.localeCompare(b, 'fr'); });
+    var select = el('select', 'pva-pill');
+    select.setAttribute('aria-label', 'Catégorie de produits / famille KSD');
+    ['Toutes'].concat(familles).forEach(function (f) {
+      var option = el('option', '', f === 'Toutes' ? 'Toutes les catégories de produits' : f);
+      option.value = f; select.appendChild(option);
+    });
+    select.value = state.famille;
+    select.addEventListener('change', function () { state.famille = select.value; state.tout = false; render(); });
+    bar.appendChild(select);
     var lab = el('label', 'pva-search');
     lab.appendChild(el('span', 'pva-sr', 'Rechercher un article'));
     var input = el('input'); input.type = 'search'; input.placeholder = 'Rechercher un article…'; input.value = state.q;
     input.addEventListener('input', function () { state.q = input.value; state.tout = false; render(); var i = document.querySelector('#pva-root .pva-search input'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } });
     lab.appendChild(input); bar.appendChild(lab);
     root.appendChild(bar);
+
+    var vues = el('div', 'pva-pills');
+    vues.setAttribute('role', 'group'); vues.setAttribute('aria-label', 'Vue des ventes');
+    [['articles', 'Articles'], ['categories', 'Catégories']].forEach(function (v) {
+      vues.appendChild(pill(v[1], state.vue === v[0], function () { state.vue = v[0]; render(); }));
+    });
+    root.appendChild(vues);
 
     /* Héros */
     var ca = liste.reduce(function (s, a) { return s + a.ca; }, 0);
@@ -193,6 +238,13 @@
     var cmp = el('span', 'pva-hero-cmp' + (d ? (d.up ? ' is-up' : ' is-down') : ''),
       d ? d.txt + ' vs ' + prevY : (complete(Y) ? 'Pas d\'année ' + prevY + ' complète pour comparer' : 'Arrêté au ' + dateFr(fin) + ' · comparaison N-1 à jours égaux impossible avec des totaux annuels'));
     hero.appendChild(cmp);
+    var vol = volumes(liste);
+    if (vol.references) {
+      hero.appendChild(el('span', 'pva-hero-sub',
+        (vol.inconnus ? 'Volume documenté : ' : 'Volume vendu : ') + eur2.format(vol.litres).replace(/\s*€$/, '') + ' L · ' + eur2.format(vol.litres / 100).replace(/\s*€$/, '') + ' hL'));
+      if (vol.inconnus) hero.appendChild(el('span', 'pva-hero-sub', int.format(vol.inconnus) + ' consommations de pression sans contenance : total partiel'));
+      hero.appendChild(el('span', 'pva-hero-sub', 'Formats KSD : demi / BLONDE / GRIM = 25 cl ; sérieux / pinte = 50 cl. Hors pertes de tirage.'));
+    }
     grid.appendChild(hero);
 
     /* Top 10 */
@@ -253,6 +305,44 @@
     }
     root.appendChild(grid);
 
+    if (state.vue === 'categories') {
+      var resume = el('section', 'pva-card pva-table-card');
+      resume.appendChild(el('h2', 'pva-card-title', 'Ventes par catégorie de produits'));
+      resume.appendChild(el('p', 'pva-muted', 'Catégories issues des familles KSD. Cliquez sur une famille pour retrouver ses articles.'));
+      var groupes = {};
+      liste.forEach(function (a) { var f = famille(a); (groupes[f] = groupes[f] || []).push(a); });
+      var groupTable = el('table', 'pva-table'), groupHead = el('thead'), groupRow = el('tr');
+      ['Catégorie / famille KSD', 'Quantité', 'CA TTC', 'Part du CA filtré', 'Litres de pression', 'Hectolitres'].forEach(function (t) { groupRow.appendChild(el('th', '', t)); });
+      groupHead.appendChild(groupRow); groupTable.appendChild(groupHead);
+      var groupBody = el('tbody');
+      Object.keys(groupes).sort(function (a, b) {
+        return groupes[b].reduce(function (s, x) { return s + x.ca; }, 0) - groupes[a].reduce(function (s, x) { return s + x.ca; }, 0);
+      }).forEach(function (f) {
+        var items = groupes[f], montant = items.reduce(function (s, a) { return s + a.ca; }, 0);
+        var volume = volumes(items), row = el('tr'), cell = el('td');
+        cell.appendChild(pill(f, false, function () { state.famille = f; state.vue = 'articles'; state.tout = false; render(); }));
+        row.appendChild(cell);
+        [int.format(items.reduce(function (s, a) { return s + a.qte; }, 0)), eur0.format(montant),
+          ca ? pct1.format(montant / ca * 100) + ' %' : '—',
+          volume.references ? pct1.format(volume.litres) + (volume.inconnus ? ' (partiel)' : '') : '—',
+          volume.references ? eur2.format(volume.litres / 100).replace(/\s*€$/, '') + (volume.inconnus ? ' (partiel)' : '') : '—'
+        ].forEach(function (t) { row.appendChild(el('td', 'is-num', t)); });
+        groupBody.appendChild(row);
+      });
+      groupTable.appendChild(groupBody);
+      var groupFoot = el('tfoot'), totalRow = el('tr');
+      ['Total filtré', int.format(qte), eur0.format(ca), ca ? '100 %' : '—',
+        vol.references ? pct1.format(vol.litres) + (vol.inconnus ? ' (partiel)' : '') : '—',
+        vol.references ? eur2.format(vol.litres / 100).replace(/\s*€$/, '') + (vol.inconnus ? ' (partiel)' : '') : '—'
+      ].forEach(function (t, i) { totalRow.appendChild(el('td', i ? 'is-num' : '', t)); });
+      groupFoot.appendChild(totalRow); groupTable.appendChild(groupFoot);
+      var groupWrap = el('div', 'pva-table-wrap'); groupWrap.appendChild(groupTable); resume.appendChild(groupWrap);
+      if (!liste.length) resume.appendChild(el('p', 'pva-muted', 'Aucun article pour ce filtre.'));
+      if (vol.inconnus) resume.appendChild(el('p', 'pva-muted', 'Volumes partiels : certaines pressions n’ont pas de contenance reconnue.'));
+      root.appendChild(resume);
+      return;
+    }
+
     /* Tableau */
     var card = el('section', 'pva-card pva-table-card');
     card.appendChild(el('h2', 'pva-card-title', 'Tous les articles · ' + int.format(liste.length)));
@@ -268,6 +358,10 @@
         txt: function (a) { var p = prevMap[a.id]; if (!comparable || !p || !p.qte) return '—'; var x = delta(a.qte, p.qte); return x.txt; },
         cls: function (a) { var p = prevMap[a.id]; if (!comparable || !p || !p.qte) return ''; return a.qte >= p.qte ? 'is-up' : 'is-down'; } }
     ];
+    if (vol.references) cols.splice(3, 0, { k: 'litres', label: 'Litres', num: 1,
+      val: function (a) { var dose = litresUnite(a); return dose == null ? -Infinity : dose * a.qte; },
+      txt: function (a) { var dose = litresUnite(a); return dose == null ? '—' : eur2.format(dose * a.qte).replace(/\s*€$/, ''); }
+    });
     var col = cols.filter(function (c) { return c.k === state.tri; })[0] || cols[3];
     var key = col.val || function (a) { return a[col.k]; };
     var rows = liste.slice().sort(function (a, b) {
