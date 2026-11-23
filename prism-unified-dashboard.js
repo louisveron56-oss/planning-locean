@@ -11,7 +11,10 @@ const fiscal=window.PrismFiscal;
 const create=(p,tag,cl,txt)=>{const el=document.createElement(tag);if(cl)el.className=cl;if(txt!==undefined)el.textContent=txt;p.appendChild(el);return el;};
 const total=(rows,k)=>rows.reduce((s,r)=>s+(Number.isFinite(r[k])?r[k]:0),0);
 let sources=null,error="",loading=false,mode="month",anchor=new Date().toLocaleDateString("sv-SE");
-let periodBasis="fiscal",customStart="2026-01",customEnd="2026-12";
+const periodStorageKey="prism-analysis-period-mode-v1";
+function readPeriod(){try{const p=localStorage.getItem(periodStorageKey);return ["fiscal","civil","custom"].includes(p)?p:"fiscal";}catch(_){return "fiscal";}}
+function writePeriod(value){try{localStorage.setItem(periodStorageKey,value);}catch(_){}window.dispatchEvent(new CustomEvent("prism-analysis-period-change",{detail:{basis:value}}));}
+let periodBasis=readPeriod(),customStart="2026-01",customEnd="2026-12";
 const periodYear=()=>periodBasis==="civil"?Number(anchor.slice(0,4)):fiscal.fiscalYear(anchor);
 const monthsBetween=(a,b)=>(Number(b.slice(0,4))-Number(a.slice(0,4)))*12+Number(b.slice(5,7))-Number(a.slice(5,7))+1;
 function interval(){const y=periodYear(),m=anchor.slice(0,7),r=periodBasis==="civil"?{start:y+"-01-01",end:y+"-12-31",title:"Année civile "+y}:fiscal.range(y);
@@ -112,7 +115,7 @@ function render(){
  const picker=create(nav,"input","prism-overview-date");picker.type="date";picker.value=anchor;picker.onchange=()=>{if(picker.value){anchor=picker.value;render()}};
  button(controls,"↻ Actualiser",()=>load(true));
  const fiscalSwitch=create(root,"div","prism-overview-nav");create(fiscalSwitch,"span","","Vue :");
- [["fiscal","Fiscale"],["civil","Civile"],["custom","Personnalisée"]].forEach(([k,t])=>button(fiscalSwitch,t,()=>{periodBasis=k;mode="year";render();},periodBasis===k));
+ [["fiscal","Fiscale"],["civil","Civile"],["custom","Personnalisée"]].forEach(([k,t])=>button(fiscalSwitch,t,()=>{periodBasis=k;mode="year";writePeriod(k);render();},periodBasis===k));
  if(periodBasis==="custom"){
   [["Début",customStart,true],["Fin",customEnd,false]].forEach(([label,value,first])=>{const l=create(fiscalSwitch,"label","",label+" "),i=create(l,"input","prism-overview-date");i.type="month";i.value=value;i.onchange=()=>{const v=i.value;if(!/^\d{4}-\d{2}$/.test(v))return;const a=first?v:customStart,b=first?customEnd:v;if(a>b||monthsBetween(a,b)>36){i.setCustomValidity("Sélectionne entre 1 et 36 mois.");i.reportValidity();return;}i.setCustomValidity("");customStart=a;customEnd=b;render();};});
  }else{
@@ -136,6 +139,7 @@ function render(){
  if(d.warnings.length){const notes=create(root,"div","prism-overview-warnings");notes.setAttribute("role","status");d.warnings.forEach(w=>create(notes,"p","",w));}
 
 }
+window.addEventListener("prism-analysis-period-change",function(e){const p=e.detail?.basis;if(!["fiscal","civil","custom"].includes(p)||p===periodBasis)return;periodBasis=p;mode="year";render();});
 window.addEventListener("prism-periode",function(e){
  const p=e.detail||{};if(!p.month)return;
  const newMode=p.mode==="ytd"?"ytd":"month",last=sources&&sources.sales.length?sources.sales.map(x=>x.day).sort().at(-1):"";
