@@ -20,7 +20,27 @@
   function el(tag, cls, txt, parent) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; if (parent) parent.appendChild(e); return e; }
   function svgEl(tag, attrs, parent) { var e = document.createElementNS('http://www.w3.org/2000/svg', tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
 
-  var state = { loading: false, loaded: false, error: '', months: {}, lastDay: '', mat: [], sel: '', mode: 'month' };
+  var STORAGE_KEY = 'prism-analysis-period-mode-v1';
+  function savedBasis() { try { var v = localStorage.getItem(STORAGE_KEY); return ['fiscal', 'civil', 'custom'].indexOf(v) >= 0 ? v : 'fiscal'; } catch (_) { return 'fiscal'; } }
+  var state = { loading: false, loaded: false, error: '', months: {}, lastDay: '', mat: [], sel: '', mode: 'ytd', basis: savedBasis(), customStart: '2026-01', customEnd: '2026-12' };
+  function fy(m) { return Number(m.slice(0,4)) + (Number(m.slice(5,7)) >= 10 ? 1 : 0); }
+  function shifted(m, n) { return (Number(m.slice(0,4)) + n) + m.slice(4); }
+  function rangeMonths(first,last) { var out=[],m=first;for(var i=0;i<36&&m<=last;i++){out.push(m);var y=Number(m.slice(0,4)),mo=Number(m.slice(5,7))+1;if(mo===13){mo=1;y++;}m=y+'-'+String(mo).padStart(2,'0');}return out; }
+  function chosenYear() { return state.basis==='fiscal' ? fy(state.sel) : Number(state.sel.slice(0,4)); }
+  function analysisMonths() {
+    if(state.basis==='custom')return rangeMonths(state.customStart,state.customEnd);
+    var year=chosenYear(),start=state.basis==='fiscal' ? (year-1)+'-10' : year+'-01',end=state.basis==='fiscal'?year+'-09':year+'-12';
+    return rangeMonths(start,end);
+  }
+  function monthsToDate() { return analysisMonths().filter(function(m){return m <= state.sel && m <= state.lastDay.slice(0,7);}); }
+  function periodLabel() { return state.basis==='fiscal'?'Exercice '+chosenYear():state.basis==='civil'?'Année civile '+chosenYear():'Période personnalisée'; }
+  function setBasis(v, external) {
+    if(['fiscal','civil','custom'].indexOf(v)<0||v===state.basis)return;
+    state.basis=v;state.mode='ytd';
+    if(!external){try{localStorage.setItem(STORAGE_KEY,v);}catch(_){}window.dispatchEvent(new CustomEvent('prism-analysis-period-change',{detail:{basis:v}}));}
+    render();
+  }
+
 
   function firstName() {
     var shown = document.getElementById('authUserEmail');
@@ -74,19 +94,17 @@
   }
   function prevYear(m) { return (+m.slice(0, 4) - 1) + m.slice(4); }
   function figures() {
-    var sel = state.sel, partial = 0;
-    if (sel === state.lastDay.slice(0, 7)) { var dd0 = +state.lastDay.slice(8, 10), dim = new Date(+sel.slice(0, 4), +sel.slice(5, 7), 0).getDate(); partial = dd0 < dim ? dd0 : 0; }
-    var y = sel.slice(0, 4), mi = +sel.slice(5, 7);
-    if (state.mode === 'ytd') {
-      var cur = 0, prev = 0;
-      for (var i = 1; i <= mi; i++) {
-        var mm = y + '-' + String(i).padStart(2, '0'), p = i === mi ? partial : 0;
-        cur += monthTotal(mm, p) || 0; prev += monthTotal(prevYear(mm), p) || 0;
-      }
-      return { cur: cur, prev: prev, label: 'janvier → ' + MONTHS[mi - 1] + ' ' + y, prevLabel: (y - 1) + ', même période', partial: partial };
+    var sel=state.sel,partial=0;
+    if(sel===state.lastDay.slice(0,7)){var dd0=+state.lastDay.slice(8,10),dim=new Date(+sel.slice(0,4),+sel.slice(5,7),0).getDate();partial=dd0<dim?dd0:0;}
+    var y=sel.slice(0,4),mi=+sel.slice(5,7);
+    if(state.mode==='ytd'){
+      var selected=monthsToDate(),cur=0,prev=0;
+      selected.forEach(function(m){var p=m===sel?partial:0;cur+=monthTotal(m,p)||0;prev+=monthTotal(prevYear(m),p)||0;});
+      var first=selected[0]||analysisMonths()[0],last=selected[selected.length-1]||sel;
+      var firstLabel=MONTHS[+first.slice(5,7)-1],lastLabel=MONTHS[+last.slice(5,7)-1];
+      return {cur:cur,prev:prev,label:periodLabel()+' · '+firstLabel+' '+first.slice(0,4)+' → '+lastLabel+' '+last.slice(0,4),prevLabel:'N−1, même période',partial:partial};
     }
-    return { cur: monthTotal(sel, partial), prev: monthTotal(prevYear(sel), partial), label: MONTHS[mi - 1] + ' ' + y,
-      prevLabel: MONTHS[mi - 1] + ' ' + (y - 1) + (partial ? ' (au ' + partial + ')' : ''), partial: partial };
+    return {cur:monthTotal(sel,partial),prev:monthTotal(prevYear(sel),partial),label:MONTHS[mi-1]+' '+y,prevLabel:MONTHS[mi-1]+' '+(y-1)+(partial?' (au '+partial+')':''),partial:partial};
   }
   function matFor(m) { for (var i = 0; i < state.mat.length; i++) if (state.mat[i].month === m) return state.mat[i]; return null; }
 
@@ -111,7 +129,7 @@
     sum.textContent = cap(f.label) + (f.partial ? ' (au ' + f.partial + ')' : '') + ' : ' + money(f.cur) + ' HT' +
       (d == null ? '.' : ', ' + (d >= 0 ? '+' : '−') + pct(d) + ' sur ' + f.prevLabel.replace(/ \(au \d+\)/, '') + '.');
 
-    try { window.dispatchEvent(new CustomEvent('prism-periode', { detail: { month: state.sel, mode: state.mode } })); } catch (_) {}
+    try { window.dispatchEvent(new CustomEvent('prism-periode', { detail: { month: state.sel, mode: state.mode, basis: state.basis, start: analysisMonths()[0], end: analysisMonths().slice(-1)[0] } })); } catch (_) {}
     var ctrl = el('div', 'pa-controls', null, head);
     /* Navigation dans le temps : mois précédent / suivant et années disponibles */
     var nav = el('div', 'pa-nav', null, ctrl);
@@ -122,18 +140,35 @@
     el('span', 'pa-nav-label', cap(MONTHS[+state.sel.slice(5, 7) - 1]) + ' ' + state.sel.slice(0, 4), nav);
     var nextB = el('button', 'pa-nav-btn', '›', nav); nextB.type = 'button'; nextB.setAttribute('aria-label', 'Mois suivant'); nextB.disabled = at < 0 || at >= avail.length - 1;
     nextB.onclick = function () { if (at < avail.length - 1) { state.sel = avail[at + 1]; render(); } };
-    var years = el('div', 'pa-years', null, ctrl); years.setAttribute('role', 'group'); years.setAttribute('aria-label', 'Année');
-    var ys = []; avail.forEach(function (m) { var yy = m.slice(0, 4); if (ys.indexOf(yy) < 0 && (avail.filter(function (q) { return q.slice(0, 4) === yy; }).length >= 3)) ys.push(yy); });
-    ys.slice(-4).forEach(function (yy) {
-      var b = el('button', yy === state.sel.slice(0, 4) ? 'is-on' : '', yy, years); b.type = 'button';
-      b.onclick = function () { var inY = avail.filter(function (q) { return q.slice(0, 4) === yy; }); var same = yy + state.sel.slice(4); state.sel = inY.indexOf(same) >= 0 ? same : inY[inY.length - 1]; render(); };
+    var choices=el('div','pa-seg',null,ctrl);choices.setAttribute('role','group');choices.setAttribute('aria-label','Type de période');
+    [['fiscal','Exercice fiscal'],['civil','Année civile'],['custom','Personnalisée']].forEach(function(pair){
+      var b=el('button',state.basis===pair[0]?'is-on':'',pair[1],choices);b.type='button';b.setAttribute('aria-pressed',state.basis===pair[0]);b.onclick=function(){setBasis(pair[0],false);};
     });
-    var seg = el('div', 'pa-seg', null, ctrl); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Période');
-    [['month', 'Mois'], ['ytd', 'Cumul ' + state.sel.slice(0, 4)]].forEach(function (o) {
-      var b = el('button', state.mode === o[0] ? 'is-on' : '', o[1], seg); b.type = 'button'; b.setAttribute('aria-pressed', state.mode === o[0]);
-      b.onclick = function () { state.mode = o[0]; render(); };
+    if(state.basis==='custom'){
+      var rangeBox=el('div','pa-nav',null,ctrl);
+      [['Début',true],['Fin',false]].forEach(function(pair){
+        var lab=el('label','pa-nav-label',pair[0]+' ',rangeBox);
+        var input=el('input',null,null,lab);input.type='month';input.style.cssText='width:137px;max-width:100%;padding:7px;border:1px solid #ddd;border-radius:8px';
+        input.value=pair[1]?state.customStart:state.customEnd;input.onchange=function(){
+          var v=input.value;if(!/^\\d{4}-\\d{2}$/.test(v))return;
+          var first=pair[1]?v:state.customStart,last=pair[1]?state.customEnd:v;
+          var count=(Number(last.slice(0,4))-Number(first.slice(0,4)))*12+Number(last.slice(5,7))-Number(first.slice(5,7))+1;
+          if(first>last||count>12){input.setCustomValidity('Choisis entre 1 et 12 mois, dans l’ordre.');input.reportValidity();return;}
+          input.setCustomValidity('');state.customStart=first;state.customEnd=last;state.sel=last>state.lastDay.slice(0,7)?state.lastDay.slice(0,7):last;state.mode='ytd';render();
+        };
+      });
+    }else{
+      var years=el('div','pa-years',null,ctrl);years.setAttribute('role','group');years.setAttribute('aria-label',state.basis==='fiscal'?'Exercice fiscal':'Année civile');
+      var ys=[];avail.forEach(function(m){var yy=state.basis==='fiscal'?fy(m):+m.slice(0,4);if(ys.indexOf(yy)<0)ys.push(yy);});
+      ys.slice(-5).forEach(function(yy){var b=el('button',chosenYear()===yy?'is-on':'',String(yy),years);b.type='button';
+        b.onclick=function(){var arr=avail.filter(function(m){return (state.basis==='fiscal'?fy(m):+m.slice(0,4))===yy;});if(arr.length){state.sel=arr[arr.length-1];render();}};
+      });
+    }
+    var seg=el('div','pa-seg',null,ctrl);seg.setAttribute('role','group');seg.setAttribute('aria-label','Période');
+    [['month','Mois'],['ytd',state.basis==='fiscal'?'Cumul exercice':state.basis==='civil'?'Cumul civil':'Cumul période']].forEach(function(o){
+      var b=el('button',state.mode===o[0]?'is-on':'',o[1],seg);b.type='button';b.setAttribute('aria-pressed',state.mode===o[0]);
+      b.onclick=function(){state.mode=o[0];render();};
     });
-
     var grid = el('div', 'pa-grid', null, host);
     /* Carte héros */
     var hero = el('div', 'pa-hero', null, grid);
