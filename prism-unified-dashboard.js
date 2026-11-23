@@ -54,7 +54,7 @@ function summarize(){
  const warnings=[];
  if(s.invalid)warnings.push("Une ligne de vente présente un montant invalide.");
  if(!s.hasSales)warnings.push("Pas encore de données pour cette période.");
- if(mode==="day")warnings.push("RH et achats matières : sources mensuelles, pas de coût journalier constaté.");
+ if(mode==="day"&&periodBasis!=="custom")warnings.push("RH et achats matières : sources mensuelles, pas de coût journalier constaté.");
  if((mode==="year"||mode==="ytd"||periodBasis==="custom")&&(!availableRH||!availableMat))warnings.push("Période incomplète : aucun ratio RH ou matières extrapolé.");
  if(mat.some(x=>x.warnings?.length))warnings.push("Achats matières incomplets ou à rapprocher : voir Rapports.");
  if(rh.some(x=>!["rapproche_sources","complet"].includes(x.status)))warnings.push("RH : écarts de rapprochement comptable encore ouverts.");
@@ -94,7 +94,7 @@ function breakEvenDetail(root){
  ].forEach(function(t){create(ul,"li","",t)});
  create(panel,"p","prism-overview-break-even-formula","Un modèle estimatif 2025 est disponible ci-dessous, sans validation des paramètres fixes / variables.");
  const fy=fiscal.fiscalYear(anchor);
- if(fy===2025){if(window.PrismSeuil2025)window.PrismSeuil2025.render(panel);if(window.PrismCharges2025)window.PrismCharges2025.render(panel);if(window.PrismAuditFY2025)window.PrismAuditFY2025.render(panel,sources?.sales||[])}
+ if(periodBasis==="fiscal"&&mode==="year"&&fy===2025){if(window.PrismSeuil2025)window.PrismSeuil2025.render(panel);if(window.PrismCharges2025)window.PrismCharges2025.render(panel);if(window.PrismAuditFY2025)window.PrismAuditFY2025.render(panel,sources?.sales||[])}
  else create(panel,"p","","Exercice "+fy+" : seuil non encore établi. Référence 2025 accessible en sélectionnant l’exercice clos au 30 septembre 2025.");
  const btn=create(panel,"button","prism-overview-btn","Voir les données matières et RH dans Rapports →");
  btn.type="button";btn.onclick=function(){openDetails("reports")};
@@ -127,8 +127,8 @@ function render(){
  // Le CA HT et l'objectif TTC sont dans la carte noire de l'accueil, juste au-dessus : pas de doublon ici.
  card(grid,"Couverts",d.s.hasSales?integer.format(d.s.covers):"—","Analyse des ventes",function(){openDetails("sales")});
  card(grid,"Ticket moyen",d.s.hasSales&&Number.isFinite(d.s.ticket)?money(d.s.ticket):"—","Analyse des ventes",function(){openDetails("sales")});
- card(grid,"Ratio RH",percent(d.ratioRH),mode==="day"?"Non disponible au jour · coûts mensuels":d.availableRH?money(d.costRH)+" · "+d.rhCostBasis:"Période RH incomplète",function(){openDetails("reports",".rh-monthly-panel")});
- card(grid,"Ratio achats matières",percent(d.ratioMat),mode==="day"?"Non disponible au jour · achats mensuels":d.availableMat?money(d.costMat)+" · hors variation de stocks":"Période achats incomplète",function(){openDetails("reports",".mat-ratio-panel")});
+ card(grid,"Ratio RH",percent(d.ratioRH),mode==="day"&&periodBasis!=="custom"?"Non disponible au jour · coûts mensuels":d.availableRH?money(d.costRH)+" · "+d.rhCostBasis:"Période RH incomplète",function(){openDetails("reports",".rh-monthly-panel")});
+ card(grid,"Ratio achats matières",percent(d.ratioMat),mode==="day"&&periodBasis!=="custom"?"Non disponible au jour · achats mensuels":d.availableMat?money(d.costMat)+" · hors variation de stocks":"Période achats incomplète",function(){openDetails("reports",".mat-ratio-panel")});
  const fy=fiscal.fiscalYear(anchor);
  card(grid,"Seuil de rentabilité",periodBasis==="fiscal"&&mode==="year"&&fy===2025?"≈ 2,91 M€":"—",periodBasis==="fiscal"&&mode==="year"&&fy===2025?"Estimation · exercice clos le 30/09/2025":"Seuil de référence fiscal 2025 uniquement",function(){breakEvenOpen=!breakEvenOpen;render()});
  if(breakEvenOpen)breakEvenDetail(root);
