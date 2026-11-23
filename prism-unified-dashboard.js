@@ -11,11 +11,19 @@ const fiscal=window.PrismFiscal;
 const create=(p,tag,cl,txt)=>{const el=document.createElement(tag);if(cl)el.className=cl;if(txt!==undefined)el.textContent=txt;p.appendChild(el);return el;};
 const total=(rows,k)=>rows.reduce((s,r)=>s+(Number.isFinite(r[k])?r[k]:0),0);
 let sources=null,error="",loading=false,mode="month",anchor=new Date().toLocaleDateString("sv-SE");
-function interval(){const year=fiscal.fiscalYear(anchor),m=anchor.slice(0,7),fy=fiscal.range(year);
- return mode==="day"?{start:anchor,end:anchor,title:new Date(anchor+"T12:00:00").toLocaleDateString("fr-FR",{day:"numeric",month:"long",year:"numeric"})}:
- mode==="month"?{start:m+"-01",end:m+"-31",title:new Date(m+"-01T12:00:00").toLocaleDateString("fr-FR",{month:"long",year:"numeric"})}:
- mode==="ytd"?{start:fy.start,end:anchor,title:"Exercice "+year+" à date · "+fy.start+" – "+anchor}:
- {start:fy.start,end:fy.end,title:fy.title};}
+const periodStorageKey="prism-analysis-period-mode-v1";
+function readPeriod(){try{const p=localStorage.getItem(periodStorageKey);return ["fiscal","civil","custom"].includes(p)?p:"fiscal";}catch(_){return "fiscal";}}
+function writePeriod(value){try{localStorage.setItem(periodStorageKey,value);}catch(_){}window.dispatchEvent(new CustomEvent("prism-analysis-period-change",{detail:{basis:value}}));}
+let periodBasis=readPeriod(),customStart="2026-01",customEnd="2026-12";
+const periodYear=()=>periodBasis==="civil"?Number(anchor.slice(0,4)):fiscal.fiscalYear(anchor);
+const monthsBetween=(a,b)=>(Number(b.slice(0,4))-Number(a.slice(0,4)))*12+Number(b.slice(5,7))-Number(a.slice(5,7))+1;
+function interval(){const y=periodYear(),m=anchor.slice(0,7),r=periodBasis==="civil"?{start:y+"-01-01",end:y+"-12-31",title:"Année civile "+y}:fiscal.range(y);
+ if(periodBasis==="custom")return {start:customStart+"-01",end:customEnd+"-31",title:"Personnalisée · "+customStart+" → "+customEnd};
+ if(mode==="day")return {start:anchor,end:anchor,title:anchor};
+ if(mode==="month")return {start:m+"-01",end:m+"-31",title:m};
+ if(mode==="ytd")return {start:r.start,end:anchor,title:"Depuis "+r.start+" → "+anchor};
+ return r;
+}
 function shift(n){const d=new Date(anchor+"T12:00:00");if(mode==="day")d.setDate(d.getDate()+n);if(mode==="month")d.setMonth(d.getMonth()+n,1);if(mode==="year"||mode==="ytd")d.setFullYear(d.getFullYear()+n);anchor=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");render()}
 async function fetchJson(url,token){const r=await fetch(url,{headers:{Authorization:"Bearer "+token},cache:"no-store"});let j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||"Lecture impossible : "+url);return j;}
 async function load(force){
@@ -38,22 +46,19 @@ function salesSummary(rows){
 function summarize(){
  const p=interval(),sales=sources.sales.filter(x=>x.day>=p.start&&x.day<=p.end),s=salesSummary(sales);
  let rh=[],mat=[];
- if(mode==="month"){const month=anchor.slice(0,7);rh=sources.rh.filter(x=>x.month===month);mat=sources.materials.filter(x=>x.month===month);}
- if(mode==="year"||mode==="ytd"){const year=fiscal.fiscalYear(anchor),max=anchor.slice(0,7);
-  rh=sources.rh.filter(x=>fiscal.fiscalYear(x.month)===year&&(mode==="year"||x.month<=max));
-  mat=sources.materials.filter(x=>fiscal.fiscalYear(x.month)===year&&(mode==="year"||x.month<=max));
- }
- const needed=mode==="year"?12:mode==="ytd"?fiscal.months(fiscal.fiscalYear(anchor)).filter(x=>x<=anchor.slice(0,7)).length:1;
+ if(mode==="month"&&periodBasis!=="custom"){rh=sources.rh.filter(x=>x.month===anchor.slice(0,7));mat=sources.materials.filter(x=>x.month===anchor.slice(0,7));}
+ if(mode==="year"||mode==="ytd"||periodBasis==="custom"){const lo=p.start.slice(0,7),hi=p.end.slice(0,7);rh=sources.rh.filter(x=>x.month>=lo&&x.month<=hi);mat=sources.materials.filter(x=>x.month>=lo&&x.month<=hi);}
+ const needed=mode==="day"&&periodBasis!=="custom"?0:mode==="month"&&periodBasis!=="custom"?1:monthsBetween(p.start,p.end);
  const rhCost=x=>x.status==="complet"&&Number.isFinite(x.cout_comptable)?x.cout_comptable:x.cout_charge;
- const availableRH=mode!=="day"&&rh.length===needed&&rh.every(x=>Number.isFinite(rhCost(x)));
- const availableMat=mode!=="day"&&mat.length===needed&&mat.every(x=>Number.isFinite(x.total));
+ const availableRH=!(mode==="day"&&periodBasis!=="custom")&&rh.length===needed&&rh.every(x=>Number.isFinite(rhCost(x)));
+ const availableMat=!(mode==="day"&&periodBasis!=="custom")&&mat.length===needed&&mat.every(x=>Number.isFinite(x.total));
  const costRH=availableRH?rh.reduce((sum,row)=>sum+rhCost(row),0):NaN,costMat=availableMat?total(mat,"total"):NaN;
  const rhCostBasis=availableRH?(rh.every(x=>x.status==="complet"&&Number.isFinite(x.cout_comptable))?"coût comptable net":rh.some(x=>x.status==="complet"&&Number.isFinite(x.cout_comptable))?"bases mixtes : contrôle":"brut + patronales"):"";
  const warnings=[];
  if(s.invalid)warnings.push("Une ligne de vente présente un montant invalide.");
  if(!s.hasSales)warnings.push("Pas encore de données pour cette période.");
- if(mode==="day")warnings.push("RH et achats matières : sources mensuelles, pas de coût journalier constaté.");
- if((mode==="year"||mode==="ytd")&&(!availableRH||!availableMat))warnings.push("Exercice fiscal incomplet : aucun ratio RH ou matières extrapolé.");
+ if(mode==="day"&&periodBasis!=="custom")warnings.push("RH et achats matières : sources mensuelles, pas de coût journalier constaté.");
+ if((mode==="year"||mode==="ytd"||periodBasis==="custom")&&(!availableRH||!availableMat))warnings.push("Période incomplète : aucun ratio RH ou matières extrapolé.");
  if(mat.some(x=>x.warnings?.length))warnings.push("Achats matières incomplets ou à rapprocher : voir Rapports.");
  if(rh.some(x=>!["rapproche_sources","complet"].includes(x.status)))warnings.push("RH : écarts de rapprochement comptable encore ouverts.");
  if(availableRH&&rhCostBasis==="bases mixtes : contrôle")warnings.push("RH annuel : bases historiques différentes ; harmoniser les mois avant comparaison.");
@@ -92,7 +97,7 @@ function breakEvenDetail(root){
  ].forEach(function(t){create(ul,"li","",t)});
  create(panel,"p","prism-overview-break-even-formula","Un modèle estimatif 2025 est disponible ci-dessous, sans validation des paramètres fixes / variables.");
  const fy=fiscal.fiscalYear(anchor);
- if(fy===2025){if(window.PrismSeuil2025)window.PrismSeuil2025.render(panel);if(window.PrismCharges2025)window.PrismCharges2025.render(panel);if(window.PrismAuditFY2025)window.PrismAuditFY2025.render(panel,sources?.sales||[])}
+ if(periodBasis==="fiscal"&&mode==="year"&&fy===2025){if(window.PrismSeuil2025)window.PrismSeuil2025.render(panel);if(window.PrismCharges2025)window.PrismCharges2025.render(panel);if(window.PrismAuditFY2025)window.PrismAuditFY2025.render(panel,sources?.sales||[])}
  else create(panel,"p","","Exercice "+fy+" : seuil non encore établi. Référence 2025 accessible en sélectionnant l’exercice clos au 30 septembre 2025.");
  const btn=create(panel,"button","prism-overview-btn","Voir les données matières et RH dans Rapports →");
  btn.type="button";btn.onclick=function(){openDetails("reports")};
@@ -109,31 +114,32 @@ function render(){
  button(nav,"›",()=>shift(1));
  const picker=create(nav,"input","prism-overview-date");picker.type="date";picker.value=anchor;picker.onchange=()=>{if(picker.value){anchor=picker.value;render()}};
  button(controls,"↻ Actualiser",()=>load(true));
- const fiscalSwitch=create(root,"div","prism-overview-nav");
- create(fiscalSwitch,"span","","Exercice comptable :");
- const fySelect=create(fiscalSwitch,"select","prism-overview-date");
- const fyCurrent=fiscal.fiscalYear(anchor);
- const fiscalYears=[...new Set([2025,2026,2027,...(sources?.sales||[]).map(x=>fiscal.fiscalYear(x.day)).filter(Number.isFinite)])].sort((a,b)=>b-a);
- fiscalYears.forEach(year=>{const o=create(fySelect,"option","",String(year)+" · 01/10/"+(year-1)+" → 30/09/"+year);o.value=String(year);});
- fySelect.value=String(fyCurrent);
- fySelect.setAttribute("aria-label","Choisir l'exercice comptable");
- fySelect.onchange=()=>{const y=Number(fySelect.value);anchor=(y-1)+"-10-15";mode="year";render();};
- create(root,"p","prism-overview-info","Période financière : "+interval().title+" · clôture le 30 septembre.");
+ const fiscalSwitch=create(root,"div","prism-overview-nav");create(fiscalSwitch,"span","","Vue :");
+ [["fiscal","Fiscale"],["civil","Civile"],["custom","Personnalisée"]].forEach(([k,t])=>button(fiscalSwitch,t,()=>{periodBasis=k;mode="year";writePeriod(k);render();},periodBasis===k));
+ if(periodBasis==="custom"){
+  [["Début",customStart,true],["Fin",customEnd,false]].forEach(([label,value,first])=>{const l=create(fiscalSwitch,"label","",label+" "),i=create(l,"input","prism-overview-date");i.type="month";i.value=value;i.onchange=()=>{const v=i.value;if(!/^\d{4}-\d{2}$/.test(v))return;const a=first?v:customStart,b=first?customEnd:v;if(a>b||monthsBetween(a,b)>36){i.setCustomValidity("Sélectionne entre 1 et 36 mois.");i.reportValidity();return;}i.setCustomValidity("");customStart=a;customEnd=b;render();};});
+ }else{
+  const sel=create(fiscalSwitch,"select","prism-overview-date"),cy=periodYear();
+  [...new Set([2024,2025,2026,2027,...(sources?.sales||[]).map(x=>periodBasis==="civil"?Number(x.day.slice(0,4)):fiscal.fiscalYear(x.day)).filter(Number.isFinite)])].sort((a,b)=>b-a).forEach(y=>{const opt=create(sel,"option","",(periodBasis==="civil"?"Année ":"Exercice ")+y);opt.value=y;});
+  sel.value=String(cy);sel.onchange=()=>{const y=Number(sel.value);anchor=(periodBasis==="civil"?y:y-1)+"-"+(periodBasis==="civil"?"06":"10")+"-15";mode="year";render();};
+ }
+ create(root,"p","prism-overview-info","Période financière : "+interval().title+".");
  if(!sources){create(root,"p","prism-overview-info",loading?"Chargement des ventes, des RH et des achats matières…":error||"Pas encore de données pour cette période.");return;}
  const d=summarize(),grid=create(root,"div","prism-overview-grid");
  const valid=d.s.hasSales&&!d.s.invalid;
  // Le CA HT et l'objectif TTC sont dans la carte noire de l'accueil, juste au-dessus : pas de doublon ici.
  card(grid,"Couverts",d.s.hasSales?integer.format(d.s.covers):"—","Analyse des ventes",function(){openDetails("sales")});
  card(grid,"Ticket moyen",d.s.hasSales&&Number.isFinite(d.s.ticket)?money(d.s.ticket):"—","Analyse des ventes",function(){openDetails("sales")});
- card(grid,"Ratio RH",percent(d.ratioRH),mode==="day"?"Non disponible au jour · coûts mensuels":d.availableRH?money(d.costRH)+" · "+d.rhCostBasis:"Période RH incomplète",function(){openDetails("reports",".rh-monthly-panel")});
- card(grid,"Ratio achats matières",percent(d.ratioMat),mode==="day"?"Non disponible au jour · achats mensuels":d.availableMat?money(d.costMat)+" · hors variation de stocks":"Période achats incomplète",function(){openDetails("reports",".mat-ratio-panel")});
+ card(grid,"Ratio RH",percent(d.ratioRH),mode==="day"&&periodBasis!=="custom"?"Non disponible au jour · coûts mensuels":d.availableRH?money(d.costRH)+" · "+d.rhCostBasis:"Période RH incomplète",function(){openDetails("reports",".rh-monthly-panel")});
+ card(grid,"Ratio achats matières",percent(d.ratioMat),mode==="day"&&periodBasis!=="custom"?"Non disponible au jour · achats mensuels":d.availableMat?money(d.costMat)+" · hors variation de stocks":"Période achats incomplète",function(){openDetails("reports",".mat-ratio-panel")});
  const fy=fiscal.fiscalYear(anchor);
- card(grid,"Seuil de rentabilité",fy===2025?"≈ 2,91 M€":"—",fy===2025?"Estimation · exercice clos le 30/09/2025":"Exercice "+fy+" · seuil à budgéter",function(){breakEvenOpen=!breakEvenOpen;render()});
+ card(grid,"Seuil de rentabilité",periodBasis==="fiscal"&&mode==="year"&&fy===2025?"≈ 2,91 M€":"—",periodBasis==="fiscal"&&mode==="year"&&fy===2025?"Estimation · exercice clos le 30/09/2025":"Seuil de référence fiscal 2025 uniquement",function(){breakEvenOpen=!breakEvenOpen;render()});
  if(breakEvenOpen)breakEvenDetail(root);
 
  if(d.warnings.length){const notes=create(root,"div","prism-overview-warnings");notes.setAttribute("role","status");d.warnings.forEach(w=>create(notes,"p","",w));}
 
 }
+window.addEventListener("prism-analysis-period-change",function(e){const p=e.detail?.basis;if(!["fiscal","civil","custom"].includes(p)||p===periodBasis)return;periodBasis=p;mode="year";render();});
 window.addEventListener("prism-periode",function(e){
  const p=e.detail||{};if(!p.month)return;
  const newMode=p.mode==="ytd"?"ytd":"month",last=sources&&sources.sales.length?sources.sales.map(x=>x.day).sort().at(-1):"";

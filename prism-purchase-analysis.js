@@ -26,6 +26,24 @@ let overlay=null,host=null,summary=null,tableHost=null,detailHost=null,loadingHo
 let entries=[],index=new Map(),loaded=false,loading=null,ignored={},importedAt='',lineCount=0,progress=0;
 let year=2026,basisYear=2025,search='',supplier='',page=0,selection='',discount=0.03,mode='litre',litresPerUnit=null,scenarioType='target',targetPrice=null,salePriceTTC=null,servingCl=25,saleVat=20,servingLoss=0,salePackL=null;
 let tab='achats';
+/* Sélecteur d'analyse. Les lots historiques sont agrégés au mois :
+   les plages libres portent sur des mois complets, sans inventer de totaux journaliers. */
+const periodStorageKey='prism-analysis-period-mode-v1';
+function readPeriod(){try{const p=localStorage.getItem(periodStorageKey);return ['fiscal','civil','custom'].includes(p)?p:'fiscal';}catch(_){return 'fiscal';}}
+function writePeriod(value){try{localStorage.setItem(periodStorageKey,value);}catch(_){}window.dispatchEvent(new CustomEvent('prism-analysis-period-change',{detail:{basis:value}}));}
+let periodMode=readPeriod(),customStart='2026-01',customEnd='2026-12';
+const rowMonth=x=>String(x.year)+'-'+String(x.month).padStart(2,'0');
+const shiftMonth=(m,n)=>(Number(m.slice(0,4))+n)+'-'+m.slice(5,7);
+function periodRange(y){
+ if(periodMode==='fiscal')return {start:(y-1)+'-10',end:y+'-09'};
+ if(periodMode==='custom'){const n=y-year;return {start:shiftMonth(customStart,n),end:shiftMonth(customEnd,n)};}
+ return {start:y+'-01',end:y+'-12'};
+}
+function inPeriod(x,y){const m=rowMonth(x),r=periodRange(y);return m>=r.start&&m<=r.end;}
+const periodText=y=>{const r=periodRange(y);return (periodMode==='fiscal'?'Exercice ':periodMode==='civil'?'Année ':'Période ')+y+' · '+r.start+' → '+r.end;};
+function periodMonths(y){const r=periodRange(y),a=[];let [yy,mm]=r.start.split('-').map(Number);for(let i=0;i<120;i++){const m=yy+'-'+String(mm).padStart(2,'0');if(m>r.end)break;a.push(m);if(++mm===13){mm=1;yy++;}}return a;}
+function availableYears(){return [...new Set(entries.flatMap(x=>[x.year,x.year+1]))].filter(y=>entries.some(x=>inPeriod(x,y))).sort((a,b)=>b-a);}
+
 
 function pane(){
  if(overlay)return;
@@ -87,23 +105,23 @@ async function fetchAll(){
    const id=key(a),values=index.get(id)||[];
    values.push(a);index.set(id,values);
   }
-  const years=[...new Set(entries.map(a=>a.year))].sort((a,b)=>b-a);
+  const years=availableYears();
   if(years.length&&!years.includes(year))year=years[0];
   if(years.length)basisYear=years.includes(year-1)?year-1:year;
   loaded=true;render();
  })().catch(err=>{if(loadingHost){loadingHost.replaceChildren();el(loadingHost,'p','Analyse indisponible : '+err.message,'ng-alert');}});
  await loading;loading=null;
 }
-const yearList=()=>[...new Set(entries.map(a=>a.year))].sort((a,b)=>b-a);
+const yearList=()=>availableYears();
 function productsFor(yr){
  const grouped=new Map();
  for(const part of entries){
-  if(part.year!==yr)continue;
+  if(!inPeriod(part,yr))continue;
   const id=key(part);
   let p=grouped.get(id);
-  if(!p){p={...part,quantity:0,amountHT:0,lines:0,flagged:0,dutyMissing:0,months:Array(12).fill(null).map(()=>({qty:0,amount:0}))};grouped.set(id,p);}
+  if(!p){p={...part,quantity:0,amountHT:0,lines:0,flagged:0,dutyMissing:0,months:periodMonths(yr).map(()=>({qty:0,amount:0}))};grouped.set(id,p);}
   p.quantity+=part.quantity;p.amountHT+=part.amountHT;p.lines+=part.lines;p.flagged+=part.flagged;p.dutyMissing+=part.dutyMissing;
-  const m=p.months[part.month-1];if(m){m.qty+=part.quantity;m.amount+=part.amountHT;}
+  const offset=periodMonths(yr).indexOf(rowMonth(part));const m=p.months[offset];if(m){m.qty+=part.quantity;m.amount+=part.amountHT;}
  }
  return [...grouped.values()].sort((a,b)=>b.amountHT-a.amountHT);
 }
@@ -116,8 +134,15 @@ function render(){
  const searchBox=el(filters,'label',undefined,'ng-search');
  const q=el(searchBox,'input');q.type='search';q.placeholder='Produit, code ou fournisseur…';q.value=search;q.setAttribute('aria-label','Rechercher un produit acheté');
  q.oninput=()=>{search=q.value;page=0;drawContent();};
+ const periodControls=el(filters,'div',undefined,'ng-seg');
+ periodControls.setAttribute('role','group');periodControls.setAttribute('aria-label','Type de période des achats');
+ [['fiscal','Fiscale'],['civil','Civile'],['custom','Personnalisée']].forEach(([v,t])=>{const b=btn(periodControls,t,'ng-seg-btn',()=>{periodMode=v;writePeriod(v);const opts=availableYears();if(opts.length&&!opts.includes(year))year=opts[0];basisYear=year-1;page=0;selection='';render();});b.setAttribute('aria-pressed',String(v===periodMode));});
+ if(periodMode==='custom'){
+  const rangeBox=el(filters,'div',undefined,'ng-seg');
+  [['Début',customStart,true],['Fin',customEnd,false]].forEach(([label,value,isStart])=>{const l=el(rangeBox,'label',label+' · ','ng-muted');const input=el(l,'input');input.type='month';input.value=value;input.setAttribute('aria-label',label+' de la période personnalisée');input.style.cssText='width:135px;max-width:100%;font:inherit;padding:6px;border:1px solid #ccd3dc;border-radius:6px;';input.onchange=()=>{const next=input.value;if(!/^\d{4}-\d{2}$/.test(next))return;const a=isStart?next:customStart,b=isStart?customEnd:next;if(a>b){input.setCustomValidity('La fin doit être postérieure au début');input.reportValidity();return;}if((Number(b.slice(0,4))-Number(a.slice(0,4)))*12+Number(b.slice(5,7))-Number(a.slice(5,7))>35){input.setCustomValidity('Maximum 36 mois');input.reportValidity();return;}input.setCustomValidity('');if(isStart)customStart=next;else customEnd=next;const ys=availableYears();if(ys.length&&!ys.includes(year))year=ys[0];basisYear=year-1;render();};});
+ }
  const years=yearList(),yearGroup=el(filters,'div',undefined,'ng-seg');yearGroup.setAttribute('role','group');yearGroup.setAttribute('aria-label','Année des achats');
- years.slice(0,4).forEach(y=>{const b=btn(yearGroup,String(y),'ng-seg-btn',()=>{year=y;basisYear=years.includes(year-1)?year-1:year;page=0;selection='';render();});b.setAttribute('aria-pressed',String(y===year));});
+ (periodMode==='custom'?[year]:years.slice(0,4)).forEach(y=>{const b=btn(yearGroup,String(y),'ng-seg-btn',()=>{year=y;basisYear=years.includes(year-1)?year-1:year;page=0;selection='';render();});b.setAttribute('aria-pressed',String(y===year));});
  const suppliers=[...new Set(entries.map(e=>e.supplier))].sort((a,b)=>a.localeCompare(b,'fr'));
  const select=el(filters,'select',undefined,'ng-select');select.setAttribute('aria-label','Fournisseur');
  let all=el(select,'option','Tous les fournisseurs');all.value='';
@@ -141,7 +166,7 @@ function drawContent(){
  const f=productsFor(year).filter(p=>(!supplier||p.supplier===supplier)&&(!search||norm([p.description,p.supplier,p.reference,p.unit,...(p.sourceNames||[])].join(' ')).includes(norm(search))));
  const amount=f.reduce((n,p)=>n+p.amountHT,0),lines=f.reduce((n,p)=>n+p.lines,0),flaggedRefs=f.filter(p=>p.flagged).length;
  const met=document.getElementById('paMetrics');if(met){met.replaceChildren();
-  const hero=el(met,'div',undefined,'ng-kpi ng-kpi-hero');el(hero,'span','Achats HT '+year+(supplier?' · '+tidySupplier(supplier):''),'ng-kpi-label');el(hero,'strong',money(amount),'ng-kpi-value');
+  const hero=el(met,'div',undefined,'ng-kpi ng-kpi-hero');el(hero,'span','Achats HT · '+periodText(year)+(supplier?' · '+tidySupplier(supplier):''),'ng-kpi-label');el(hero,'strong',money(amount),'ng-kpi-value');
   const a=el(met,'div',undefined,'ng-kpi');el(a,'span','Références achetées','ng-kpi-label');el(a,'strong',qty(f.length),'ng-kpi-value');
   const b=el(met,'div',undefined,'ng-kpi');el(b,'span','Lignes de factures','ng-kpi-label');el(b,'strong',qty(lines),'ng-kpi-value');
   const c=el(met,'div',undefined,'ng-kpi');el(c,'span','Références à vérifier','ng-kpi-label');el(c,'strong',qty(flaggedRefs),'ng-kpi-value'+(flaggedRefs?' ng-down':''));
@@ -174,7 +199,7 @@ function drawContent(){
 /* ---------- Calculs (identiques à la version précédente) ---------- */
 function directLitres(p){return p.unit==='L'?1:p.unit==='cl'?0.01:p.unit==='ml'?0.001:null;}
 function negotiation(p){
- const records=(index.get(selection)||[]).filter(x=>x.year===basisYear);
+ const records=(index.get(selection)||[]).filter(x=>inPeriod(x,basisYear));
  const q=records.reduce((n,x)=>n+x.quantity,0);
  const monthsKnown=new Set(records.map(x=>x.month)).size;
  const direct=directLitres(p);
@@ -223,11 +248,11 @@ function drawDetail(p){
 }
 function drawPurchases(body,p){
  const hero=el(body,'div',undefined,'ng-hero');
- el(hero,'span','Achats '+year,'ng-hero-label');
+ el(hero,'span','Achats · '+periodText(year),'ng-hero-label');
  el(hero,'strong',money(p.amountHT)+' HT','ng-hero-value');
  const facts=el(hero,'div',undefined,'ng-hero-facts');
  [[qty(p.quantity)+' '+p.unit,'achetés'],[money(p.amountHT/p.quantity),'prix moyen / '+p.unit],[String(p.lines),'lignes de factures']].forEach(([v,l])=>{const f=el(facts,'span');el(f,'b',v);el(f,'span',' '+l);});
- const prior=(index.get(selection)||[]).filter(x=>x.year===year-1);
+ const prior=(index.get(selection)||[]).filter(x=>inPeriod(x,year-1));
  if(prior.length){
   const pq=prior.reduce((n,x)=>n+x.quantity,0),pa=prior.reduce((n,x)=>n+x.amountHT,0);
   const n1=el(body,'div',undefined,'ng-n1');
@@ -237,20 +262,20 @@ function drawPurchases(body,p){
  }
  if(p.flagged||p.dutyMissing||p.unitAssumed)el(body,'p','Chiffres indicatifs : '+p.flagged+' ligne(s) avec alerte'+(p.dutyMissing?', '+p.dutyMissing+' sans prix avec droits':'')+(p.unitAssumed?', unité supposée':'')+'. Vérifier conditionnements et factures avant de négocier.','ng-alert');
  const chartCard=el(body,'div',undefined,'ng-card');
- el(chartCard,'p','Quantités achetées par mois · '+year,'ng-card-title');
+ el(chartCard,'p','Quantités achetées par mois · '+periodText(year),'ng-card-title');
  const bars=el(chartCard,'div',undefined,'ng-chart'),max=Math.max(...p.months.map(x=>x.qty),1);
- bars.setAttribute('role','img');bars.setAttribute('aria-label','Quantités achetées par mois en '+year);
+ bars.setAttribute('role','img');bars.setAttribute('aria-label','Quantités achetées par mois · '+periodText(year));
  p.months.forEach((m,i)=>{
   const c=el(bars,'div',undefined,'ng-column');
   el(c,'span',m.qty?qty(m.qty):'','ng-data');
   const bar=el(c,'div',undefined,'ng-bar'+(m.qty?'':' is-empty'));bar.style.height=(m.qty?Math.max(4,m.qty/max*100):2)+'%';
-  bar.title=monthsLong[i]+' : '+qty(m.qty)+' '+p.unit+' · '+money(m.amount)+' HT';
-  el(c,'span',months[i],'ng-month');
+  bar.title=periodMonths(year)[i]+' : '+qty(m.qty)+' '+p.unit+' · '+money(m.amount)+' HT';
+  el(c,'span',periodMonths(year)[i].slice(5,7)+'/'+periodMonths(year)[i].slice(2,4),'ng-month');
  });
  const more=el(chartCard,'details',undefined,'ng-months');el(more,'summary','Voir le détail par mois');
  const mt=el(more,'table',undefined,'ng-table'),mh=el(el(mt,'thead'),'tr');['Mois','Quantité','Montant HT'].forEach(t=>el(mh,'th',t));
  const mtBody=el(mt,'tbody');
- p.months.forEach((m,i)=>{if(!m.qty&&!m.amount)return;const row=el(mtBody,'tr');el(row,'td',monthsLong[i]);el(row,'td',qty(m.qty)+' '+p.unit,'num');el(row,'td',money(m.amount),'num');});
+ p.months.forEach((m,i)=>{if(!m.qty&&!m.amount)return;const row=el(mtBody,'tr');el(row,'td',periodMonths(year)[i]);el(row,'td',qty(m.qty)+' '+p.unit,'num');el(row,'td',money(m.amount),'num');});
  const go=btn(body,'Simuler une négociation sur ce produit →','ng-primary',()=>{tab='negocier';drawDetail(p);});
  go.setAttribute('aria-label','Passer à l’onglet Négocier');
 }
@@ -269,7 +294,7 @@ function seg(root,label,options,value,onPick){
 }
 function drawNegotiation(body,p){
  const form=el(body,'div',undefined,'ng-form');
- const yrs=yearList().filter(y=>(index.get(selection)||[]).some(x=>x.year===y));if(!yrs.includes(basisYear))basisYear=yrs.includes(year-1)?year-1:year;
+ const yrs=yearList().filter(y=>(index.get(selection)||[]).some(x=>inPeriod(x,y)));if(!yrs.includes(basisYear))basisYear=yrs.includes(year-1)?year-1:year;
  seg(form,'Volumes de référence',yrs.slice(0,4).map(y=>[y,String(y)]),basisYear,v=>{basisYear=v;drawDetail(p);});
  seg(form,'Je simule',[['target','Un nouveau prix'],['discount','Une baisse']],scenarioType,v=>{scenarioType=v;drawDetail(p);});
  if(p.unit!=='L')seg(form,'Négocier le prix',[['litre','au litre'],['unite','par '+p.unit]],mode,v=>{mode=v;drawDetail(p);});
@@ -289,7 +314,7 @@ function drawNegotiation(body,p){
  const method=el(body,'details',undefined,'ng-method');el(method,'summary','Hypothèses de la simulation');const caveat=el(method,'p');
  function update(){
   const n=negotiation(p);
-  rLabel.textContent='Économie sur les achats '+basisYear;
+  rLabel.textContent='Économie sur les achats · '+periodText(basisYear);
   compare.replaceChildren();note.hidden=true;result.dataset.tone='';
   if(!n.validUnit){rValue.textContent='—';rSub.textContent='Indique le nombre de litres par '+p.unit+' pour négocier au litre.';}
   else if(!n.volume){rValue.textContent='—';rSub.textContent='Aucune quantité exploitable sur '+basisYear+'.';}
@@ -304,7 +329,7 @@ function drawNegotiation(body,p){
    el(compare,'span','→','ng-arrow').setAttribute('aria-hidden','true');
    col('Après négociation',n.newPrice,n.volume*n.newPrice,'is-new');
   }
-  caveat.textContent='Simulation non enregistrée, le tarif réel ne change pas. '+n.monthsKnown+' mois avec achats en '+basisYear+'. '+(n.flagged?n.flagged+' ligne(s) incertaine(s). ':'')+(n.missing?'Prix avec droits manquant sur '+n.missing+' ligne(s). ':'')+'Gain théorique à quantités achetées et prix de vente constants : ce n’est ni un gain de chiffre d’affaires, ni une prévision de ventes. Factures manquantes, avoirs et conditionnements non rapprochés exclus.';
+  caveat.textContent='Simulation non enregistrée, le tarif réel ne change pas. '+n.monthsKnown+' mois avec achats en '+periodText(basisYear)+'. '+(n.flagged?n.flagged+' ligne(s) incertaine(s). ':'')+(n.missing?'Prix avec droits manquant sur '+n.missing+' ligne(s). ':'')+'Gain théorique à quantités achetées et prix de vente constants : ce n’est ni un gain de chiffre d’affaires, ni une prévision de ventes. Factures manquantes, avoirs et conditionnements non rapprochés exclus.';
  }
  update();
  btn(body,'Voir l’effet sur la marge au verre →','ng-ghost',()=>{tab='marge';drawDetail(p);});
@@ -354,6 +379,7 @@ function open(event){
  if(d.reference)search=d.reference;else if(d.name)search=d.name;else if(d.supplier)search=d.supplier;
  page=0;selection='';tab='achats';pane();if(loaded)render();
 }
+window.addEventListener('prism-analysis-period-change',event=>{const next=event.detail?.basis;if(!['fiscal','civil','custom'].includes(next)||next===periodMode)return;periodMode=next;const ys=availableYears();if(ys.length&&!ys.includes(year))year=ys[0];basisYear=year-1;page=0;selection='';if(overlay&&loaded)render();});
 window.addEventListener('prism-open-purchase-analysis',open);
 window.PrismPurchaseAnalysis={open:()=>open()};
 })();
