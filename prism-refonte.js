@@ -501,7 +501,7 @@
 
   function start() {
     mountToggle(); setMeta(); mountSiteSwitch(); fixHeader();
-    if (!document.getElementById('prism-accueil-js')) { var sa = document.createElement('script'); sa.id = 'prism-accueil-js'; sa.src = './prism-accueil.js?v=8'; document.body.appendChild(sa); }
+    if (!document.getElementById('prism-accueil-js')) { var sa = document.createElement('script'); sa.id = 'prism-accueil-js'; sa.src = './prism-accueil.js?v=20261123-fiscal-home'; document.body.appendChild(sa); }
     var hdr = document.querySelector('body>.header');
     if (hdr) new MutationObserver(scheduleHeader).observe(hdr, { attributes: true, subtree: true, attributeFilter: ['style', 'class'] });
     if (typeof window.navigateApp === 'function' && !window.navigateApp.__prism) {
