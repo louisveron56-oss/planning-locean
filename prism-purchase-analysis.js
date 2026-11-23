@@ -28,7 +28,10 @@ let year=2026,basisYear=2025,search='',supplier='',page=0,selection='',discount=
 let tab='achats';
 /* Sélecteur d'analyse. Les lots historiques sont agrégés au mois :
    les plages libres portent sur des mois complets, sans inventer de totaux journaliers. */
-let periodMode='civil',customStart='2026-01',customEnd='2026-12';
+const periodStorageKey='prism-analysis-period-mode-v1';
+function readPeriod(){try{const p=localStorage.getItem(periodStorageKey);return ['fiscal','civil','custom'].includes(p)?p:'fiscal';}catch(_){return 'fiscal';}}
+function writePeriod(value){try{localStorage.setItem(periodStorageKey,value);}catch(_){}window.dispatchEvent(new CustomEvent('prism-analysis-period-change',{detail:{basis:value}}));}
+let periodMode=readPeriod(),customStart='2026-01',customEnd='2026-12';
 const rowMonth=x=>String(x.year)+'-'+String(x.month).padStart(2,'0');
 const shiftMonth=(m,n)=>(Number(m.slice(0,4))+n)+'-'+m.slice(5,7);
 function periodRange(y){
@@ -133,7 +136,7 @@ function render(){
  q.oninput=()=>{search=q.value;page=0;drawContent();};
  const periodControls=el(filters,'div',undefined,'ng-seg');
  periodControls.setAttribute('role','group');periodControls.setAttribute('aria-label','Type de période des achats');
- [['fiscal','Fiscale'],['civil','Civile'],['custom','Personnalisée']].forEach(([v,t])=>{const b=btn(periodControls,t,'ng-seg-btn',()=>{periodMode=v;const opts=availableYears();if(opts.length&&!opts.includes(year))year=opts[0];basisYear=year-1;page=0;selection='';render();});b.setAttribute('aria-pressed',String(v===periodMode));});
+ [['fiscal','Fiscale'],['civil','Civile'],['custom','Personnalisée']].forEach(([v,t])=>{const b=btn(periodControls,t,'ng-seg-btn',()=>{periodMode=v;writePeriod(v);const opts=availableYears();if(opts.length&&!opts.includes(year))year=opts[0];basisYear=year-1;page=0;selection='';render();});b.setAttribute('aria-pressed',String(v===periodMode));});
  if(periodMode==='custom'){
   const rangeBox=el(filters,'div',undefined,'ng-seg');
   [['Début',customStart,true],['Fin',customEnd,false]].forEach(([label,value,isStart])=>{const l=el(rangeBox,'label',label+' · ','ng-muted');const input=el(l,'input');input.type='month';input.value=value;input.setAttribute('aria-label',label+' de la période personnalisée');input.style.cssText='width:135px;max-width:100%;font:inherit;padding:6px;border:1px solid #ccd3dc;border-radius:6px;';input.onchange=()=>{const next=input.value;if(!/^\d{4}-\d{2}$/.test(next))return;const a=isStart?next:customStart,b=isStart?customEnd:next;if(a>b){input.setCustomValidity('La fin doit être postérieure au début');input.reportValidity();return;}if((Number(b.slice(0,4))-Number(a.slice(0,4)))*12+Number(b.slice(5,7))-Number(a.slice(5,7))>35){input.setCustomValidity('Maximum 36 mois');input.reportValidity();return;}input.setCustomValidity('');if(isStart)customStart=next;else customEnd=next;const ys=availableYears();if(ys.length&&!ys.includes(year))year=ys[0];basisYear=year-1;render();};});
@@ -376,6 +379,7 @@ function open(event){
  if(d.reference)search=d.reference;else if(d.name)search=d.name;else if(d.supplier)search=d.supplier;
  page=0;selection='';tab='achats';pane();if(loaded)render();
 }
+window.addEventListener('prism-analysis-period-change',event=>{const next=event.detail?.basis;if(!['fiscal','civil','custom'].includes(next)||next===periodMode)return;periodMode=next;const ys=availableYears();if(ys.length&&!ys.includes(year))year=ys[0];basisYear=year-1;page=0;selection='';if(overlay&&loaded)render();});
 window.addEventListener('prism-open-purchase-analysis',open);
 window.PrismPurchaseAnalysis={open:()=>open()};
 })();
