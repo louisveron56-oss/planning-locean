@@ -398,7 +398,7 @@
       more.addEventListener('click', function () { state.tout = !state.tout; render(); });
       card.appendChild(more);
     }
-    var src = el('p', 'pva-source', 'Source : caisse KSD, totaux annuels exportés' + (fin ? ' (jusqu\'au ' + dateFr(fin) + ')' : '') +
+    var src = el('p', 'pva-source', 'Source : caisse KSD, totaux annuels exportés (année civile uniquement ; exercice fiscal non calculable sans détail daté)' + (fin ? ' (jusqu\'au ' + dateFr(fin) + ')' : '') +
       ' puis Z détaillés de chaque nuit. Montants TTC tels qu\'encaissés.');
     card.appendChild(src);
     root.appendChild(card);
