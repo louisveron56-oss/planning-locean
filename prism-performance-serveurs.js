@@ -1,10 +1,11 @@
-/* PRISM — performances annuelles KSD, données importées volontairement par l'administrateur.
+/* PRISM — ventes journalières KSD et performances annuelles importées localement.
    Aucun nom/CA de salarié n'est intégré au dépôt ; aucune écriture vers les ratios officiels. */
 (function(){
 'use strict';
 if(window.__prismAnnualServers)return;window.__prismAnnualServers=true;
 const KEY='prism-kds-annual-servers-v1';
 let data=null,year='2026',family='Toutes',search='',metric='ca',includeTechnical=false,selected=null,loaded=false;
+let dailyMode=true, dailyRows=null, dailyDate='', dailyLoading=false, dailyError='';
 const nf=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0});
 const eur=new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0});
 const pct=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:1});
@@ -55,10 +56,116 @@ function download(text,filename,mime){
  const blob=new Blob([text],{type:mime||'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),a=el('a');
  a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),500);
 }
+function closureDate(value) {
+ const text = String(value ?? '').trim();
+ const french = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+ if (french) return french[3] + '-' + french[2].padStart(2, '0') + '-' + french[1].padStart(2, '0');
+ if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+ const timestamp = new Date(text);
+ return Number.isNaN(timestamp.getTime()) ? '' : new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(timestamp);
+}
+async function loadDaily() {
+ if (dailyLoading || dailyRows) return;
+ dailyLoading = true;
+ dailyError = '';
+ render();
+ try {
+  const user = window.netlifyIdentity?.currentUser();
+  if (!user) throw Error('Connexion nécessaire.');
+  const token = await user.jwt();
+  const rows = [];
+  let total = 1;
+  for (let start = 1; start <= total; start += 1000) {
+   const response = await fetch('/.netlify/functions/sales-details?sheet=Serveurs&start=' + start, {
+    headers: { Authorization: 'Bearer ' + token },
+    cache: 'no-store',
+    signal: AbortSignal.timeout(25000)
+   });
+   const page = await response.json();
+   if (!response.ok) throw Error(page.error || 'Lecture des ventes par serveur indisponible.');
+   rows.push(...page.rows);
+   total = Number(page.totalRows) || rows.length;
+  }
+  const [headers = [], ...records] = rows;
+  const unique = new Map();
+  for (const record of records) {
+   const row = Object.fromEntries(headers.map((header, index) => [header, record[index]]));
+   const date = closureDate(row.date);
+   if (!date || !row.z || !row.serveur || !/^l['’]océan$/i.test(String(row.etablissement || '').trim())) continue;
+   unique.set(JSON.stringify([date, String(row.z), row.serveur]), { ...row, date });
+  }
+  dailyRows = Array.from(unique.values());
+  dailyDate = dailyRows.map(row => row.date).sort().pop() || '';
+ } catch (error) {
+  dailyError = error.message || 'Lecture des ventes par serveur indisponible.';
+ } finally {
+  dailyLoading = false;
+  render();
+ }
+}
+function renderDaily(root) {
+ if (dailyLoading || !dailyRows) {
+  root.append(el('p', 'pas-notice', dailyError || (dailyLoading ? 'Chargement des ventes par serveur…' : 'Charge le détail des ventes KSD.')));
+  if (!dailyLoading) {
+   const load = el('button', 'pas-button', dailyError ? 'Réessayer' : 'Charger les ventes du jour');
+   load.onclick = loadDaily;
+   root.append(load);
+  }
+  return;
+ }
+ const controls = el('div', 'pas-controls');
+ const label = el('label', '', 'Date de clôture KSD ');
+ const input = el('input');
+ input.type = 'date';
+ input.value = dailyDate;
+ input.onchange = () => { dailyDate = input.value; render(); };
+ label.append(input);
+ controls.append(label);
+ root.append(controls);
+ const rows = dailyRows.filter(row => row.date === dailyDate).sort((a, b) => number(b.ca_ttc) - number(a.ca_ttc));
+ if (!rows.length) {
+  root.append(el('p', 'pas-notice', 'Aucune vente par serveur disponible pour cette date.'));
+  return;
+ }
+ const euros = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+ const format = (value, formatter) => value == null || value === '' ? '—' : formatter.format(number(value));
+ const wrap = el('div', 'pas-scroll');
+ const table = el('table', 'pas-table');
+ const heading = table.createTHead().insertRow();
+ for (const label of ['Serveur KSD', 'Z', 'Articles', 'CA vendeur TTC', 'Couverts']) {
+  const cell = el('th', '', label);
+  cell.scope = 'col';
+  heading.append(cell);
+ }
+ const body = table.createTBody();
+ for (const row of rows) {
+  const line = body.insertRow();
+  for (const value of [row.serveur, row.z, format(row.nb_articles, nf), format(row.ca_ttc, euros), format(row.couverts, nf)]) {
+   line.append(el('td', '', value));
+  }
+ }
+ wrap.append(table);
+ root.append(wrap);
+}
 function render(){
  const root=document.getElementById('pas-root');if(!root)return;root.replaceChildren();
- const title=el('div','pas-title');title.append(el('h2','','Performance commerciale · Serveurs'),el('p','','Exports KSD annuels — lecture commerciale et simulations personnelles, sans calcul de prime ou de productivité horaire.'));
+ const title=el('div','pas-title');
+ title.append(el('h2','','Performance commerciale · Serveurs'));
  root.append(title);
+ const tabs = el('div', 'pas-controls');
+ for (const [isDaily, text] of [[true, 'Ventes par serveur · Jour'], [false, 'Analyses annuelles']]) {
+  const button = el('button', 'pas-button', text);
+  button.setAttribute('aria-pressed', String(isDaily === dailyMode));
+  button.disabled = isDaily === dailyMode;
+  button.onclick = () => {
+   dailyMode = isDaily;
+   if (isDaily && !dailyRows) loadDaily(); else render();
+  };
+  tabs.append(button);
+ }
+ root.append(tabs);
+ if (dailyMode) { renderDaily(root); return; }
+ title.append(el('p','','Exports KSD annuels — lecture commerciale et simulations personnelles, sans calcul de prime ou de productivité horaire.'));
  const help=el('div','pas-help'),file=el('input');file.type='file';file.accept='.csv,.json,text/csv,application/json';file.multiple=true;file.id='pas-upload';
  let label=el('label','pas-import','Importer les exports KSD (.csv) ou le fichier consolidé (.json)');label.htmlFor=file.id;
  file.onchange=async()=>{try{
@@ -116,10 +223,19 @@ function mount(){
  const shell=sec.querySelector('.module-shell')||sec,old=shell.querySelectorAll('.module-lead,.future-panel-grid,.module-placeholder');
  old.forEach(x=>x.style.display='none');
  const root=el('div','pas-root');root.id='pas-root';shell.prepend(root);
- let css=el('style');css.textContent='.pas-root{max-width:1320px;color:#302b26}.pas-title h2{font-size:21px;margin:4px 0}.pas-title p,.pas-muted{font-size:12px;color:#81776e}.pas-help,.pas-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:18px 0}.pas-import,.pas-button{font:inherit;font-size:12px;border:1px solid #cbbfac;padding:10px 12px;border-radius:8px;background:#fff;color:#43372c;cursor:pointer}.pas-import{background:#ede6dc;font-weight:600}.pas-help input[type=file]{position:absolute;left:-9999px}.pas-controls input[type=search],.pas-controls select{font-size:12px;padding:10px;background:#fff;color:#2e2925;border:1px solid #d5ccbe;border-radius:8px;min-width:125px}.pas-controls input[type=search]{flex:1}.pas-toggle{font-size:11px;display:flex;gap:7px;align-items:center}.pas-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.pas-stat{border:1px solid #ded6ca;padding:14px;background:#fff;border-radius:10px;display:flex;flex-direction:column;gap:5px}.pas-stat strong{font-size:19px}.pas-stat small{font-size:10px;color:#777}.pas-notice{margin:16px 0;padding:12px;background:#f8f0e7;color:#785d43;border-radius:8px;font-size:11px;line-height:1.6}.pas-scroll{overflow:auto;border:1px solid #ded6ca;border-radius:10px;background:#fff}.pas-table{width:100%;border-collapse:collapse;font-size:12px}.pas-table th{background:#f5f1eb;color:#675d52}.pas-table td,.pas-table th{text-align:left;padding:10px;border-bottom:1px solid #eee7dd;white-space:nowrap}.pas-detail{border:1px solid #ded6ca;border-radius:10px;margin:16px 0;padding:16px;background:#fff}.pas-detail h3{font-size:16px}.pas-bar-line{display:grid;grid-template-columns:minmax(130px,200px) 1fr 100px;gap:12px;align-items:center;font-size:11px;margin:9px 0}.pas-bar-track{height:10px;background:#eee9e2;border-radius:9px;overflow:hidden}.pas-bar-fill{height:100%;background:#85725f}.pas-bar-line strong{text-align:right}@media(max-width:850px){.pas-stats{grid-template-columns:repeat(2,1fr)}}@media(max-width:540px){.pas-stats{grid-template-columns:1fr}.pas-bar-line{grid-template-columns:100px 1fr 75px}}';document.head.append(css);
+ let css=el('style');css.textContent='.pas-root{max-width:1320px;color:#302b26}.pas-title h2{font-size:21px;margin:4px 0}.pas-title p,.pas-muted{font-size:12px;color:#81776e}.pas-help,.pas-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:18px 0}.pas-import,.pas-button{font:inherit;font-size:12px;border:1px solid #cbbfac;padding:10px 12px;border-radius:8px;background:#fff;color:#43372c;cursor:pointer}.pas-import{background:#ede6dc;font-weight:600}.pas-help input[type=file]{position:absolute;left:-9999px}.pas-controls input[type=date],.pas-controls input[type=search],.pas-controls select{font-size:12px;padding:10px;background:#fff;color:#2e2925;border:1px solid #d5ccbe;border-radius:8px;min-width:125px}.pas-controls input[type=search]{flex:1}.pas-toggle{font-size:11px;display:flex;gap:7px;align-items:center}.pas-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.pas-stat{border:1px solid #ded6ca;padding:14px;background:#fff;border-radius:10px;display:flex;flex-direction:column;gap:5px}.pas-stat strong{font-size:19px}.pas-stat small{font-size:10px;color:#777}.pas-notice{margin:16px 0;padding:12px;background:#f8f0e7;color:#785d43;border-radius:8px;font-size:11px;line-height:1.6}.pas-scroll{overflow:auto;border:1px solid #ded6ca;border-radius:10px;background:#fff}.pas-table{width:100%;border-collapse:collapse;font-size:12px}.pas-table th{background:#f5f1eb;color:#675d52}.pas-table td,.pas-table th{text-align:left;padding:10px;border-bottom:1px solid #eee7dd;white-space:nowrap}.pas-detail{border:1px solid #ded6ca;border-radius:10px;margin:16px 0;padding:16px;background:#fff}.pas-detail h3{font-size:16px}.pas-bar-line{display:grid;grid-template-columns:minmax(130px,200px) 1fr 100px;gap:12px;align-items:center;font-size:11px;margin:9px 0}.pas-bar-track{height:10px;background:#eee9e2;border-radius:9px;overflow:hidden}.pas-bar-fill{height:100%;background:#85725f}.pas-bar-line strong{text-align:right}@media(max-width:850px){.pas-stats{grid-template-columns:repeat(2,1fr)}}@media(max-width:540px){.pas-stats{grid-template-columns:1fr}.pas-bar-line{grid-template-columns:100px 1fr 75px}}';document.head.append(css);
  try{let saved=localStorage.getItem(KEY);if(saved)data=normalize(JSON.parse(saved))}catch(e){}
- const ob=new MutationObserver(()=>{if(sec.classList.contains('open')&&!loaded){loaded=true;render()}});
- ob.observe(sec,{attributes:true,attributeFilter:['class']});render();return true;
+ const open = () => {
+  if (sec.classList.contains('open') && !loaded) {
+   loaded = true;
+   loadDaily();
+  }
+ };
+ const ob = new MutationObserver(open);
+ ob.observe(sec, { attributes: true, attributeFilter: ['class'] });
+ render();
+ open();
+ return true;
 }
 function start(){if(!mount())setTimeout(start,250)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();

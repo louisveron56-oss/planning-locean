@@ -159,7 +159,7 @@
       var user = window.netlifyIdentity && window.netlifyIdentity.currentUser();
       if (!user) throw new Error('Connexion nécessaire');
       var token = await user.jwt();
-      var results = await Promise.all(['Jours', 'Articles', 'Serveurs'].map(function (name) {
+      var results = await Promise.all(['Jours', 'Articles'].map(function (name) {
         return sheet(name, token);
       }));
       daily.rows = results.map(function (rows, index) {
@@ -167,7 +167,7 @@
         rows.forEach(function (row) {
           var date = jour(row.date);
           if (!date || !row.z || !/^l['’]océan$/i.test(String(row.etablissement || '').trim())) return;
-          var detail = index === 1 ? [row.code_famille, row.id_article || row.article] : index === 2 ? [row.serveur] : [];
+          var detail = index === 1 ? [row.code_famille, row.id_article || row.article] : [];
           unique.set(JSON.stringify([date, String(row.z)].concat(detail)), Object.assign({}, row, { date: date }));
         });
         return Array.from(unique.values());
@@ -367,9 +367,6 @@
     updateResults();
     dailyTable(root, 'Clôtures KSD', ['Z', 'CA TTC du Z', 'Encaissements', 'Couverts'], selected[0].map(function (row) {
       return [row.z, amount(row.ca_ttc), amount(row.encaissements), count(row.couverts)];
-    }));
-    dailyTable(root, 'Ventes par serveur', ['Serveur', 'Z', 'Articles', 'CA vendeur TTC', 'Couverts'], selected[2].map(function (row) {
-      return [row.serveur, row.z, count(row.nb_articles), amount(row.ca_ttc), count(row.couverts)];
     }));
   }
 
