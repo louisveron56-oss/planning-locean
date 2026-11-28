@@ -12,7 +12,7 @@
   var SECTION_ID = 'module-articles';
   var state = { annee: null, categorie: 'Tout', famille: 'Toutes', vue: 'articles', q: '', tri: 'ca', sens: -1, tout: false };
   var data = null, loading = false, error = null;
-  var daily = { open: false, date: '', family: '', rows: null, loading: false, error: '' };
+  var daily = { open: false, date: '', family: '', query: '', product: '', sort: 'ca', rows: null, loading: false, error: '' };
 
   var eur0 = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
   var eur2 = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -182,12 +182,12 @@
     render();
   }
 
-  function dailyTable(parent, title, headers, rows) {
+  function dailyTable(parent, title, headers, rows, empty) {
     var card = el('section', 'pva-card');
     card.appendChild(el('h2', 'pva-card-title', title));
     parent.appendChild(card);
     if (!rows.length) {
-      card.appendChild(el('p', 'pva-muted', 'Données indisponibles pour cette date.'));
+      card.appendChild(el('p', 'pva-muted', empty || 'Données indisponibles pour cette date.'));
       return;
     }
     var wrap = el('div', 'pva-table-wrap');
@@ -201,7 +201,12 @@
     var body = table.createTBody();
     rows.forEach(function (values) {
       var row = body.insertRow();
-      values.forEach(function (value) { row.appendChild(el('td', '', value)); });
+      values.forEach(function (value, index) {
+        var cell = el('td', index > 1 ? 'is-num' : '');
+        if (typeof value === 'object' && value) cell.appendChild(value);
+        else cell.textContent = value == null ? '—' : value;
+        row.appendChild(cell);
+      });
     });
     wrap.appendChild(table);
     card.appendChild(wrap);
@@ -219,14 +224,14 @@
     }
     if (!daily.rows) return;
 
-    var controls = el('div', 'pva-card');
+    var controls = el('div', 'pva-filters');
     var dateLabel = el('label', '', 'Date de clôture KSD ');
-    var date = el('input');
+    var date = el('input', 'pva-select');
     date.type = 'date';
     date.value = daily.date;
     date.addEventListener('change', function () {
       daily.date = date.value;
-      daily.family = '';
+      daily.family = daily.query = daily.product = '';
       render();
     });
     dateLabel.appendChild(date);
@@ -238,27 +243,130 @@
     });
     function amount(value) { return has(value) ? eur2.format(num(value)) : '—'; }
     function count(value) { return has(value) ? int.format(num(value)) : '—'; }
+    function normalize(value) {
+      return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    }
+
+    var products = new Map();
+    selected[1].forEach(function (row) {
+      var key = JSON.stringify([famille(row), String(row.id_article || row.article)]);
+      if (!products.has(key)) products.set(key, { key: key, name: row.article, family: famille(row), ca: 0, quantity: 0 });
+      var product = products.get(key);
+      product.ca += num(row.ca_ttc);
+      product.quantity += num(row.quantite);
+    });
+    var allProducts = Array.from(products.values());
+    var families = Array.from(new Set(allProducts.map(function (product) { return product.family; })));
+    families.sort(function (a, b) { return a.localeCompare(b, 'fr'); });
+
+    var search = el('label', 'pva-search');
+    search.appendChild(el('span', 'pva-sr', 'Rechercher un article'));
+    var input = el('input');
+    input.type = 'search';
+    input.placeholder = 'Rechercher un article…';
+    input.value = daily.query;
+    search.appendChild(input);
+    controls.appendChild(search);
+
+    var sortLabel = el('label', '', 'Trier par ');
+    var sort = el('select', 'pva-select');
+    var sorts = [
+      ['ca', 'CA décroissant'],
+      ['ca-asc', 'CA croissant'],
+      ['family', 'Famille A–Z'],
+      ['quantity', 'Quantité décroissante'],
+      ['name', 'Article A–Z']
+    ];
+    sorts.forEach(function (entry) {
+      var option = el('option', '', entry[1]);
+      option.value = entry[0];
+      sort.appendChild(option);
+    });
+    sort.value = daily.sort;
+    sortLabel.appendChild(sort);
+    controls.appendChild(sortLabel);
+
+    var explorer = el('div', 'pva-daily-results');
+    root.appendChild(explorer);
+
+    function updateResults() {
+      explorer.textContent = '';
+      if (families.length) {
+        var familyNav = el('div', 'pva-pills');
+        familyNav.setAttribute('role', 'group');
+        familyNav.setAttribute('aria-label', 'Familles KSD');
+        [''].concat(families).forEach(function (name) {
+          familyNav.appendChild(pill(name || 'Toutes les familles', daily.family === name, function () {
+            daily.family = name;
+            daily.product = '';
+            updateResults();
+          }));
+        });
+        explorer.appendChild(familyNav);
+      }
+
+      var query = normalize(daily.query);
+      var matches = allProducts.filter(function (product) {
+        return (!daily.family || product.family === daily.family) && normalize(product.name).includes(query);
+      });
+      var picked = matches.find(function (product) { return product.key === daily.product; });
+      var visible = picked ? [picked] : matches;
+      var selectedCa = visible.reduce(function (total, product) { return total + product.ca; }, 0);
+      var selectedQty = visible.reduce(function (total, product) { return total + product.quantity; }, 0);
+      var totalCa = selected[0].length && selected[0].every(function (row) { return has(row.ca_ttc); })
+        ? selected[0].reduce(function (total, row) { return total + num(row.ca_ttc); }, 0) : null;
+
+      var grid = el('div', 'pva-grid');
+      function metric(label, value, note) {
+        var hero = el('section', 'pva-hero');
+        hero.appendChild(el('span', 'pva-hero-label', label));
+        hero.appendChild(el('strong', 'pva-hero-value', amount(value)));
+        hero.appendChild(el('span', 'pva-hero-sub', note));
+        grid.appendChild(hero);
+      }
+      metric('CA TTC du jour', totalCa, dateFr(daily.date));
+      var selection = picked ? picked.name : (daily.family || 'Tous les articles') + (query ? ' · « ' + daily.query.trim() + ' »' : '');
+      metric('CA TTC · ' + selection, allProducts.length ? selectedCa : null,
+        allProducts.length ? count(selectedQty) + ' unités · ' + count(visible.length) + ' références' : 'Détail articles indisponible');
+      explorer.appendChild(grid);
+      if (picked) {
+        explorer.appendChild(pill('Afficher tous les résultats', false, function () {
+          daily.product = '';
+          updateResults();
+        }));
+      }
+
+      var byName = function (a, b) { return a.name.localeCompare(b.name, 'fr'); };
+      var comparators = {
+        ca: function (a, b) { return b.ca - a.ca; },
+        'ca-asc': function (a, b) { return a.ca - b.ca; },
+        family: function (a, b) { return a.family.localeCompare(b.family, 'fr') || b.ca - a.ca; },
+        quantity: function (a, b) { return b.quantity - a.quantity; },
+        name: byName
+      };
+      visible.sort(function (a, b) { return comparators[daily.sort](a, b) || byName(a, b); });
+      dailyTable(explorer, 'Articles vendus', ['Article', 'Famille', 'Quantité', 'CA TTC', 'Prix moyen'], visible.map(function (product) {
+        var button = pill(product.name, Boolean(picked), function () {
+          daily.product = picked ? '' : product.key;
+          updateResults();
+        });
+        return [button, product.family, count(product.quantity), amount(product.ca),
+          product.quantity > 0 ? amount(product.ca / product.quantity) : '—'];
+      }), allProducts.length ? 'Aucun article ne correspond aux filtres.' : null);
+    }
+
+    input.addEventListener('input', function () {
+      daily.query = input.value;
+      daily.product = '';
+      updateResults();
+    });
+    sort.addEventListener('change', function () {
+      daily.sort = sort.value;
+      updateResults();
+    });
+    updateResults();
     dailyTable(root, 'Clôtures KSD', ['Z', 'CA TTC du Z', 'Encaissements', 'Couverts'], selected[0].map(function (row) {
       return [row.z, amount(row.ca_ttc), amount(row.encaissements), count(row.couverts)];
-    }));
-    var families = Array.from(new Set(selected[1].map(famille))).sort(function (a, b) { return a.localeCompare(b, 'fr'); });
-    if (families.length) {
-      var familyLabel = el('label', '', ' · Famille ');
-      var select = el('select');
-      var all = el('option', '', 'Toutes');
-      all.value = '';
-      select.appendChild(all);
-      families.forEach(function (name) { select.appendChild(el('option', '', name)); });
-      select.value = daily.family;
-      select.addEventListener('change', function () { daily.family = select.value; render(); });
-      familyLabel.appendChild(select);
-      controls.appendChild(familyLabel);
-    }
-    var articles = selected[1].filter(function (row) { return !daily.family || famille(row) === daily.family; });
-    articles.sort(function (a, b) { return num(b.ca_ttc) - num(a.ca_ttc); });
-    dailyTable(root, 'Articles vendus', ['Article', 'Famille', 'Z', 'Quantité', 'Montant TTC', 'Prix moyen'], articles.map(function (row) {
-      return [row.article, famille(row), row.z, count(row.quantite), amount(row.ca_ttc),
-        num(row.quantite) > 0 && has(row.ca_ttc) ? amount(num(row.ca_ttc) / num(row.quantite)) : '—'];
     }));
     dailyTable(root, 'Ventes par serveur', ['Serveur', 'Z', 'Articles', 'CA vendeur TTC', 'Couverts'], selected[2].map(function (row) {
       return [row.serveur, row.z, count(row.nb_articles), amount(row.ca_ttc), count(row.couverts)];
@@ -272,7 +380,7 @@
 
     var head = el('div', 'pva-head');
     head.appendChild(el('h1', 'pva-title', 'Ventes par article'));
-    var views = el('div');
+    var views = el('div', 'pva-pills');
     views.appendChild(pill('Analyses par période', !daily.open, function () {
       daily.open = false;
       if (!data && !loading && !error) load(); else render();

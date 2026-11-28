@@ -79,3 +79,10 @@
 #module-articles .pva-plus>summary{list-style:none;align-self:flex-start;display:inline-flex;align-items:center}
 #module-articles .pva-plus>summary::-webkit-details-marker{display:none}
 #module-articles .pva-plus[open]>summary{margin-bottom:16px}
+
+#module-articles .pva-daily-results{display:flex;flex-direction:column;gap:16px}
+#module-articles .pva-daily-results > .pva-pill{align-self:flex-start}
+#module-articles .pva-daily-results .pva-hero-value{font-size:clamp(32px,5vw,60px)}
+#module-articles .pva-daily-results .pva-table .pva-pill{text-align:left;line-height:1.25;padding-block:6px}
+#module-articles .pva-select{min-height:44px;padding:0 12px;border:1px solid var(--so-line);border-radius:12px;background:var(--so-panel);color:var(--so-ink);font:inherit}
+#module-articles .pva-select:focus-visible{outline:2px solid var(--so-gold);outline-offset:2px}
