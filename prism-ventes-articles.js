@@ -12,6 +12,7 @@
   var SECTION_ID = 'module-articles';
   var state = { annee: null, categorie: 'Tout', famille: 'Toutes', vue: 'articles', q: '', tri: 'ca', sens: -1, tout: false };
   var data = null, loading = false, error = null;
+  var daily = { open: false, date: '', family: '', rows: null, loading: false, error: '' };
 
   var eur0 = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
   var eur2 = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -149,6 +150,121 @@
     return box;
   }
 
+  async function loadDaily() {
+    if (daily.loading) return;
+    daily.loading = true;
+    daily.error = '';
+    render();
+    try {
+      var user = window.netlifyIdentity && window.netlifyIdentity.currentUser();
+      if (!user) throw new Error('Connexion nécessaire');
+      var token = await user.jwt();
+      var results = await Promise.all(['Jours', 'Articles', 'Serveurs'].map(function (name) {
+        return sheet(name, token);
+      }));
+      daily.rows = results.map(function (rows, index) {
+        var unique = new Map();
+        rows.forEach(function (row) {
+          var date = jour(row.date);
+          if (!date || !row.z || !/^l['’]océan$/i.test(String(row.etablissement || '').trim())) return;
+          var detail = index === 1 ? [row.code_famille, row.id_article || row.article] : index === 2 ? [row.serveur] : [];
+          unique.set(JSON.stringify([date, String(row.z)].concat(detail)), Object.assign({}, row, { date: date }));
+        });
+        return Array.from(unique.values());
+      });
+      var dates = daily.rows[1].map(function (row) { return row.date; });
+      if (!dates.length) dates = daily.rows[0].map(function (row) { return row.date; });
+      daily.date = dates.sort().pop() || '';
+    } catch (e) {
+      daily.error = e.message || String(e);
+    }
+    daily.loading = false;
+    render();
+  }
+
+  function dailyTable(parent, title, headers, rows) {
+    var card = el('section', 'pva-card');
+    card.appendChild(el('h2', 'pva-card-title', title));
+    parent.appendChild(card);
+    if (!rows.length) {
+      card.appendChild(el('p', 'pva-muted', 'Données indisponibles pour cette date.'));
+      return;
+    }
+    var wrap = el('div', 'pva-table-wrap');
+    var table = el('table', 'pva-table');
+    var heading = table.createTHead().insertRow();
+    headers.forEach(function (label) {
+      var th = el('th', '', label);
+      th.scope = 'col';
+      heading.appendChild(th);
+    });
+    var body = table.createTBody();
+    rows.forEach(function (values) {
+      var row = body.insertRow();
+      values.forEach(function (value) { row.appendChild(el('td', '', value)); });
+    });
+    wrap.appendChild(table);
+    card.appendChild(wrap);
+  }
+
+  function renderDaily(root) {
+    if (daily.loading) {
+      root.appendChild(el('p', 'pva-muted', 'Chargement des clôtures KSD…'));
+      return;
+    }
+    if (daily.error) {
+      root.appendChild(el('p', 'pva-muted', daily.error));
+      root.appendChild(pill('Réessayer', false, loadDaily));
+      return;
+    }
+    if (!daily.rows) return;
+
+    var controls = el('div', 'pva-card');
+    var dateLabel = el('label', '', 'Date de clôture KSD ');
+    var date = el('input');
+    date.type = 'date';
+    date.value = daily.date;
+    date.addEventListener('change', function () {
+      daily.date = date.value;
+      daily.family = '';
+      render();
+    });
+    dateLabel.appendChild(date);
+    controls.appendChild(dateLabel);
+    root.appendChild(controls);
+
+    var selected = daily.rows.map(function (rows) {
+      return rows.filter(function (row) { return row.date === daily.date; });
+    });
+    function amount(value) { return has(value) ? eur2.format(num(value)) : '—'; }
+    function count(value) { return has(value) ? int.format(num(value)) : '—'; }
+    dailyTable(root, 'Clôtures KSD', ['Z', 'CA TTC du Z', 'Encaissements', 'Couverts'], selected[0].map(function (row) {
+      return [row.z, amount(row.ca_ttc), amount(row.encaissements), count(row.couverts)];
+    }));
+    var families = Array.from(new Set(selected[1].map(famille))).sort(function (a, b) { return a.localeCompare(b, 'fr'); });
+    if (families.length) {
+      var familyLabel = el('label', '', ' · Famille ');
+      var select = el('select');
+      var all = el('option', '', 'Toutes');
+      all.value = '';
+      select.appendChild(all);
+      families.forEach(function (name) { select.appendChild(el('option', '', name)); });
+      select.value = daily.family;
+      select.addEventListener('change', function () { daily.family = select.value; render(); });
+      familyLabel.appendChild(select);
+      controls.appendChild(familyLabel);
+    }
+    var articles = selected[1].filter(function (row) { return !daily.family || famille(row) === daily.family; });
+    articles.sort(function (a, b) { return num(b.ca_ttc) - num(a.ca_ttc); });
+    dailyTable(root, 'Articles vendus', ['Article', 'Famille', 'Z', 'Quantité', 'Montant TTC', 'Prix moyen'], articles.map(function (row) {
+      return [row.article, famille(row), row.z, count(row.quantite), amount(row.ca_ttc),
+        num(row.quantite) > 0 && has(row.ca_ttc) ? amount(num(row.ca_ttc) / num(row.quantite)) : '—'];
+    }));
+    dailyTable(root, 'Ventes par serveur', ['Serveur', 'Z', 'Articles', 'CA vendeur TTC', 'Couverts'], selected[2].map(function (row) {
+      return [row.serveur, row.z, count(row.nb_articles), amount(row.ca_ttc), count(row.couverts)];
+    }));
+  }
+
   function render() {
     var root = document.getElementById('pva-root');
     if (!root) return;
@@ -156,7 +272,18 @@
 
     var head = el('div', 'pva-head');
     head.appendChild(el('h1', 'pva-title', 'Ventes par article'));
+    var views = el('div');
+    views.appendChild(pill('Analyses par période', !daily.open, function () {
+      daily.open = false;
+      if (!data && !loading && !error) load(); else render();
+    }));
+    views.appendChild(pill('Ventes du jour', daily.open, function () {
+      daily.open = true;
+      if (!daily.rows && !daily.loading) loadDaily(); else render();
+    }));
+    head.appendChild(views);
     root.appendChild(head);
+    if (daily.open) { renderDaily(root); return; }
 
     if (loading && !data) { root.appendChild(el('p', 'pva-muted', 'Chargement des ventes…')); return; }
     if (error) {
